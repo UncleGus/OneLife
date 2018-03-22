@@ -20,9 +20,6 @@ typedef struct TransRecord {
         // then target decays to newTarget automatically in autoDecaySeconds
         // if -1, decays according to server epoch time setting
         int autoDecaySeconds;
-
-        // chance that the tool (actor) will break during this transaction
-        float breakChance;
         
         // flag that this decay time is epoch time
         // 0 of not epoch, or N for the number of epochs
@@ -59,6 +56,11 @@ typedef struct TransRecord {
         // for things that move longer distances per move
         int desiredMoveDist;
 
+        // probability of the tool (actor) breaking when used in this transition
+        float breakChance;
+
+        // object id to place in the player's hand instead of newActor if the tool breaks
+        int brokenActor;
         
     } TransRecord;
 
@@ -170,6 +172,8 @@ void addTrans( int inActor, int inTarget,
                float inTargetMinUseFraction,
                int inMove,
                int inDesiredMoveDist,
+               float inBreakChance,
+               int inBrokenActor,
                char inNoWriteToFile = false );
 
 

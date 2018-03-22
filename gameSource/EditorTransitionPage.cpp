@@ -78,10 +78,6 @@ EditorTransitionPage::EditorTransitionPage()
                                0,  -170, 6,
                                false,
                                "AutoDecay Seconds", "-0123456789", NULL ),
-          mBreakChance( smallFont,
-                               0,  -200, 6,
-                               false,
-                               "Tool Break Chance", "-0123456789.", NULL ),
           mLastUseActorCheckbox( -330, 75, 2 ),
           mLastUseTargetCheckbox( 130, 75, 2 ),
           mReverseUseActorCheckbox( -330, -75, 2 ),
@@ -123,8 +119,6 @@ EditorTransitionPage::EditorTransitionPage()
 
     addComponent( &mAutoDecayTimeField );
     mAutoDecayTimeField.setVisible( false );
-
-    addComponent( &mBreakChance );
     
     addComponent( &mLastUseActorCheckbox );
     mLastUseActorCheckbox.addActionListener( this );
@@ -621,7 +615,9 @@ void EditorTransitionPage::actionPerformed( GUIComponent *inTarget ) {
                   mActorMinUseFractionField.getFloat(),
                   mTargetMinUseFractionField.getFloat(),
                   mMovementButtons.getSelectedItem(),
-                  mDesiredMoveDistField.getInt() );
+                  mDesiredMoveDistField.getInt(),
+                  0.0f,
+                  0 );
             
         redoTransSearches( mLastSearchID, true );
         }

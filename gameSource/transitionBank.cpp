@@ -128,16 +128,14 @@ float initTransBankStep() {
 
                 int move = 0;
                 int desiredMoveDist = 1;
-                float breakChance = 0.0f;
                 
-                sscanf( contents, "%d %d %d %f %f %d %d %d %d %f", 
+                sscanf( contents, "%d %d %d %f %f %d %d %d %d", 
                         &newActor, &newTarget, &autoDecaySeconds,
                         &actorMinUseFraction, &targetMinUseFraction,
                         &reverseUseActorFlag,
                         &reverseUseTargetFlag,
                         &move,
-                        &desiredMoveDist,
-                        &breakChance );
+                        &desiredMoveDist );
                 
                 if( autoDecaySeconds < 0 ) {
                     epochAutoDecay = -autoDecaySeconds;
@@ -150,7 +148,6 @@ float initTransBankStep() {
                 r->newActor = newActor;
                 r->newTarget = newTarget;
                 r->autoDecaySeconds = autoDecaySeconds;
-                r->breakChance = breakChance;
                 r->epochAutoDecay = epochAutoDecay;
                 r->lastUseActor = lastUseActor;
                 r->lastUseTarget = lastUseTarget;
@@ -336,6 +333,7 @@ void initTransBankFinish() {
                               tr->move,
                               tr->desiredMoveDist,
                               tr->breakChance,
+                              tr->brokenActor,
                               true );
                     }
                 }
@@ -443,6 +441,8 @@ void initTransBankFinish() {
                       tr.targetMinUseFraction,
                       tr.move,
                       tr.desiredMoveDist,
+                      tr.breakChance,
+                      tr.brokenActor,
                       true );
             }
         
@@ -781,6 +781,8 @@ void initTransBankFinish() {
                               newTrans->targetMinUseFraction,
                               newTrans->move,
                               newTrans->desiredMoveDist,
+                              newTrans->breakChance,
+                              newTrans->brokenActor,
                               true );
                     numGenerated++;
                     }
@@ -1362,6 +1364,7 @@ void addTrans( int inActor, int inTarget,
                int inMove,
                int inDesiredMoveDist,
                float inBreakChance,
+               int inBrokenActor,
                char inNoWriteToFile ) {
     
     // exapand id-indexed maps if a bigger ID is being added    
@@ -1439,6 +1442,7 @@ void addTrans( int inActor, int inTarget,
         t->desiredMoveDist = inMove;
 
         t->breakChance = inBreakChance;
+        t->brokenActor = inBrokenActor;
         
         records.push_back( t );
 
@@ -1477,7 +1481,8 @@ void addTrans( int inActor, int inTarget,
             t->reverseUseTarget == inReverseUseTarget &&
             t->move == inMove &&
             t->desiredMoveDist == inDesiredMoveDist &&
-            t->breakChance == inBreakChance ) {
+            t->breakChance == inBreakChance &&
+            t->brokenActor == inBrokenActor ) {
             
             // no change to produces map either... 
 
@@ -1513,6 +1518,7 @@ void addTrans( int inActor, int inTarget,
             t->desiredMoveDist = inDesiredMoveDist;
 
             t->breakChance = inBreakChance;
+            t->brokenActor = inBrokenActor;
             
             if( inNewActor != 0 ) {
                 producesMap[inNewActor].push_back( t );
@@ -1568,7 +1574,7 @@ void addTrans( int inActor, int inTarget,
                 reverseUseTargetFlag = 1;
                 }
 
-            char *fileContents = autoSprintf( "%d %d %d %f %f %d %d %d %d %f", 
+            char *fileContents = autoSprintf( "%d %d %d %f %f %d %d %d %d %f %d", 
                                               inNewActor, inNewTarget,
                                               inAutoDecaySeconds,
                                               inActorMinUseFraction,
@@ -1577,7 +1583,8 @@ void addTrans( int inActor, int inTarget,
                                               reverseUseTargetFlag,
                                               inMove,
                                               inDesiredMoveDist,
-                                              inBreakChance );
+                                              inBreakChance,
+                                              inBrokenActor );
 
         
             File *cacheFile = transDir.getChildFile( "cache.fcz" );
