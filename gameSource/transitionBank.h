@@ -20,6 +20,9 @@ typedef struct TransRecord {
         // then target decays to newTarget automatically in autoDecaySeconds
         // if -1, decays according to server epoch time setting
         int autoDecaySeconds;
+
+        // chance that the tool (actor) will break during this transaction
+        float breakChance;
         
         // flag that this decay time is epoch time
         // 0 of not epoch, or N for the number of epochs

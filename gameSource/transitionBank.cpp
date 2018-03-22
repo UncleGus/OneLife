@@ -128,14 +128,16 @@ float initTransBankStep() {
 
                 int move = 0;
                 int desiredMoveDist = 1;
+                float breakChance = 0.0f;
                 
-                sscanf( contents, "%d %d %d %f %f %d %d %d %d", 
+                sscanf( contents, "%d %d %d %f %f %d %d %d %d %f", 
                         &newActor, &newTarget, &autoDecaySeconds,
                         &actorMinUseFraction, &targetMinUseFraction,
                         &reverseUseActorFlag,
                         &reverseUseTargetFlag,
                         &move,
-                        &desiredMoveDist );
+                        &desiredMoveDist,
+                        &breakChance );
                 
                 if( autoDecaySeconds < 0 ) {
                     epochAutoDecay = -autoDecaySeconds;
@@ -148,6 +150,7 @@ float initTransBankStep() {
                 r->newActor = newActor;
                 r->newTarget = newTarget;
                 r->autoDecaySeconds = autoDecaySeconds;
+                r->breakChance = breakChance;
                 r->epochAutoDecay = epochAutoDecay;
                 r->lastUseActor = lastUseActor;
                 r->lastUseTarget = lastUseTarget;
@@ -332,6 +335,7 @@ void initTransBankFinish() {
                               tr->targetMinUseFraction, 
                               tr->move,
                               tr->desiredMoveDist,
+                              tr->breakChance,
                               true );
                     }
                 }
@@ -1357,6 +1361,7 @@ void addTrans( int inActor, int inTarget,
                float inTargetMinUseFraction,
                int inMove,
                int inDesiredMoveDist,
+               float inBreakChance,
                char inNoWriteToFile ) {
     
     // exapand id-indexed maps if a bigger ID is being added    
@@ -1432,6 +1437,8 @@ void addTrans( int inActor, int inTarget,
         
         t->move = inMove;
         t->desiredMoveDist = inMove;
+
+        t->breakChance = inBreakChance;
         
         records.push_back( t );
 
@@ -1469,7 +1476,8 @@ void addTrans( int inActor, int inTarget,
             t->reverseUseActor == inReverseUseActor &&
             t->reverseUseTarget == inReverseUseTarget &&
             t->move == inMove &&
-            t->desiredMoveDist == inDesiredMoveDist ) {
+            t->desiredMoveDist == inDesiredMoveDist &&
+            t->breakChance == inBreakChance ) {
             
             // no change to produces map either... 
 
@@ -1503,6 +1511,8 @@ void addTrans( int inActor, int inTarget,
             
             t->move = inMove;
             t->desiredMoveDist = inDesiredMoveDist;
+
+            t->breakChance = inBreakChance;
             
             if( inNewActor != 0 ) {
                 producesMap[inNewActor].push_back( t );
@@ -1558,7 +1568,7 @@ void addTrans( int inActor, int inTarget,
                 reverseUseTargetFlag = 1;
                 }
 
-            char *fileContents = autoSprintf( "%d %d %d %f %f %d %d %d %d", 
+            char *fileContents = autoSprintf( "%d %d %d %f %f %d %d %d %d %f", 
                                               inNewActor, inNewTarget,
                                               inAutoDecaySeconds,
                                               inActorMinUseFraction,
@@ -1566,7 +1576,8 @@ void addTrans( int inActor, int inTarget,
                                               reverseUseActorFlag,
                                               reverseUseTargetFlag,
                                               inMove,
-                                              inDesiredMoveDist );
+                                              inDesiredMoveDist,
+                                              inBreakChance );
 
         
             File *cacheFile = transDir.getChildFile( "cache.fcz" );
