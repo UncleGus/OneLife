@@ -48,3 +48,4 @@ gameSource/settings/useCustomServer.ini
 server/runServer.bat
 server/settings/forceEveLocation.ini
 server/settings/requireTicketServerCheck.ini
+gameSource/log.txt.backup
