@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <float.h>
 
+#include <time.h>
 
 #include "minorGems/util/stringUtils.h"
 #include "minorGems/util/SettingsManager.h"
@@ -3558,6 +3559,8 @@ static void sendMessageToPlayer( LiveObject *inPlayer,
 
 int main() {
 
+    srand (time(NULL));
+
     nextID = 
         SettingsManager::getIntSetting( "nextPlayerID", 2 );
 
@@ -5304,9 +5307,18 @@ int main() {
                                                                m.y ) ) ) {
                                     
                                     if( ! defaultTrans ) {    
-                                        handleHoldingChange( nextPlayer,
-                                                             r->newActor );
-                                        
+                                        float randomChance = rand() % 1000 / 1000.0f;
+                                        printf("Determining if tool has broken: randomChance=%f, breakChance=%f, newActor=%d, brokenActor=%d\n",
+                                                randomChance, r->breakChance, r->newActor, r->brokenActor );
+                                        if (randomChance >= r->breakChance) {
+                                            printf("Tool has not broken, using object %d\n", r->newActor);
+                                            handleHoldingChange( nextPlayer,
+                                                                r->newActor );
+                                        } else {
+                                            printf("Tool has broken, using object %d\n", r->brokenActor);
+                                            handleHoldingChange( nextPlayer,
+                                                                r->brokenActor );
+                                        }
                                         if( r->target > 0 ) {    
                                             nextPlayer->heldTransitionSourceID =
                                                 r->target;

@@ -172,8 +172,8 @@ void addTrans( int inActor, int inTarget,
                float inTargetMinUseFraction,
                int inMove,
                int inDesiredMoveDist,
-               float inBreakChance,
-               int inBrokenActor,
+               float inBreakChance = 0.0f,
+               int inBrokenActor = 0,
                char inNoWriteToFile = false );
 
 

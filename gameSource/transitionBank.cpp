@@ -128,14 +128,19 @@ float initTransBankStep() {
 
                 int move = 0;
                 int desiredMoveDist = 1;
+
+                float breakChance = 0.0f;
+                int brokenActor = 0;
                 
-                sscanf( contents, "%d %d %d %f %f %d %d %d %d", 
+                sscanf( contents, "%d %d %d %f %f %d %d %d %d %f %d", 
                         &newActor, &newTarget, &autoDecaySeconds,
                         &actorMinUseFraction, &targetMinUseFraction,
                         &reverseUseActorFlag,
                         &reverseUseTargetFlag,
                         &move,
-                        &desiredMoveDist );
+                        &desiredMoveDist,
+                        &breakChance,
+                        &brokenActor );
                 
                 if( autoDecaySeconds < 0 ) {
                     epochAutoDecay = -autoDecaySeconds;
@@ -155,6 +160,8 @@ float initTransBankStep() {
                 r->move = move;
                 r->desiredMoveDist = desiredMoveDist;
 
+                r->breakChance = breakChance;
+                r->brokenActor = brokenActor;
 
                 r->reverseUseActor = false;
                 if( reverseUseActorFlag == 1 ) {
