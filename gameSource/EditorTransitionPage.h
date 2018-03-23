@@ -70,7 +70,10 @@ class EditorTransitionPage : public GamePage, public ActionListener {
         RadioButtonSet mMovementButtons;
         
         TextField mDesiredMoveDistField;
-        
+
+        TextField mBreakChanceField;
+        TextField mBrokenActorField;
+
         TextField mActorMinUseFractionField, mTargetMinUseFractionField;
 
         TextButton mSaveTransitionButton;

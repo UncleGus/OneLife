@@ -88,6 +88,14 @@ EditorTransitionPage::EditorTransitionPage()
                                  240, 40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
                                  false,
                                  "Dist", "0123456789", NULL ),
+          mBreakChanceField( smallFont,
+                                 240, 0 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+                                 false,
+                                 "Break Chance", "0123456789.", NULL ),
+          mBrokenActorField( smallFont,
+                                 240, -40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+                                 false,
+                                 "Broken ID", "0123456789", NULL ),
           mActorMinUseFractionField( smallFont, 
                                      -290,  115, 4,
                                      false,
@@ -136,6 +144,9 @@ EditorTransitionPage::EditorTransitionPage()
     mMovementButtons.addActionListener( this );
     
     addComponent( &mDesiredMoveDistField );
+
+    addComponent( &mBreakChanceField );
+    addComponent( &mBrokenActorField );
 
     mActorMinUseFractionField.setFloat( 0, -1, true );
     mTargetMinUseFractionField.setFloat( 0, -1, true );
@@ -358,6 +369,12 @@ void EditorTransitionPage::checkIfSaveVisible() {
 
     mActorMinUseFractionField.setFloat( 
         mCurrentTransition.actorMinUseFraction, -1, true );
+
+    mBreakChanceField.setFloat( 
+        mCurrentTransition.breakChance, -1, true );
+
+    mBrokenActorField.setInt( 
+        mCurrentTransition.brokenActor );
     
     mTargetMinUseFractionField.setFloat( 
         mCurrentTransition.targetMinUseFraction, -1, true );
@@ -616,8 +633,8 @@ void EditorTransitionPage::actionPerformed( GUIComponent *inTarget ) {
                   mTargetMinUseFractionField.getFloat(),
                   mMovementButtons.getSelectedItem(),
                   mDesiredMoveDistField.getInt(),
-                  0.0f,
-                  0 );
+                  mBreakChanceField.getFloat(),
+                  mBrokenActorField.getInt() );
             
         redoTransSearches( mLastSearchID, true );
         }
