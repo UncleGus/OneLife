@@ -57,10 +57,16 @@ typedef struct TransRecord {
         int desiredMoveDist;
 
         // probability of the tool (actor) breaking when used in this transition
-        float breakChance;
+        float actorBreakChance;
 
         // object id to place in the player's hand instead of newActor if the tool breaks
         int brokenActor;
+
+        // probability of the product (target) breaking when used in this transition
+        float targetBreakChance;
+
+        // object id to place on the ground instead of newTarget if the product breaks
+        int brokenTarget;
         
     } TransRecord;
 
@@ -172,8 +178,10 @@ void addTrans( int inActor, int inTarget,
                float inTargetMinUseFraction,
                int inMove,
                int inDesiredMoveDist,
-               float inBreakChance = 0.0f,
+               float inActorBreakChance = 0.0f,
                int inBrokenActor = 0,
+               float inTargetBreakChance = 0.0f,
+               int inBrokenTarget = 0,
                char inNoWriteToFile = false );
 
 
@@ -195,6 +203,9 @@ char isGrave( int inObjectID );
 
 void printTrans( TransRecord *inTrans );
 
+int getActorFromBreakageCalculation( TransRecord *inTrans );
+
+int getTargetFromBreakageCalculation( TransRecord *inTrans );
 
 #define UNREACHABLE 999999999
 

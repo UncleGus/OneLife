@@ -88,14 +88,22 @@ EditorTransitionPage::EditorTransitionPage()
                                  240, 40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
                                  false,
                                  "Dist", "0123456789", NULL ),
-          mBreakChanceField( smallFont,
-                                 240, 0 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+          mActorBreakChanceField( smallFont,
+                                 -240, 0 - NUM_MOVE_BUTTONS * 20 - 30, 4,
                                  false,
-                                 "Break Chance", "0123456789.", NULL ),
+                                 "Actor Break Chance", "0123456789.", NULL ),
           mBrokenActorField( smallFont,
-                                 240, -40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+                                 -240, -40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
                                  false,
-                                 "Broken ID", "0123456789", NULL ),
+                                 "Broken Actor ID", "0123456789", NULL ),
+          mTargetBreakChanceField( smallFont,
+                                 280, 0 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+                                 false,
+                                 "Target Break Chance", "0123456789.", NULL ),
+          mBrokenTargetField( smallFont,
+                                 280, -40 - NUM_MOVE_BUTTONS * 20 - 30, 4,
+                                 false,
+                                 "Broken Target ID", "0123456789", NULL ),
           mActorMinUseFractionField( smallFont, 
                                      -290,  115, 4,
                                      false,
@@ -145,8 +153,11 @@ EditorTransitionPage::EditorTransitionPage()
     
     addComponent( &mDesiredMoveDistField );
 
-    addComponent( &mBreakChanceField );
+    addComponent( &mActorBreakChanceField );
     addComponent( &mBrokenActorField );
+
+    addComponent( &mTargetBreakChanceField );
+    addComponent( &mBrokenTargetField );
 
     mActorMinUseFractionField.setFloat( 0, -1, true );
     mTargetMinUseFractionField.setFloat( 0, -1, true );
@@ -370,11 +381,15 @@ void EditorTransitionPage::checkIfSaveVisible() {
     mActorMinUseFractionField.setFloat( 
         mCurrentTransition.actorMinUseFraction, -1, true );
 
-    mBreakChanceField.setFloat( 
-        mCurrentTransition.breakChance, -1, true );
-
+    mActorBreakChanceField.setFloat( 
+        mCurrentTransition.actorBreakChance, -1, true );
     mBrokenActorField.setInt( 
         mCurrentTransition.brokenActor );
+
+    mTargetBreakChanceField.setFloat( 
+        mCurrentTransition.targetBreakChance, -1, true );
+    mBrokenTargetField.setInt( 
+        mCurrentTransition.brokenTarget );
     
     mTargetMinUseFractionField.setFloat( 
         mCurrentTransition.targetMinUseFraction, -1, true );
@@ -633,8 +648,10 @@ void EditorTransitionPage::actionPerformed( GUIComponent *inTarget ) {
                   mTargetMinUseFractionField.getFloat(),
                   mMovementButtons.getSelectedItem(),
                   mDesiredMoveDistField.getInt(),
-                  mBreakChanceField.getFloat(),
-                  mBrokenActorField.getInt() );
+                  mActorBreakChanceField.getFloat(),
+                  mBrokenActorField.getInt(),
+                  mTargetBreakChanceField.getFloat(),
+                  mBrokenTargetField.getInt() );
             
         redoTransSearches( mLastSearchID, true );
         }

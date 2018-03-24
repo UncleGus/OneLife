@@ -71,8 +71,11 @@ class EditorTransitionPage : public GamePage, public ActionListener {
         
         TextField mDesiredMoveDistField;
 
-        TextField mBreakChanceField;
+        TextField mActorBreakChanceField;
         TextField mBrokenActorField;
+
+        TextField mTargetBreakChanceField;
+        TextField mBrokenTargetField;
 
         TextField mActorMinUseFractionField, mTargetMinUseFractionField;
 
