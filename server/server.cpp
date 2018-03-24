@@ -5177,7 +5177,10 @@ int main() {
                         // send update even if action fails (to let them
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
-                        
+
+                        int *newActorE; // new actor as evaluated by the breakage chance calculation
+                        int *newTargetE; // new target as evaluated by the breakage chance calculation
+
                         char distanceUseAllowed = false;
                         
                         if( nextPlayer->holdingID > 0 ) {
@@ -5252,6 +5255,17 @@ int main() {
                                     r = getTrans( nextPlayer->holdingID,
                                                   target );
                                     
+                                    float randomChance = rand() % 1000 / 1000.0f;
+                                    printf("Determining if tool has broken: randomChance=%f, breakChance=%f, newActor=%d, brokenActor=%d\n",
+                                            randomChance, r->breakChance, r->newActor, r->brokenActor );
+                                    if (randomChance >= r->breakChance) {
+                                        printf("Tool has not broken, using object %d\n", r->newActor);
+                                        newActorE = &r->newActor;
+                                    } else {
+                                        printf("Tool has broken, using object %d\n", r->brokenActor);
+                                        newActorE = &r->brokenActor;
+                                    }
+
                                     transApplied = true;
                                     
                                     if( r == NULL && 
@@ -5278,8 +5292,8 @@ int main() {
                                 if( r != NULL &&
                                     // are we old enough to handle
                                     // what we'd get out of this transition?
-                                    ( r->newActor == 0 || 
-                                      getObject( r->newActor )->minPickupAge <= 
+                                    ( newActorE == 0 || 
+                                      getObject( *newActorE )->minPickupAge <= 
                                       computeAge( nextPlayer ) ) 
                                     &&
                                     // does this create a blocking object?
@@ -5295,30 +5309,20 @@ int main() {
                                     //
                                     // if so, make sure there's not someone
                                     // standing still there
-                                    ( r->newTarget == 0 ||
+                                    ( *newTargetE == 0 ||
                                       ! 
-                                      ( getObject( r->newTarget )->
+                                      ( getObject( *newTargetE )->
                                           blocksWalking
                                         &&
-                                        getObject( r->newTarget )->
+                                        getObject( *newTargetE )->
                                           floorHugging )
                                       ||
                                       isMapSpotEmptyOfPlayers( m.x, 
                                                                m.y ) ) ) {
                                     
                                     if( ! defaultTrans ) {    
-                                        float randomChance = rand() % 1000 / 1000.0f;
-                                        printf("Determining if tool has broken: randomChance=%f, breakChance=%f, newActor=%d, brokenActor=%d\n",
-                                                randomChance, r->breakChance, r->newActor, r->brokenActor );
-                                        if (randomChance >= r->breakChance) {
-                                            printf("Tool has not broken, using object %d\n", r->newActor);
-                                            handleHoldingChange( nextPlayer,
-                                                                r->newActor );
-                                        } else {
-                                            printf("Tool has broken, using object %d\n", r->brokenActor);
-                                            handleHoldingChange( nextPlayer,
-                                                                r->brokenActor );
-                                        }
+                                        handleHoldingChange( nextPlayer,
+                                                            *newActorE );
                                         if( r->target > 0 ) {    
                                             nextPlayer->heldTransitionSourceID =
                                                 r->target;
@@ -5333,7 +5337,7 @@ int main() {
 
                                     // has target shrunken as a container?
                                     int newSlots = 
-                                        getNumContainerSlots( r->newTarget );
+                                        getNumContainerSlots( *newTargetE );
  
                                     shrinkContainer( m.x, m.y, newSlots );
                                     
@@ -5341,7 +5345,7 @@ int main() {
                                         restretchMapContainedDecays( 
                                             m.x, m.y,
                                             target,
-                                            r->newTarget );
+                                            *newTargetE );
                                         }
                                     
                                     timeSec_t oldEtaDecay = 
@@ -5349,15 +5353,15 @@ int main() {
                                     
                                     setResponsiblePlayer( - nextPlayer->id );
                                     
-                                    if( r->newTarget > 0 
-                                        && getObject( r->newTarget )->floor ) {
+                                    if( *newTargetE > 0 
+                                        && getObject( *newTargetE )->floor ) {
 
                                         // it turns into a floor
                                         setMapObject( m.x, m.y, 0 );
                                         
-                                        setMapFloor( m.x, m.y, r->newTarget );
+                                        setMapFloor( m.x, m.y, *newTargetE );
                                         
-                                        if( r->newTarget == target ) {
+                                        if( *newTargetE == target ) {
                                             // unchanged
                                             // keep old decay in place
                                             setFloorEtaDecay( m.x, m.y, 
@@ -5365,23 +5369,23 @@ int main() {
                                             }
                                         }
                                     else {    
-                                        setMapObject( m.x, m.y, r->newTarget );
+                                        setMapObject( m.x, m.y, *newTargetE );
                                         }
                                     
                                     
                                     setResponsiblePlayer( -1 );
 
-                                    if( target == r->newTarget ) {
+                                    if( target == *newTargetE ) {
                                         // target not changed
                                         // keep old decay in place
                                         setEtaDecay( m.x, m.y, oldEtaDecay );
                                         }
                                     
-                                    if( r->newTarget != 0 ) {
+                                    if( *newTargetE != 0 ) {
                                         
                                         handleMapChangeToPaths( 
                                             m.x, m.y,
-                                            getObject( r->newTarget ),
+                                            getObject( *newTargetE ),
                                             &playerIndicesToSendUpdatesAbout );
                                         }
                                     }
@@ -5564,13 +5568,13 @@ int main() {
                                         // make sure we're not too young
                                         // to hold result of on-floor
                                         // transition
-                                        ( r->newActor == 0 ||
-                                          getObject( r->newActor )->
+                                        ( newActorE == 0 ||
+                                          getObject( *newActorE )->
                                              minPickupAge <= 
                                           computeAge( nextPlayer ) ) ) {
 
                                         // applies to floor
-                                        int resultID = r->newTarget;
+                                        int resultID = *newTargetE;
                                         
                                         if( getObject( resultID )->floor ) {
                                             // changing floor to floor
@@ -5582,7 +5586,7 @@ int main() {
                                                              resultID );
                                                 }
                                             handleHoldingChange( nextPlayer,
-                                                                 r->newActor );
+                                                                 *newActorE );
                                             }
                                         else {
                                             // changing floor to non-floor
@@ -5601,7 +5605,7 @@ int main() {
                                                 
                                                 handleHoldingChange( 
                                                     nextPlayer,
-                                                    r->newActor );
+                                                    *newActorE );
                                             
                                                 usedOnFloor = true;
                                                 }
@@ -5629,19 +5633,19 @@ int main() {
                                     char canPlace = false;
                                     
                                     if( r != NULL &&
-                                        r->newTarget != 0 
+                                        *newTargetE != 0 
                                         && 
                                         // make sure we're not too young
                                         // to hold result of bare ground
                                         // transition
-                                        ( r->newActor == 0 ||
-                                          getObject( r->newActor )->
+                                        ( newActorE == 0 ||
+                                          getObject( *newActorE )->
                                              minPickupAge <= 
                                           computeAge( nextPlayer ) ) ) {
                                         
                                         canPlace = true;
 
-                                        if( getObject( r->newTarget )->
+                                        if( getObject( *newTargetE )->
                                             blocksWalking &&
                                             ! isMapSpotEmpty( m.x, m.y ) ) {
                                             
@@ -5657,28 +5661,28 @@ int main() {
                                     if( canPlace ) {
 
                                         handleHoldingChange( nextPlayer,
-                                                             r->newActor );
+                                                             *newActorE );
                                         
                                         setResponsiblePlayer( 
                                             - nextPlayer->id );
                                         
-                                        if( r->newTarget > 0 
-                                            && getObject( r->newTarget )->
+                                        if( *newTargetE > 0 
+                                            && getObject( *newTargetE )->
                                                floor ) {
 
                                             setMapFloor( m.x, m.y, 
-                                                         r->newTarget );
+                                                         *newTargetE );
                                             }
                                         else {    
                                             setMapObject( m.x, m.y, 
-                                                          r->newTarget );
+                                                          *newTargetE );
                                             }
                                         
                                         setResponsiblePlayer( -1 );
                                         
                                         handleMapChangeToPaths( 
                                             m.x, m.y,
-                                            getObject( r->newTarget ),
+                                            getObject( *newTargetE ),
                                             &playerIndicesToSendUpdatesAbout );
                                         }
                                     }
