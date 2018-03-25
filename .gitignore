@@ -49,3 +49,5 @@ server/runServer.bat
 server/settings/forceEveLocation.ini
 server/settings/requireTicketServerCheck.ini
 gameSource/log.txt.backup
+server/eveRadius.txt
+server/testMap.txt
