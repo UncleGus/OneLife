@@ -175,6 +175,9 @@ static CustomRandomSource randSource( randSeed );
 #define NUM_CONT_SLOT 2
 #define FIRST_CONT_SLOT 3
 
+#define NO_DECAY_SLOT -1
+
+
 // decay slots for contained items start after container slots
 
 
@@ -1159,7 +1162,83 @@ void printBiomeSamples() {
 
 
 
+
+// optimization:
+// cache dbGet results in RAM
+
+// 2.6 MB of RAM for this.
+#define DB_CACHE_SIZE 131072
+
+typedef struct DBCacheRecord {
+        int x, y, slot, subCont;
+        int value;
+    } DBCacheRecord;
+    
+static DBCacheRecord dbCache[ DB_CACHE_SIZE ];
+
+
+#define CACHE_PRIME_A 776509273
+#define CACHE_PRIME_B 904124281
+#define CACHE_PRIME_C 528383237
+#define CACHE_PRIME_D 148497157
+
+static int computeDBCacheHash( int inKeyA, int inKeyB, 
+                               int inKeyC, int inKeyD ) {
+    
+    int hashKey = ( inKeyA * CACHE_PRIME_A + 
+                    inKeyB * CACHE_PRIME_B + 
+                    inKeyC * CACHE_PRIME_C +
+                    inKeyD * CACHE_PRIME_D ) % DB_CACHE_SIZE;
+    if( hashKey < 0 ) {
+        hashKey += DB_CACHE_SIZE;
+        }
+    return hashKey;
+    }
+
+
+
+static void initDBCache() {
+    DBCacheRecord blankRecord = { 0, 0, 0, 0, -2 };
+    for( int i=0; i<DB_CACHE_SIZE; i++ ) {
+        dbCache[i] = blankRecord;
+        }
+    }
+
+    
+
+
+// returns -2 on miss
+static int dbGetCached( int inX, int inY, int inSlot, int inSubCont ) {
+    DBCacheRecord r =
+        dbCache[ computeDBCacheHash( inX, inY, inSlot, inSubCont ) ];
+
+    if( r.x == inX && r.y == inY && 
+        r.slot == inSlot && r.subCont == inSubCont &&
+        r.value != -2 ) {
+        return r.value;
+        }
+    else {
+        return -2;
+        }
+    }
+
+
+
+static void dbPutCached( int inX, int inY, int inSlot, int inSubCont, 
+                        int inValue ) {
+    DBCacheRecord r = { inX, inY, inSlot, inSubCont, inValue };
+    
+    dbCache[ computeDBCacheHash( inX, inY, inSlot, inSubCont ) ] = r;
+    }
+
+
+
+
+
+
 void initMap() {
+    initDBCache();
+    
     mapCacheClear();
     
     edgeObjectID = SettingsManager::getIntSetting( "edgeObject", 0 );
@@ -1218,6 +1297,13 @@ void initMap() {
                                  // s=... remaining contained objects
                                  // Then decay ETA for each slot, in order,
                                  //   after that.
+                                 // s = -1
+                                 //  is a special flag slot set to 0 if NONE
+                                 //  of the contained items have ETA decay
+                                 //  or 1 if some of the contained items might 
+                                 //  have ETA decay.
+                                 //  (this saves us from having to check each
+                                 //   one)
                              // If a contained object id is negative,
                              // that indicates that it sub-contains
                              // other objects in its corresponding b slot
@@ -1948,6 +2034,13 @@ void freeMap() {
 
 // returns -1 if not found
 static int dbGet( int inX, int inY, int inSlot, int inSubCont = 0 ) {
+    
+    int cachedVal = dbGetCached( inX, inY, inSlot, inSubCont );
+    if( cachedVal != -2 ) {
+        return cachedVal;
+        }
+    
+
     unsigned char key[16];
     unsigned char value[4];
 
@@ -1956,13 +2049,21 @@ static int dbGet( int inX, int inY, int inSlot, int inSubCont = 0 ) {
     
     int result = KISSDB_get( &db, key, value );
     
+    
+    
+    int returnVal;
+    
     if( result == 0 ) {
         // found
-        return valueToInt( value );
+        returnVal = valueToInt( value );
         }
     else {
-        return -1;
+        returnVal = -1;
         }
+
+    dbPutCached( inX, inY, inSlot, inSubCont, returnVal );
+    
+    return returnVal;
     }
 
 
@@ -2068,6 +2169,8 @@ static void dbPut( int inX, int inY, int inSlot, int inValue,
             
     
     KISSDB_put( &db, key, value );
+
+    dbPutCached( inX, inY, inSlot, inSubCont, inValue );
     }
 
 
@@ -2272,8 +2375,36 @@ int *getContainedRaw( int inX, int inY, int *outNumContained,
 
 
 
+// returns true if no contained items will decay
+char getSlotItemsNoDecay( int inX, int inY, int inSubCont ) {
+    int result = dbGet( inX, inY, NO_DECAY_SLOT, inSubCont );
+    
+    if( result != -1 ) {
+        // found
+        return ( result == 0 );
+        }
+    else {
+        // default, some may decay
+        return false;
+        }
+    }
+
+
+void setSlotItemsNoDecay( int inX, int inY, int inSubCont, char inNoDecay ) {
+    int val = 1;
+    if( inNoDecay ) {
+        val = 0;
+        }
+    dbPut( inX, inY, NO_DECAY_SLOT, val, inSubCont );
+    }
+
+
+
+
 int *getContained( int inX, int inY, int *outNumContained, int inSubCont ) {
-    checkDecayContained( inX, inY, inSubCont );
+    if( ! getSlotItemsNoDecay( inX, inY, inSubCont ) ) {
+        checkDecayContained( inX, inY, inSubCont );
+        }
     int *result = getContainedRaw( inX, inY, outNumContained, inSubCont );
     
     // look at these slots if they are subject to live decay
@@ -2298,7 +2429,9 @@ int *getContained( int inX, int inY, int *outNumContained, int inSubCont ) {
 
 int *getContainedNoLook( int inX, int inY, int *outNumContained, 
                          int inSubCont = 0 ) {
-    checkDecayContained( inX, inY, inSubCont );
+    if( ! getSlotItemsNoDecay( inX, inY, inSubCont ) ) {
+        checkDecayContained( inX, inY, inSubCont );
+        }
     return getContainedRaw( inX, inY, outNumContained, inSubCont );
     }
 
@@ -2914,10 +3047,23 @@ void checkDecayContained( int inX, int inY, int inSubCont ) {
     
         
     char change = false;
+
+    // track last ID we saw with no decay, so we don't have to keep
+    // looking it up over and over.
+    int lastIDWithNoDecay = 0;
+    
     
     for( int i=0; i<numContained; i++ ) {
         int oldID = contained[i];
         
+        if( oldID == lastIDWithNoDecay ) {
+            // same ID we've already seen before
+            newContained.push_back( oldID );
+            newDecayEta.push_back( 0 );
+            continue;
+            }
+        
+
         char isSubCont = false;
         
         if( oldID < 0 ) {
@@ -2933,6 +3079,8 @@ void checkDecayContained( int inX, int inY, int inSubCont ) {
             if( isSubCont ) {
                 oldID *= -1;
                 }
+            lastIDWithNoDecay = oldID;
+            
             newContained.push_back( oldID );
             newDecayEta.push_back( 0 );
             continue;
@@ -3520,6 +3668,8 @@ void setSlotEtaDecay( int inX, int inY, int inSlot,
     dbTimePut( inX, inY, getContainerDecaySlot( inX, inY, inSlot, inSubCont ),
                inAbsoluteTimeInSeconds, inSubCont );
     if( inAbsoluteTimeInSeconds != 0 ) {
+        setSlotItemsNoDecay( inX, inY, inSubCont, false );
+
         trackETA( inX, inY, inSlot + 1, inAbsoluteTimeInSeconds,
                   inSubCont );
         }
@@ -3621,6 +3771,7 @@ void setContained( int inX, int inY, int inNumContained, int *inContained,
 
 void setContainedEtaDecay( int inX, int inY, int inNumContained, 
                            timeSec_t *inContainedEtaDecay, int inSubCont ) {
+    char someDecay = false;
     for( int i=0; i<inNumContained; i++ ) {
         dbTimePut( inX, inY, 
                    getContainerDecaySlot( inX, inY, i, inSubCont,
@@ -3628,9 +3779,11 @@ void setContainedEtaDecay( int inX, int inY, int inNumContained,
                    inContainedEtaDecay[i], inSubCont );
         
         if( inContainedEtaDecay[i] != 0 ) {
+            someDecay = true;
             trackETA( inX, inY, i + 1, inContainedEtaDecay[i], inSubCont );
             }
         }
+    setSlotItemsNoDecay( inX, inY, inSubCont, !someDecay );
     }
 
 
@@ -4107,7 +4260,9 @@ void stepMap( SimpleVector<char> *inMapChanges,
             checkDecayObject( r.x, r.y, oldID );
             }
         else {
-            checkDecayContained( r.x, r.y, r.subCont );
+            if( ! getSlotItemsNoDecay( r.x, r.y, r.subCont ) ) {
+                checkDecayContained( r.x, r.y, r.subCont );
+                }
             }
         
         

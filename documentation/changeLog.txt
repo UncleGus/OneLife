@@ -3,10 +3,24 @@ This file only list changes to game code.  Changes to content can be found here:
 http://onehouronelife.com/updateLog.php
 
 
+Version 69    ???
+
+--Scene editor now has 'V' fill function for repeating objects (useful to make
+  stress-test maps).
+
+
+
+
 Server Fixes:
 
 --Fixed comma int printing in stats at top of home page.
 
+--Added hash table RAM caching of object database.
+
+--Eliminated repeated calls to getTrans for same id in checkDecayContained.
+
+--Eliminated expensive calls to checkDecayContained by tracking which cells on
+  map have no decaying contained items.
 
 
 
