@@ -53,3 +53,7 @@ server/eveRadius.txt
 server/testMap.txt
 gameSource/spriteImportCache
 gameSource/spriteImportCache/next.txt
+gameSource/lineImportCache
+gameSource/overlayImport
+gameSource/lineImportCache/next.txt
+gameSource/spriteImportCache/next.txt
