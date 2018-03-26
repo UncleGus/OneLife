@@ -4981,8 +4981,10 @@ int main() {
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
 
-                        int newActorE; // the newActor to use in the transition as evaluated from the random breakage calculation
-                        int newTargetE; // the newTarget to use in the transition as evaluated from the random breakage calculation
+                        int rNewActorE; // the newActor to use in the transition as evaluated from the random breakage calculation
+                        int rNewTargetE; // the newTarget to use in the transition as evaluated from the random breakage calculation
+                        int rHitNewActorE; // the newActor to use in the transition as evaluated from the random breakage calculation
+                        int rHitNewTargetE; // the newTarget to use in the transition as evaluated from the random breakage calculation
                         
                         if( nextPlayer->holdingID > 0 &&
                             ! (m.x == nextPlayer->xd &&
@@ -5076,14 +5078,14 @@ int main() {
                                                       0, false, true );
                                         
                                         if( rHit != NULL ) {
-                                            newActorE = getActorFromBreakageCalculation( rHit );
-                                            newTargetE = getTargetFromBreakageCalculation( rHit );
+                                            rHitNewActorE = getActorFromBreakageCalculation( rHit );
+                                            rHitNewTargetE = getTargetFromBreakageCalculation( rHit );
                                         }
 
                                         if( rHit != NULL &&
-                                            newTargetE > 0 ) {
+                                            rHitNewTargetE > 0 ) {
                                             hitPlayer->customGraveID = 
-                                                newTargetE;
+                                                rHitNewTargetE;
                                             }
                                         }
                                     
@@ -5096,13 +5098,13 @@ int main() {
                                         // if hit trans exist
                                         // leave bloody knife or
                                         // whatever in hand
-                                        nextPlayer->holdingID = newActorE;
+                                        nextPlayer->holdingID = rHitNewActorE;
                                         }
                                     else if( r != NULL ) {
-                                        newActorE = getActorFromBreakageCalculation( r );
-                                        newTargetE = getTargetFromBreakageCalculation( r );
-                                        nextPlayer->holdingID = newActorE;
-                                        }
+                                        rNewActorE = getActorFromBreakageCalculation( r );
+                                        rNewTargetE = getTargetFromBreakageCalculation( r );
+                                        nextPlayer->holdingID = rNewActorE;
+                                    }
 
 
                                     if( r != NULL || rHit != NULL ) {
@@ -5121,12 +5123,12 @@ int main() {
                                     if( r != NULL ) {
 
                                         if( hitPlayer != NULL &&
-                                            newTargetE != 0 ) {
+                                            rNewTargetE != 0 ) {
                                         
                                             hitPlayer->embeddedWeaponID = 
-                                                newTargetE;
+                                                rNewTargetE;
                                         
-                                            if( oldHolding == newTargetE ) {
+                                            if( oldHolding == rNewTargetE ) {
                                                 // what we are holding
                                                 // is now embedded in them
                                                 // keep old decay
@@ -5138,7 +5140,7 @@ int main() {
                                             
                                                 TransRecord *newDecayT = 
                                                     getTrans( -1, 
-                                                              newTargetE );
+                                                              rNewTargetE );
                     
                                                 if( newDecayT != NULL ) {
                                                     hitPlayer->
@@ -5161,12 +5163,12 @@ int main() {
                                             // no player hit, and target ground
                                             // spot is empty
                                             setMapObject( m.x, m.y, 
-                                                          newTargetE );
+                                                          rNewTargetE );
                                         
                                             // if we're thowing a weapon
                                             // target is same as what we
                                             // were holding
-                                            if( oldHolding == newTargetE ) {
+                                            if( oldHolding == rNewTargetE ) {
                                                 // preserve old decay time 
                                                 // of what we were holding
                                                 setEtaDecay( m.x, m.y,

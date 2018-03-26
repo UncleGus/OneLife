@@ -233,6 +233,11 @@ EditorTransitionPage::EditorTransitionPage()
     mCurrentTransition.move = 0;
     mCurrentTransition.desiredMoveDist = 1;
 
+    mCurrentTransition.actorBreakChance = 0.0f;
+    mCurrentTransition.brokenActor = 0;
+    mCurrentTransition.targetBreakChance = 0.0f;
+    mCurrentTransition.brokenTarget = 0;
+
     mCurrentlyReplacing = 0;
     
 

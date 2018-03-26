@@ -51,3 +51,5 @@ server/settings/requireTicketServerCheck.ini
 gameSource/log.txt.backup
 server/eveRadius.txt
 server/testMap.txt
+gameSource/spriteImportCache
+gameSource/spriteImportCache/next.txt
