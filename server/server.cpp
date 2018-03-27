@@ -5563,7 +5563,10 @@ int main() {
                                         logTransitionFailure( 
                                             nextPlayer->holdingID,
                                             floorID );
-                                        }
+                                        } else {
+                                        newActorE = getActorFromBreakageCalculation( r );
+                                        newTargetE = getTargetFromBreakageCalculation( r );
+                                    }
                                         
 
                                     if( r != NULL && 
@@ -5631,6 +5634,10 @@ int main() {
                                         getTrans( nextPlayer->holdingID, 
                                                   -1 );
 
+                                    if( r != NULL ) {
+                                        newActorE = getActorFromBreakageCalculation( r );
+                                        newTargetE = getTargetFromBreakageCalculation( r );
+                                    }
 
                                     char canPlace = false;
                                     

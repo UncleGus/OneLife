@@ -57,3 +57,5 @@ gameSource/lineImportCache
 gameSource/overlayImport
 gameSource/lineImportCache/next.txt
 gameSource/spriteImportCache/next.txt
+gameSource/testMap.txt
+server/testMapStale.txt
