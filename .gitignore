@@ -59,3 +59,4 @@ gameSource/lineImportCache/next.txt
 gameSource/spriteImportCache/next.txt
 gameSource/testMap.txt
 server/testMapStale.txt
+server/map.db.bak
