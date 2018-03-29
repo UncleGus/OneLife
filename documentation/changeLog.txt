@@ -3,9 +3,52 @@ This file only list changes to game code.  Changes to content can be found here:
 http://onehouronelife.com/updateLog.php
 
 
+Version 69    ???
+
+--Scene editor now has 'V' fill function for repeating objects (useful to make
+  stress-test maps).
+
+--Fixed an invisible-self-as-baby bug when baby-self set down during map load.
+
+--Fixed another baby bouncing-forever bug (if baby's clothing state changes
+  while held, this causes a PU message about the baby, which the client was
+  interpreting as a baby-drop, even though the server saw the baby as still
+  held).
+
+--Some bouncing-forever bugs seem to be caused by server missing or ignoring
+  one of our MOVE messages, meaning that it never tells us we arrived, so our
+  next action is pending forever.  I'm still working on figuring out what's
+  going wrong in the server MOVE handling code.  In the mean time, I've added
+  a work-around client-side that detects >4 seconds of bouncing and jumps back
+  to the last known server position.
+
+--Client using BUG protocol to report 4-second bouncing.
+
+
+
+
 Server Fixes:
 
 --Fixed comma int printing in stats at top of home page.
+
+--Added hash table RAM caching of object database.
+
+--Eliminated repeated calls to getTrans for same id in checkDecayContained.
+
+--Eliminated expensive calls to checkDecayContained by tracking which cells on
+  map have no decaying contained items.
+
+--Fixed map file bloat by culling map of cells that haven't been looked at in
+  24 hours and re-inserting remaining cells whenever a server restarts.
+  Culled cells go back to their natural, procedurally-generated state.
+
+--Server was setting timeout when polling for socket activity even when more
+  buffered messages were potentially available, allowing messages to pile up.
+  Fixed so that we don't sleep at all when polling sockets if we received at
+  least one client message in the last loop.
+
+--Support for BUG protocol to allow client to report bugs and trigger log
+  snapshots.
 
 
 

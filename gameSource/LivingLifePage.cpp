@@ -392,6 +392,21 @@ static char hideGuiPanel = false;
 
 
 
+
+static char *lastMessageSentToServer = NULL;
+
+
+// destroyed internally if not NULL
+static void replaceLastMessageSent( char *inNewMessage ) {
+    if( lastMessageSentToServer != NULL ) {
+        delete [] lastMessageSentToServer;
+        }
+    lastMessageSentToServer = inNewMessage;
+    }
+
+
+
+
 SimpleVector<unsigned char> serverSocketBuffer;
 
 
@@ -426,6 +441,8 @@ void LivingLifePage::sendToServerSocket( char *inMessage ) {
     
     printf( "Sending message to server: %s\n", inMessage );
     
+    replaceLastMessageSent( stringDuplicate( inMessage ) );    
+
     int len = strlen( inMessage );
     
     int numSent = sendToSocket( mServerSocket, (unsigned char*)inMessage, len );
@@ -1822,8 +1839,16 @@ LivingLifePage::~LivingLifePage() {
 
     delete [] mMapPlayerPlacedFlags;
 
-    delete [] nextActionMessageToSend;
+    if( nextActionMessageToSend != NULL ) {
+        delete [] nextActionMessageToSend;
+        nextActionMessageToSend = NULL;
+        }
 
+    if( lastMessageSentToServer != NULL ) {
+        delete [] lastMessageSentToServer;
+        lastMessageSentToServer = NULL;
+        }
+    
     if( mHungerSound != NULL ) {    
         freeSoundSprite( mHungerSound );
         }
@@ -3166,6 +3191,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                 babyO->holdingFlip = inObj->holdingFlip;
                 
                 // save world hold pos for smooth set-down of baby
+                babyO->lastHeldByRawPosSet = true;
                 babyO->lastHeldByRawPos = worldHoldPos;
 
                 returnPack =
@@ -6832,6 +6858,42 @@ static char checkIfHeldContChanged( LiveObject *inOld, LiveObject *inNew ) {
 
 
 
+
+void LivingLifePage::sendBugReport( int inBugNumber ) {
+    char *bugString = stringDuplicate( "" );
+
+    if( lastMessageSentToServer != NULL ) {
+        char *temp = bugString;
+        bugString = autoSprintf( "%s   Just sent: [%s]",
+                                 temp, lastMessageSentToServer );
+        delete [] temp;
+        }
+    if( nextActionMessageToSend != NULL ) {
+        char *temp = bugString;
+        bugString = autoSprintf( "%s   Waiting to send: [%s]",
+                                 temp, nextActionMessageToSend );
+        delete [] temp;
+        }
+    
+    // clear # terminators from message
+    char *spot = strstr( bugString, "#" );
+    
+    while( spot != NULL ) {
+        spot[0] = ' ';
+        spot = strstr( bugString, "#" );
+        }
+    
+    
+    char *bugMessage = autoSprintf( "BUG %d %s#", inBugNumber, bugString );
+    
+    delete [] bugString;
+
+    sendToServerSocket( bugMessage );
+    delete [] bugMessage;
+    }
+    
+
+
         
 void LivingLifePage::step() {
     if( mouseDown ) {
@@ -7378,6 +7440,52 @@ void LivingLifePage::step() {
             }
         }
 
+
+    if( playerActionPending && 
+        ourObject != NULL && 
+        game_getCurrentTime() - 
+        ourObject->pendingActionAnimationStartTime > 4 ) {
+        
+        // been bouncing for four seconds with no answer from server
+        
+        printf( "Been waiting for response to our action request "
+                "from server for > 4 seconds, giving up\n" );
+
+        sendBugReport( 1 );
+
+        // end it
+        ourObject->pendingActionAnimationProgress = 0;
+        ourObject->pendingAction = false;
+                                
+        playerActionPending = false;
+        playerActionTargetNotAdjacent = false;
+
+        if( nextActionMessageToSend != NULL ) {
+            delete [] nextActionMessageToSend;
+            nextActionMessageToSend = NULL;
+            }
+        
+        int goodX = ourObject->xServer;
+        int goodY = ourObject->yServer;
+
+        printf( "   Jumping back to last-known server position of %d,%d\n",
+                goodX, goodY );
+
+        // jump to wherever server said we were before
+        ourObject->inMotion = false;
+                        
+        ourObject->moveTotalTime = 0;
+        ourObject->currentSpeed = 0;
+        ourObject->currentGridSpeed = 0;
+        
+
+        ourObject->currentPos.x = goodX;
+        ourObject->currentPos.y = goodY;
+        
+        ourObject->xd = goodX;
+        ourObject->yd = goodY;
+        }
+    
             
 
     char *message = getNextServerMessage();
@@ -9812,10 +9920,33 @@ void LivingLifePage::step() {
                         
                         existing->lastSpeed = o.lastSpeed;
                         
+                        char babyDropped = false;
                         
-                        
-
                         if( existing->heldByAdultID != -1 ) {
+                            // getting an update about a held baby
+                            // this usually means a drop
+                            // but verify that adult isn't holding us anymore
+                            // (sometimes, update can be from a clothing change
+                            //  initiated by another adult right before
+                            //  we got picked up, or a clothing decay while
+                            //  held)
+                            
+                            // we will ALWAYS get message about the change
+                            // to what their holding before the update
+                            // to the baby that has been dropped
+                            
+                            babyDropped = true;
+                            
+                            LiveObject *holdingO = 
+                                getLiveObject( existing->heldByAdultID );
+                            if( holdingO != NULL &&
+                                holdingO->holdingID == - existing->id ) {
+                                // they're still holding us
+                                babyDropped = false;
+                                }
+                            }
+                        
+                        if( babyDropped ) {
                             // got an update for a player that's being held
                             // this means they've been dropped
                             printf( "Baby dropped\n" );
@@ -9830,10 +9961,27 @@ void LivingLifePage::step() {
                             existing->xd = o.xd;
                             existing->yd = o.yd;
                             
-                            existing->heldByDropOffset =
-                                sub( existing->lastHeldByRawPos,
-                                     existing->currentPos );
-
+                            if( existing->lastHeldByRawPosSet ) {    
+                                existing->heldByDropOffset =
+                                    sub( existing->lastHeldByRawPos,
+                                         existing->currentPos );
+                                if( length( existing->heldByDropOffset ) > 3 ) {
+                                    // too far to fly during drop
+                                    // snap instead
+                                    existing->heldByDropOffset.x = 0;
+                                    existing->heldByDropOffset.y = 0;
+                                    }
+                                }
+                            else {
+                                // held pos not known
+                                // maybe this holding parent has never
+                                // been drawn on the screen
+                                // (can happen if they drop us during map load)
+                                existing->heldByDropOffset.x = 0;
+                                existing->heldByDropOffset.y = 0;
+                                }
+                            
+                            existing->lastHeldByRawPosSet = false;
                             
                             
                             LiveObject *adultO = 
@@ -10005,6 +10153,8 @@ void LivingLifePage::step() {
                         o.inMotion = false;
                         
                         o.holdingFlip = false;
+                        
+                        o.lastHeldByRawPosSet = false;
 
                         o.pendingAction = false;
                         o.pendingActionAnimationProgress = 0;
@@ -12059,6 +12209,9 @@ void LivingLifePage::step() {
             // matter how fast the server responds
             ourLiveObject->pendingActionAnimationProgress = 
                 0.025 * frameRateFactor;
+
+            ourLiveObject->pendingActionAnimationStartTime = 
+                game_getCurrentTime();
             
             if( nextActionEating ) {
                 addNewAnim( ourLiveObject, eating );
@@ -12117,6 +12270,8 @@ void LivingLifePage::step() {
                 isLiveObjectSetFullyLoaded( &mFirstObjectSetLoadingProgress );
             
             if( mDoneLoadingFirstObjectSet ) {
+                printf( "First map load done\n" );
+                
                 restartMusic( computeCurrentAge( ourLiveObject ),
                               ourLiveObject->ageRate );
                 setSoundLoudness( 1.0 );
@@ -13109,6 +13264,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         }
 
     if( playerActionPending ) {
+        printf( "Skipping click, action pending\n" );
+        
         // block further actions until update received to confirm last
         // action
         return;
@@ -14260,6 +14417,7 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
     registerTriggerKeyCommand( inASCII, this );
     
     switch( inASCII ) {
+        /*
         case 'b':
             blackBorder = true;
             whiteBorder = false;
@@ -14268,6 +14426,7 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
             blackBorder = false;
             whiteBorder = true;
             break;
+        */
         /*
         case 'a':
             drawAdd = ! drawAdd;
