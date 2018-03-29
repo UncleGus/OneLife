@@ -3,234 +3,314 @@
 #include "minorGems/util/StringTree.h"
 #include "minorGems/util/stringUtils.h"
 #include "minorGems/util/log/AppLog.h"
+#include "minorGems/io/file/File.h"
 #include "minorGems/util/random/JenkinsRandomSource.h"
 
 #include <stdio.h>
-//#include <assert.h>
 
 
-static SimpleVector<char*> firstNames;
-static SimpleVector<int> firstNamesLen;
-static SimpleVector<char*> lastNames;
-static SimpleVector<int> lastNamesLen;
+static char *firstNames = NULL;
+static char *lastNames = NULL;
 
-
-static StringTree *firstNameTree;
-static StringTree *lastNameTree;
+// total length of arrays
+static int firstNamesLen;
+static int lastNamesLen;
 
 
 
-static JenkinsRandomSource randSource;
+
+
+
+
 
 static const char *defaultName = "";
 
 
-static void readNameFile( const char *inFileName, 
-                          SimpleVector<char*> *inNameList,
-                          SimpleVector<int> *inNameLenList,
-                          StringTree *inNameTree ) {
+
+
+static char *readNameFile( const char *inFileName, int *outLen ) {
     
-    FILE *nameFile = fopen( inFileName, "r" );
-    
-    if( nameFile == NULL ) {
+    File nameFile( NULL, inFileName );
+
+    char *contents = nameFile.readFileContents();
+
+    if( contents == NULL ) {
         AppLog::errorF( "Failed to open name file %s for reading", inFileName );
-        return;
+        return NULL;
         }
-    char buffer[100];
+    char *temp = contents;
+    contents = stringToUpperCase( temp );
+    delete [] temp;
     
-    while( fscanf( nameFile, "%99s", buffer ) == 1 ) {
-        // read another name
-        char *name = stringToUpperCase( buffer );
-        inNameList->push_back( name );
-        //inNameLenList->push_back( strlen( name ) );
-        //inNameTree->insert( name, name );
+    int len = strlen( contents );
+
+    for( int i=0; i<len; i++ ) {
+        if( contents[i] == '\n' ) {
+            contents[i] = '\0';
+            }
         }
+    *outLen = len;
+    
+    return contents;
     }
 
 
 
-void initNames() {
-    firstNameTree = new StringTree( false );
-    lastNameTree = new StringTree( false );
-    
-    readNameFile( "firstNames.txt", 
-                  &firstNames, &firstNamesLen, firstNameTree );
-    
-    readNameFile( "lastNames.txt", 
-                  &lastNames, &lastNamesLen, lastNameTree );
 
-    printf( "Testing names with 1000 lookups\n" );
-    double startTime = Time::getCurrentTime();
-    for( int i = 0; i<1; i++ ) {
-        const char *first = findCloseFirstName( "RO" );
-        const char *last = findCloseLastName( "RO" );
-        printf( "First: %s, Last: %s\n", first, last );
-        }
-    printf( "Lookups took %f sec\n", Time::getCurrentTime() - startTime );
+void initNames() {    
+    firstNames = readNameFile( "firstNames.txt", &firstNamesLen  );
+    lastNames = readNameFile( "lastNames.txt", &lastNamesLen );
     }
 
 
 
 
 void freeNames() {
-    //delete firstNameTree;
-    //delete lastNameTree;
-
-    firstNames.deallocateStringElements();
-    lastNames.deallocateStringElements();
+    if( firstNames != NULL ) {
+        delete [] firstNames;
+        firstNames = NULL;
+        }
+    if( lastNames != NULL ) {
+        delete [] lastNames;
+        lastNames = NULL;
+        }
     }
 
 
 
-// returns 0 if A is identical to B
-// returns alphabetical distance for first character difference
-// postive if A is further down in the alphabet than B
-// negative if A is further up than B
-// Prefixes come alphabetically before longer strings, with the END
-// of the string occurring before A alphabetically.
-//
-// Compare APPLE with APPLE returns 0
-// Compare A with APPLE returns -16
-// Compare DOG with APPLE returns 3
-// Compare APE with DOGMA returns -3
-// Compare APE with APPLE returns -11
 
-// FIXME:
-// APE should be closer to APPLE than A
-int prefixCompare( const char *inA, const char *inB ) {
+static int getSign( int inX ) {
+    // found here: https://stackoverflow.com/a/1903975/744011
+    return (inX > 0) - (inX < 0);
+    }
+
+
+
+
+int sharedPrefixLength( const char *inA, const char *inB ) {
     
-    int i = 0;
-    while( inA[i] != '\0' &&
-           inB[i] != '\0' ) {
-        
-        int diff = inA[i] - inB[i];
-        
-        if( diff > 0 ) {
-            return diff;
-            }
-        else if( diff < 0 ) {
-            return diff;
-            }
+    int i=0;
+    
+    while( inA[i] != '\0' && inB[i] != '\0' &&
+           inA[i] == inB[i] ) {
         i++;
         }
+    return i;
+    }
 
-    // walked off end with equal prefix
-    if( inB[i] != '\0' ) {
-        return -( ( inB[i] - 'A' ) + 1 );
+
+
+
+// walk backward to find start of next name
+int getNameOffsetBack( char *inNameList, int inListLen, int inOffset ) {
+    while( inOffset > 0 && inNameList[ inOffset ] != '\0' ) {
+        inOffset --;
         }
-    if( inA[i] != '\0' ) {
-        return ( inA[i] - 'A' ) + 1;
+    if( inOffset == 0 ) {
+        return 0;
+        }
+    else {
+        // walked forward off of \0
+        return inOffset + 1;
+        }
+    }
+
+
+
+int getNameOffsetForward( char *inNameList, int inListLen, int inOffset ) {
+    int limit = inListLen - 1;
+    while( inOffset < limit && inNameList[ inOffset ] != '\0' ) {
+        inOffset ++;
+        }
+    if( inOffset == limit ) {
+        return getNameOffsetBack( inNameList, inListLen, limit - 1 );
+        }
+    else {
+        // walked forward off of \0
+        return inOffset + 1;
+        }
+    }
+
+
+
+
+
+const char *findCloseName( char *inString, char *inNameList, int inListLen ) {
+    if( inNameList == NULL ) {
+        return defaultName;
         }
     
-    // equal and same length
-    return 0;
-    }
-
-/*
-void testPrefixCompare() {
-    assert( prefixCompare( "APPLE", "APPLE" ) == 0 );
-    assert( prefixCompare( "A", "APPLE" ) == -16 );
-    assert( prefixCompare( "DOG", "APPLE" ) == 3 );
-    assert( prefixCompare( "APE", "DOGMA" ) == -3 );
-    assert( prefixCompare( "APE", "APPLE" ) == -11 );
-    }
-*/
-
-
-const char *findCloseName( char *inString, SimpleVector<char*> *inNameList ) {
     char *tempString = stringToUpperCase( inString );
     
-    int limit = inNameList->size();
+    int limit = inListLen;
 
     int jumpSize = limit / 2;
     int offset = jumpSize;
-    int lastDiff = 256;
+    offset = getNameOffsetForward( inNameList, inListLen, offset );
     
-    
+    int lastDiff = 1;
+
+
+    int hitStartCount = 0;
+    int hitEndCount = 0;
     
 
-    while( jumpSize > 0 && lastDiff != 0 ) {
-        char *testString = inNameList->getElementDirect( offset );
-        printf( "Considering %s at offset %d/%d\n", testString, offset, limit );
+    while( lastDiff != 0 ) {
+        char *testString = &( inNameList[ offset ] );
+        int prevDiff = lastDiff;
+        lastDiff = strcmp( tempString, testString );
         
-        lastDiff = prefixCompare( tempString, testString );
         
-        jumpSize /= 2;
+        if( getSign( lastDiff ) != getSign( prevDiff ) ) {
+            // overshot
+            // smaller jump in opposite direction
+            jumpSize /= 2;
+            }
         
+
+        if( jumpSize == 0 ) {
+            break;
+            }
+
+
         if( lastDiff > 0 ) {
             // further down
             offset += jumpSize;
+
             if( offset >= limit ) {
-                offset = limit - 1;
+                // walked off end
+                offset = limit - 2;
+                offset = getNameOffsetBack( inNameList, inListLen, offset );
+                hitEndCount++;
+                if( hitEndCount > 1 ) {
+                    break;
+                    }
+                }
+            else {
+                offset = getNameOffsetForward( inNameList, inListLen, offset );
+                hitEndCount = 0;
                 }
             }
         else if( lastDiff < 0 ) {
             // further up
             offset -= jumpSize;
+
             if( offset < 0 ) {
+                // walked off start
                 offset = 0;
+                hitStartCount++;
+                if( hitStartCount > 1 ) {
+                    break;
+                    }
+                }
+            else {
+                hitStartCount = 0;
+                offset = getNameOffsetBack( inNameList, inListLen, offset );
                 }
             }
         }
     
-    if( lastDiff == 0 ) {
-        // exact hit
-        return inNameList->getElementDirect( offset );
-        }
-    else {
-        // closest match
-        return inNameList->getElementDirect( offset );
-        }
     
 
-    return defaultName;
-    
-    /*
-    
-    // try prefixes until we get a match
-    while( len > 0 && inTree->countMatches( tempString ) == 0 ) {
-        len--;
-        tempString[ len ] = '\0';
+    if( lastDiff != 0 && hitEndCount == 0 && hitStartCount == 0 ) {
+
+        // no exact match
+        // step backward until we find names that are before
+        // and after us alphabetically
         
-        }
-    
-    if( len == 0 ) {
-        delete [] tempString;
-        return defaultName;
-        }
-    
-    int numMatches = inTree->countMatches( tempString );
-    
-    if( numMatches > 20 ) {
-        numMatches = 20;
-        }
+        int step = 1;
+        if( lastDiff < 0 ) {
+            step = -1;
+            }
+        int nextDiff = lastDiff;
+        int lastSign = getSign( lastDiff );
+        while( getSign( nextDiff ) == lastSign ) {
+            
+            offset += 2 * step;
+            
+            if( offset <= 0 ) {
+                offset = 0;
+                break;
+                }
+            if( offset >= limit ) {
+                offset = limit - 1;
+                break;
+                }
 
-    void **matches = new void*[ numMatches ];
+            if( step < 0 ) {
+                offset = getNameOffsetBack( inNameList, inListLen, offset );
+                }
+            else {
+                offset = getNameOffsetForward( inNameList, inListLen, offset );
+                }
+            
+            char *testString = &( inNameList[offset] );
+            nextDiff = strcmp( tempString, testString );
+            }
+        
+        
+        if( nextDiff != 0 ) {
+            // string does not exist
+            // we've found the two strings alphabetically around it though
+            // use one with longest shared prefix
+
+            int crossOffset = offset;
+            int prevOffset = offset - 2 * step;
+            
+            if( step < 0 ) {
+                prevOffset = 
+                    getNameOffsetForward( inNameList, inListLen, prevOffset );
+                }
+            else {
+                prevOffset = 
+                    getNameOffsetBack( inNameList, inListLen, prevOffset );
+                }
+            
+
+            int crossSim = sharedPrefixLength( tempString, 
+                                               &( inNameList[crossOffset ] ) );
+            int prevSim = sharedPrefixLength( tempString, 
+                                              &( inNameList[prevOffset] ) );
+            
+            if( crossSim > prevSim ) {
+                offset = crossOffset;
+                }
+            else if( crossSim < prevSim ) {
+                offset = prevOffset;
+                }
+            else {
+                // share same prefix
+                // return shorter one
+
+                if( strlen( &( inNameList[prevOffset] ) ) 
+                    <
+                    strlen( &( inNameList[crossOffset] ) ) ) {
+                    offset = prevOffset;
+                    }
+                else {
+                    offset = crossOffset;
+                    }
+                
+                }
+            }
+        }
     
-    numMatches = inTree->getMatches( tempString, 0, numMatches, matches );
+
     
     delete [] tempString;
     
-    int pick = randSource.getRandomBoundedInt( 0, numMatches - 1 );
-    
-    const char *pickedName = (char*)( matches[ pick ] );
-
-
-    delete [] matches;
-
-    return pickedName;
-    */
+    return &( inNameList[offset] );
     }
 
 
 
 // results destroyed internally when freeNames called
 const char *findCloseFirstName( char *inString ) {
-    return findCloseName( inString, &firstNames );
+    return findCloseName( inString, firstNames, firstNamesLen );
     }
 
 
 
 const char *findCloseLastName( char *inString ) {
-    return findCloseName( inString, &lastNames );
+    return findCloseName( inString, lastNames, lastNamesLen );
     }
