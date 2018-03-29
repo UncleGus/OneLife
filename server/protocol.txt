@@ -117,6 +117,8 @@ FOOD_CHANGE (FX)
 
 LINEAGE (LN)
 
+NAME (NM)
+
 
 
 Client can expect to receive these at any time, and in any order.
@@ -401,6 +403,23 @@ This message describes known lineages.
 
 
 
+NM
+p_id first_name last_name
+p_id first_name last_name
+p_id first_name last_name
+...
+p_id first_name last_name
+#
+
+
+Gives name of player p_id.
+
+last_name may be ommitted.
+
+
+
+
+
 First message sent upon client new connection to server:
 
 A map chunk message for where the player is standing, followed by 
@@ -513,3 +532,14 @@ Sends trigger trigger_number to server.
 Example:
 
 TRIGGER 5#
+
+
+
+
+BUG v arbitrary_text#
+
+Reports that a bug with number v occurred, and provides text about that bug.
+
+Example:
+
+BUG 4 MOVE -144 960 -1 -1 -2 -1#

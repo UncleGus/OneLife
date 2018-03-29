@@ -27,6 +27,8 @@
 
 #include "minorGems/formats/encodingUtils.h"
 
+#include "minorGems/io/file/File.h"
+
 
 #include "map.h"
 #include "../gameSource/transitionBank.h"
@@ -41,6 +43,7 @@
 #include "playerStats.h"
 #include "serverCalls.h"
 #include "failureLog.h"
+#include "names.h"
 
 
 #include "minorGems/util/random/JenkinsRandomSource.h"
@@ -95,6 +98,14 @@ static double childSameRaceLikelihood = 0.9;
 static int familySpan = 2;
 
 
+// phrases that trigger baby and family naming
+static SimpleVector<char*> nameGivingPhrases;
+static SimpleVector<char*> familyNameGivingPhrases;
+
+static char *eveName = NULL;
+
+
+
 // for incoming socket connections that are still in the login process
 typedef struct FreshConnection {
         Socket *sock;
@@ -129,8 +140,12 @@ typedef struct LiveObject {
         // object ID used to visually represent this player
         int displayID;
         
-        char isEve;
-        
+        char *name;
+
+        char isEve;        
+
+        int parentID;
+
         // 0 for Eve
         int parentChainLength;
 
@@ -521,6 +536,10 @@ void quitCleanup() {
         delete nextPlayer->sock;
         delete nextPlayer->sockBuffer;
         delete nextPlayer->lineage;
+
+        if( nextPlayer->name != NULL ) {
+            delete [] nextPlayer->name;
+            }
         
         if( nextPlayer->email != NULL  ) {
             delete [] nextPlayer->email;
@@ -559,6 +578,8 @@ void quitCleanup() {
 
     freePlayerStats();
 
+    freeNames();
+    
     freeLifeLog();
     
     freeFoodLog();
@@ -582,6 +603,14 @@ void quitCleanup() {
     if( ticketServerURL != NULL ) {
         delete [] ticketServerURL;
         ticketServerURL = NULL;
+        }
+
+    nameGivingPhrases.deallocateStringElements();
+    familyNameGivingPhrases.deallocateStringElements();
+    
+    if( eveName != NULL ) {
+        delete [] eveName;
+        eveName = NULL;
         }
     }
 
@@ -693,6 +722,7 @@ typedef enum messageType {
     SAY,
     MAP,
     TRIGGER,
+    BUG,
     UNKNOWN
     } messageType;
 
@@ -704,7 +734,7 @@ typedef struct ClientMessage {
         int x, y, c, i;
         
         int trigger;
-        
+        int bug;
 
         // some messages have extra positions attached
         int numExtraPos;
@@ -715,6 +745,9 @@ typedef struct ClientMessage {
         // null if type not SAY
         char *saidText;
         
+        // null if type not BUG
+        char *bugText;
+
     } ClientMessage;
 
 
@@ -734,10 +767,20 @@ ClientMessage parseMessage( char *inMessage ) {
     m.numExtraPos = 0;
     m.extraPos = NULL;
     m.saidText = NULL;
+    m.bugText = NULL;
     // don't require # terminator here
 
     int numRead = sscanf( inMessage, 
                           "%99s %d %d", nameBuffer, &( m.x ), &( m.y ) );
+
+    
+    if( numRead >= 2 &&
+        strcmp( nameBuffer, "BUG" ) == 0 ) {
+        m.type = BUG;
+        m.bug = m.x;
+        m.bugText = stringDuplicate( inMessage );
+        return m;
+        }
 
 
     if( numRead != 3 ) {
@@ -761,7 +804,7 @@ ClientMessage parseMessage( char *inMessage ) {
         SimpleVector<char *> *tokens =
             tokenizeString( inMessage );
         
-        // require an odd number greater than 5
+        // require an odd number at least 5
         if( tokens->size() < 5 || tokens->size() % 2 != 1 ) {
             tokens->deallocateStringElements();
             delete tokens;
@@ -1036,6 +1079,19 @@ double computeAge( LiveObject *inPlayer ) {
         }
     return age;
     }
+
+
+
+int getSayLimit( LiveObject *inPlayer ) {
+    int limit = (unsigned int)( floor( computeAge( inPlayer ) ) + 1 );
+
+    if( inPlayer->isEve && limit < 30 ) {
+        // give Eve room to name her family line
+        limit = 30;
+        }
+    return limit;
+    }
+
 
 
 
@@ -1510,8 +1566,6 @@ int sendMapChunkMessage( LiveObject *inO,
             vertBarH -= horBarH;
             }
         
-        printf( "\n\n **** Hor w/h = %d/%d, vert w/h = %d/%d\n\n\n",
-                horBarW, horBarH, vertBarW, vertBarH );
         
         // only send if non-zero width and height
         if( horBarW > 0 && horBarH > 0 ) {
@@ -2294,7 +2348,8 @@ static char *getUpdateLine( LiveObject *inPlayer, char inDelete,
     int doneMoving = 0;
     
     if( inPlayer->xs == inPlayer->xd &&
-        inPlayer->ys == inPlayer->yd ) {
+        inPlayer->ys == inPlayer->yd &&
+        ! inPlayer->heldByOther ) {
         doneMoving = 1;
         }
     
@@ -2918,6 +2973,8 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.lineage = new SimpleVector<int>();
     
+    newObject.name = NULL;
+    
     newObject.pathLength = 0;
     newObject.pathToDest = NULL;
     newObject.pathTruncated = 0;
@@ -2973,18 +3030,18 @@ void processLoggedInPlayer( Socket *inSock,
         }
 
     
-    int parentID = -1;
+    newObject.parentID = -1;
     char *parentEmail = NULL;
 
     if( parent != NULL && isFertileAge( parent ) ) {
         // do not log babies that new Eve spawns next to as parents
-        parentID = parent->id;
+        newObject.parentID = parent->id;
         parentEmail = parent->email;
 
         newObject.parentChainLength = parent->parentChainLength + 1;
 
         // mother
-        newObject.lineage->push_back( parentID );
+        newObject.lineage->push_back( newObject.parentID );
         
         for( int i=0; 
              i < parent->lineage->size() && 
@@ -3004,7 +3061,7 @@ void processLoggedInPlayer( Socket *inSock,
 
     logBirth( newObject.id,
               newObject.email,
-              parentID,
+              newObject.parentID,
               parentEmail,
               ! getFemale( &newObject ),
               newObject.xd,
@@ -3553,6 +3610,59 @@ static void sendMessageToPlayer( LiveObject *inPlayer,
     
 
 
+void readNameGivingPhrases( const char *inSettingsName, 
+                            SimpleVector<char*> *inList ) {
+    char *cont = SettingsManager::getSettingContents( inSettingsName, "" );
+    
+    if( strcmp( cont, "" ) == 0 ) {
+        delete [] cont;
+        return;    
+        }
+    
+    int numParts;
+    char **parts = split( cont, "\n", &numParts );
+    
+    for( int i=0; i<numParts; i++ ) {
+        if( strcmp( parts[i], "" ) != 0 ) {
+            inList->push_back( stringToUpperCase( parts[i] ) );
+            }
+        delete [] parts[i];
+        }
+    delete [] parts;
+    }
+
+
+
+// returns pointer to name in string
+char *isNamingSay( char *inSaidString, SimpleVector<char*> *inPhraseList ) {
+    for( int i=0; i<inPhraseList->size(); i++ ) {
+        char *testString = inPhraseList->getElementDirect( i );
+        
+        if( strstr( inSaidString, testString ) == inSaidString ) {
+            // hit
+            int phraseLen = strlen( testString );
+            // skip spaces after
+            while( inSaidString[ phraseLen ] == ' ' ) {
+                phraseLen++;
+                }
+            return &( inSaidString[ phraseLen ] );
+            }
+        }
+    return NULL;
+    }
+
+
+
+char *isBabyNamingSay( char *inSaidString ) {
+    return isNamingSay( inSaidString, &nameGivingPhrases );
+    }
+
+char *isFamilyNamingSay( char *inSaidString ) {
+    return isNamingSay( inSaidString, &familyNameGivingPhrases );
+    }
+
+
+
 
 
 
@@ -3573,6 +3683,8 @@ int main() {
 
     printf( "\n" );
     
+    initNames();
+
     initLifeLog();
     initBackup();
     
@@ -3626,6 +3738,13 @@ int main() {
     
     familySpan =
         SettingsManager::getIntSetting( "familySpan", 2 );
+    
+    
+    readNameGivingPhrases( "babyNamingPhrases", &nameGivingPhrases );
+    readNameGivingPhrases( "familyNamingPhrases", &familyNameGivingPhrases );
+    
+    eveName = 
+        SettingsManager::getStringSetting( "eveName", "EVE" );
 
 
 #ifdef WIN_32
@@ -3690,6 +3809,12 @@ int main() {
     sockPoll.addSocketServer( &server );
     
     AppLog::infoF( "Listening for connection on port %d", port );
+
+    // if we received one the last time we looped, don't sleep when
+    // polling for socket being ready, because there could be more data
+    // waiting in the buffer for a given socket
+    char someClientMessageReceived = false;
+    
 
     while( !quit ) {
         
@@ -3861,6 +3986,12 @@ int main() {
         if( areTriggersEnabled() ) {
             // need to handle trigger timing
             pollTimeout = 0.01;
+            }
+
+        if( someClientMessageReceived ) {
+            // don't wait at all
+            // we need to check for next message right away
+            pollTimeout = 0;
             }
 
         // we thus use zero CPU as long as no messages or new connections
@@ -4307,6 +4438,8 @@ int main() {
         
     
         
+    
+        someClientMessageReceived = false;
 
         numLive = players.size();
         
@@ -4318,6 +4451,8 @@ int main() {
         SimpleVector<int> playerIndicesToSendUpdatesAbout;
         
         SimpleVector<int> playerIndicesToSendLineageAbout;
+
+        SimpleVector<int> playerIndicesToSendNamesAbout;
 
         // accumulated text of update lines
         SimpleVector<char> newUpdates;
@@ -4407,6 +4542,8 @@ int main() {
             char *message = getNextClientMessage( nextPlayer->sockBuffer );
             
             if( message != NULL ) {
+                someClientMessageReceived = true;
+                
                 AppLog::infoF( "Got client message from %d: %s",
                                nextPlayer->id, message );
                 
@@ -4427,8 +4564,43 @@ int main() {
                 //Thread::staticSleep( 
                 //    testRandSource.getRandomBoundedInt( 0, 450 ) );
                 
-                
-                if( m.type == MAP ) {
+                if( m.type == BUG ) {
+                    int allow = 
+                        SettingsManager::getIntSetting( "allowBugReports", 0 );
+
+                    if( allow ) {
+                        char *bugName = 
+                            autoSprintf( "bug_%d_%d_%f",
+                                         m.bug,
+                                         nextPlayer->id,
+                                         Time::getCurrentTime() );
+                        char *bugInfoName = autoSprintf( "%s_info.txt",
+                                                         bugName );
+                        char *bugOutName = autoSprintf( "%s_out.txt",
+                                                        bugName );
+                        FILE *bugInfo = fopen( bugInfoName, "w" );
+                        if( bugInfo != NULL ) {
+                            fprintf( bugInfo, 
+                                     "Bug report from player %d\n"
+                                     "Bug text:  %s\n", 
+                                     nextPlayer->id,
+                                     m.bugText );
+                            fclose( bugInfo );
+                            
+                            File outFile( NULL, "serverOut.txt" );
+                            if( outFile.exists() ) {
+                                fflush( stdout );
+                                File outCopyFile( NULL, bugOutName );
+                                
+                                outFile.copy( &outCopyFile );
+                                }
+                            }
+                        delete [] bugName;
+                        delete [] bugInfoName;
+                        delete [] bugOutName;
+                        }
+                    }
+                else if( m.type == MAP ) {
                     
                     int allow = 
                         SettingsManager::getIntSetting( "allowMapRequests", 0 );
@@ -4941,15 +5113,67 @@ int main() {
                         nextPlayer->lastSayTimeSeconds = 
                             Time::getCurrentTime();
 
-                        unsigned int sayLimit = 
-                            (unsigned int)( 
-                                floor( computeAge( nextPlayer ) ) + 1 );
+                        unsigned int sayLimit = getSayLimit( nextPlayer );
                         
                         if( strlen( m.saidText ) > sayLimit ) {
                             // truncate
                             m.saidText[ sayLimit ] = '\0';
                             }
                         
+                        if( nextPlayer->isEve && nextPlayer->name == NULL ) {
+                            char *name = isFamilyNamingSay( m.saidText );
+                            
+                            if( name != NULL && strcmp( name, "" ) != 0 ) {
+                                const char *close = findCloseLastName( name );
+                                nextPlayer->name = autoSprintf( "%s %s",
+                                                                eveName, 
+                                                                close );
+                                logName( nextPlayer->id,
+                                         nextPlayer->name );
+                                playerIndicesToSendNamesAbout.push_back( i );
+                                }
+                            }
+
+                        if( nextPlayer->holdingID < 0 &&
+                            nextPlayer->babyIDs->size() > 0 &&
+                            nextPlayer->babyIDs->getElementIndex(
+                                - nextPlayer->holdingID ) != -1 ) {
+
+                            // we're holding one of our babies
+                            
+                            LiveObject *babyO =
+                                getLiveObject( - nextPlayer->holdingID );
+                            
+                            if( babyO != NULL && babyO->name == NULL ) {
+                                char *name = isBabyNamingSay( m.saidText );
+                                
+                                if( name != NULL && strcmp( name, "" ) != 0 ) {
+                                    const char *lastName = "";
+                                    if( nextPlayer->name != NULL ) {
+                                        lastName = strstr( nextPlayer->name, 
+                                                           " " );
+                                        
+                                        if( lastName == NULL ) {
+                                            lastName = "";
+                                            }
+                                        }
+
+                                    const char *close = 
+                                        findCloseFirstName( name );
+                                    babyO->name = autoSprintf( "%s%s",
+                                                               close, 
+                                                               lastName );
+                                    logName( babyO->id,
+                                             babyO->name );
+                                    
+                                    playerIndicesToSendNamesAbout.push_back( 
+                                        getLiveObjectIndex( babyO->id ) );
+                                    }
+                                }
+                            }
+                        
+                        
+
                         
                         char *line = autoSprintf( "%d %s\n", nextPlayer->id,
                                                   m.saidText );
@@ -4958,7 +5182,6 @@ int main() {
                         
                         delete [] line;
                         
-                        delete [] m.saidText;
 
                         
                         ChangePosition p = { nextPlayer->xd, nextPlayer->yd, 
@@ -6515,7 +6738,14 @@ int main() {
                     if( m.numExtraPos > 0 ) {
                         delete [] m.extraPos;
                         }
-                    }                
+
+                    if( m.saidText != NULL ) {
+                        delete [] m.saidText;
+                        }
+                    if( m.bugText != NULL ) {
+                        delete [] m.bugText;
+                        }
+                    }
                 }
             }
 
@@ -6869,7 +7099,8 @@ int main() {
                         &playerIndicesToSendUpdatesAbout );
                     }
                 }
-            else {
+            else if( ! nextPlayer->error ) {
+                // other update checks for living players
                 
                 if( nextPlayer->holdingEtaDecay != 0 &&
                     nextPlayer->holdingEtaDecay < curTime ) {
@@ -7268,9 +7499,8 @@ int main() {
                 // if so, send an update
                 
 
-                if( ! nextPlayer->error &&
-                    ( nextPlayer->xd != nextPlayer->xs ||
-                      nextPlayer->yd != nextPlayer->ys ) ) {
+                if( nextPlayer->xd != nextPlayer->xs ||
+                    nextPlayer->yd != nextPlayer->ys ) {
                 
                     
                     if( Time::getCurrentTime() - nextPlayer->moveStartTime
@@ -7298,8 +7528,7 @@ int main() {
                     }
                 
                 // check if we need to decrement their food
-                if( ! nextPlayer->error &&
-                    Time::getCurrentTime() > 
+                if( Time::getCurrentTime() > 
                     nextPlayer->foodDecrementETASeconds ) {
                     
                     // only if femail of fertile age
@@ -7983,6 +8212,54 @@ int main() {
                     }
                 }
             }
+
+
+
+
+        unsigned char *namesMessage = NULL;
+        int namesMessageLength = 0;
+        
+        if( playerIndicesToSendNamesAbout.size() > 0 ) {
+            SimpleVector<char> namesWorking;
+            namesWorking.appendElementString( "NM\n" );
+            
+            int numAdded = 0;
+            for( int i=0; i<playerIndicesToSendNamesAbout.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( 
+                    playerIndicesToSendNamesAbout.getElementDirect( i ) );
+
+                if( nextPlayer->error ) {
+                    continue;
+                    }
+
+                char *line = autoSprintf( "%d %s\n", nextPlayer->id,
+                                          nextPlayer->name );
+                numAdded++;
+                namesWorking.appendElementString( line );
+                delete [] line;
+                }
+            
+            namesWorking.push_back( '#' );
+            
+            if( numAdded > 0 ) {
+
+                char *namesMessageText = namesWorking.getElementString();
+                
+                namesMessageLength = strlen( namesMessageText );
+                
+                if( namesMessageLength < maxUncompressedSize ) {
+                    namesMessage = (unsigned char*)namesMessageText;
+                    }
+                else {
+                    // compress for all players once here
+                    namesMessage = makeCompressedMessage( 
+                        namesMessageText, 
+                        namesMessageLength, &namesMessageLength );
+                    
+                    delete [] namesMessageText;
+                    }
+                }
+            }
         
         
         // send moves and updates to clients
@@ -8066,6 +8343,8 @@ int main() {
                     delete [] movesMessage;
                     }
 
+
+
                 // send lineage for everyone alive
                 
                 
@@ -8108,6 +8387,43 @@ int main() {
                 
                     delete [] linMessage;
                     }
+
+
+
+                // send names for everyone alive
+                
+                SimpleVector<char> namesWorking;
+                namesWorking.appendElementString( "NM\n" );
+
+                numAdded = 0;
+                
+                for( int i=0; i<numPlayers; i++ ) {
+                
+                    LiveObject *o = players.getElement( i );
+                
+                    if( o->error || o->name == NULL) {
+                        continue;
+                        }
+
+                    char *line = autoSprintf( "%d %s\n", o->id, o->name );
+                    namesWorking.appendElementString( line );
+                    delete [] line;
+                    
+                    numAdded++;
+                    }
+                
+                namesWorking.push_back( '#' );
+            
+                if( numAdded > 0 ) {
+                    char *namesMessage = namesWorking.getElementString();
+
+
+                    sendMessageToPlayer( nextPlayer, namesMessage, 
+                                         strlen( namesMessage ) );
+                
+                    delete [] namesMessage;
+                    }
+
                 
                 nextPlayer->firstMessageSent = true;
                 }
@@ -8461,6 +8777,23 @@ int main() {
                             "Socket write failed";
                         }
                     }
+
+                // EVERYONE gets newly-given names
+                if( namesMessage != NULL ) {
+                    int numSent = 
+                        nextPlayer->sock->send( 
+                            namesMessage, 
+                            namesMessageLength, 
+                            false, false );
+                    
+                    if( numSent != namesMessageLength ) {
+                        setDeathReason( nextPlayer, "disconnected" );
+
+                        nextPlayer->error = true;
+                        nextPlayer->errorCauseString =
+                            "Socket write failed";
+                        }
+                    }
                 
 
 
@@ -8527,6 +8860,9 @@ int main() {
         if( lineageMessage != NULL ) {
             delete [] lineageMessage;
             }
+        if( namesMessage != NULL ) {
+            delete [] namesMessage;
+            }
 
         
         // handle closing any that have an error
@@ -8546,6 +8882,10 @@ int main() {
                 delete nextPlayer->sock;
                 delete nextPlayer->sockBuffer;
                 delete nextPlayer->lineage;
+                
+                if( nextPlayer->name != NULL ) {
+                    delete [] nextPlayer->name;
+                    }
                 
                 if( nextPlayer->containedIDs != NULL ) {
                     delete [] nextPlayer->containedIDs;

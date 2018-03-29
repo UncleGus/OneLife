@@ -321,6 +321,9 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
 
     SimpleVector<char> buffer;
     
+    buffer.appendElementString( translate( "your" ) );
+    buffer.appendElementString( " " );
+
     for( int i=0; i<numGreats; i++ ) {
         buffer.appendElementString( translate( "great" ) );
         }
@@ -392,6 +395,21 @@ static char hideGuiPanel = false;
 
 
 
+
+static char *lastMessageSentToServer = NULL;
+
+
+// destroyed internally if not NULL
+static void replaceLastMessageSent( char *inNewMessage ) {
+    if( lastMessageSentToServer != NULL ) {
+        delete [] lastMessageSentToServer;
+        }
+    lastMessageSentToServer = inNewMessage;
+    }
+
+
+
+
 SimpleVector<unsigned char> serverSocketBuffer;
 
 
@@ -426,6 +444,8 @@ void LivingLifePage::sendToServerSocket( char *inMessage ) {
     
     printf( "Sending message to server: %s\n", inMessage );
     
+    replaceLastMessageSent( stringDuplicate( inMessage ) );    
+
     int len = strlen( inMessage );
     
     int numSent = sendToSocket( mServerSocket, (unsigned char*)inMessage, len );
@@ -604,6 +624,7 @@ typedef enum messageType {
     PLAYER_SAYS,
     FOOD_CHANGE,
     LINEAGE,
+    NAMES,
     COMPRESSED_MESSAGE,
     UNKNOWN
     } messageType;
@@ -662,6 +683,9 @@ messageType getMessageType( char *inMessage ) {
         }
     else if( strcmp( copy, "LN" ) == 0 ) {
         returnValue = LINEAGE;
+        }
+    else if( strcmp( copy, "NM" ) == 0 ) {
+        returnValue = NAMES;
         }
     
     delete [] copy;
@@ -1747,6 +1771,14 @@ void LivingLifePage::clearLiveObjects() {
             delete [] nextObject->currentSpeech;
             }
 
+        if( nextObject->relationName != NULL ) {
+            delete [] nextObject->relationName;
+            }
+
+        if( nextObject->name != NULL ) {
+            delete [] nextObject->name;
+            }
+
         delete nextObject->futureAnimStack;
         delete nextObject->futureHeldAnimStack;
         }
@@ -1822,8 +1854,16 @@ LivingLifePage::~LivingLifePage() {
 
     delete [] mMapPlayerPlacedFlags;
 
-    delete [] nextActionMessageToSend;
+    if( nextActionMessageToSend != NULL ) {
+        delete [] nextActionMessageToSend;
+        nextActionMessageToSend = NULL;
+        }
 
+    if( lastMessageSentToServer != NULL ) {
+        delete [] lastMessageSentToServer;
+        lastMessageSentToServer = NULL;
+        }
+    
     if( mHungerSound != NULL ) {    
         freeSoundSprite( mHungerSound );
         }
@@ -3166,6 +3206,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                 babyO->holdingFlip = inObj->holdingFlip;
                 
                 // save world hold pos for smooth set-down of baby
+                babyO->lastHeldByRawPosSet = true;
                 babyO->lastHeldByRawPos = worldHoldPos;
 
                 returnPack =
@@ -6093,6 +6134,11 @@ void LivingLifePage::draw( doublePair inViewCenter,
                     }
                 else {
                     des = (char*)translate( "you" );
+                    if( ourLiveObject->name != NULL ) {
+                        des = autoSprintf( "%s - %s", des, 
+                                           ourLiveObject->name );
+                        desToDelete = des;
+                        }
                     }
                 }
             else if( idToDescribe < 0 ) {
@@ -6103,6 +6149,11 @@ void LivingLifePage::draw( doublePair inViewCenter,
                     }
                 if( des == NULL ) {
                     des = (char*)translate( "unrelated" );
+                    }
+                if( otherObj->name != NULL ) {
+                    des = autoSprintf( "%s - %s",
+                                       otherObj->name, des );
+                    desToDelete = des;
                     }
                 }
             else {
@@ -6832,6 +6883,42 @@ static char checkIfHeldContChanged( LiveObject *inOld, LiveObject *inNew ) {
 
 
 
+
+void LivingLifePage::sendBugReport( int inBugNumber ) {
+    char *bugString = stringDuplicate( "" );
+
+    if( lastMessageSentToServer != NULL ) {
+        char *temp = bugString;
+        bugString = autoSprintf( "%s   Just sent: [%s]",
+                                 temp, lastMessageSentToServer );
+        delete [] temp;
+        }
+    if( nextActionMessageToSend != NULL ) {
+        char *temp = bugString;
+        bugString = autoSprintf( "%s   Waiting to send: [%s]",
+                                 temp, nextActionMessageToSend );
+        delete [] temp;
+        }
+    
+    // clear # terminators from message
+    char *spot = strstr( bugString, "#" );
+    
+    while( spot != NULL ) {
+        spot[0] = ' ';
+        spot = strstr( bugString, "#" );
+        }
+    
+    
+    char *bugMessage = autoSprintf( "BUG %d %s#", inBugNumber, bugString );
+    
+    delete [] bugString;
+
+    sendToServerSocket( bugMessage );
+    delete [] bugMessage;
+    }
+    
+
+
         
 void LivingLifePage::step() {
     if( mouseDown ) {
@@ -7378,6 +7465,52 @@ void LivingLifePage::step() {
             }
         }
 
+
+    if( playerActionPending && 
+        ourObject != NULL && 
+        game_getCurrentTime() - 
+        ourObject->pendingActionAnimationStartTime > 4 ) {
+        
+        // been bouncing for four seconds with no answer from server
+        
+        printf( "Been waiting for response to our action request "
+                "from server for > 4 seconds, giving up\n" );
+
+        sendBugReport( 1 );
+
+        // end it
+        ourObject->pendingActionAnimationProgress = 0;
+        ourObject->pendingAction = false;
+                                
+        playerActionPending = false;
+        playerActionTargetNotAdjacent = false;
+
+        if( nextActionMessageToSend != NULL ) {
+            delete [] nextActionMessageToSend;
+            nextActionMessageToSend = NULL;
+            }
+        
+        int goodX = ourObject->xServer;
+        int goodY = ourObject->yServer;
+
+        printf( "   Jumping back to last-known server position of %d,%d\n",
+                goodX, goodY );
+
+        // jump to wherever server said we were before
+        ourObject->inMotion = false;
+                        
+        ourObject->moveTotalTime = 0;
+        ourObject->currentSpeed = 0;
+        ourObject->currentGridSpeed = 0;
+        
+
+        ourObject->currentPos.x = goodX;
+        ourObject->currentPos.y = goodY;
+        
+        ourObject->xd = goodX;
+        ourObject->yd = goodY;
+        }
+    
             
 
     char *message = getNextServerMessage();
@@ -8761,6 +8894,7 @@ void LivingLifePage::step() {
                 o.age = 0;
                 o.finalAgeSet = false;
                 
+                o.name = NULL;
                 o.relationName = NULL;
 
 
@@ -9235,7 +9369,7 @@ void LivingLifePage::step() {
                             
                             //existing->lastAnim = ground;
                             //existing->lastAnimFade = 0;
-                            if( oldHeld > 0 ) {
+                            if( oldHeld != 0 ) {
                                 if( o.id == ourID ) {
                                     addNewAnimPlayerOnly( existing, ground );
                                     }
@@ -9812,10 +9946,13 @@ void LivingLifePage::step() {
                         
                         existing->lastSpeed = o.lastSpeed;
                         
+                        char babyDropped = false;
                         
+                        if( done_moving && existing->heldByAdultID != -1 ) {
+                            babyDropped = true;
+                            }
                         
-
-                        if( existing->heldByAdultID != -1 ) {
+                        if( babyDropped ) {
                             // got an update for a player that's being held
                             // this means they've been dropped
                             printf( "Baby dropped\n" );
@@ -9830,10 +9967,27 @@ void LivingLifePage::step() {
                             existing->xd = o.xd;
                             existing->yd = o.yd;
                             
-                            existing->heldByDropOffset =
-                                sub( existing->lastHeldByRawPos,
-                                     existing->currentPos );
-
+                            if( existing->lastHeldByRawPosSet ) {    
+                                existing->heldByDropOffset =
+                                    sub( existing->lastHeldByRawPos,
+                                         existing->currentPos );
+                                if( length( existing->heldByDropOffset ) > 3 ) {
+                                    // too far to fly during drop
+                                    // snap instead
+                                    existing->heldByDropOffset.x = 0;
+                                    existing->heldByDropOffset.y = 0;
+                                    }
+                                }
+                            else {
+                                // held pos not known
+                                // maybe this holding parent has never
+                                // been drawn on the screen
+                                // (can happen if they drop us during map load)
+                                existing->heldByDropOffset.x = 0;
+                                existing->heldByDropOffset.y = 0;
+                                }
+                            
+                            existing->lastHeldByRawPosSet = false;
                             
                             
                             LiveObject *adultO = 
@@ -10005,6 +10159,8 @@ void LivingLifePage::step() {
                         o.inMotion = false;
                         
                         o.holdingFlip = false;
+                        
+                        o.lastHeldByRawPosSet = false;
 
                         o.pendingAction = false;
                         o.pendingActionAnimationProgress = 0;
@@ -10201,6 +10357,10 @@ void LivingLifePage::step() {
                             
                             if( nextObject->relationName != NULL ) {
                                 delete [] nextObject->relationName;
+                                }
+
+                            if( nextObject->name != NULL ) {
+                                delete [] nextObject->name;
                                 }
 
                             delete nextObject->futureAnimStack;
@@ -11108,6 +11268,51 @@ void LivingLifePage::step() {
                     }
                 }
             }
+        else if( type == NAMES ) {
+            int numLines;
+            char **lines = split( message, "\n", &numLines );
+            
+            if( numLines > 0 ) {
+                // skip first
+                delete [] lines[0];
+                }
+            
+            
+            for( int i=1; i<numLines; i++ ) {
+
+                int id;
+                int numRead = sscanf( lines[i], "%d ",
+                                      &( id ) );
+
+                if( numRead == 1 ) {
+                    for( int j=0; j<gameObjects.size(); j++ ) {
+                        if( gameObjects.getElement(j)->id == id ) {
+                            
+                            LiveObject *existing = gameObjects.getElement(j);
+                            
+                            if( existing->name != NULL ) {
+                                delete [] existing->name;
+                                }
+                            
+                            char *firstSpace = strstr( lines[i], " " );
+        
+                            if( firstSpace != NULL ) {
+
+                                char *nameStart = &( firstSpace[1] );
+                                
+                                existing->name = stringDuplicate( nameStart );
+                                }
+                            
+                            break;
+                            }
+                        }
+                    
+                    }
+                
+                delete [] lines[i];
+                }
+            delete [] lines;
+            }
         else if( type == FOOD_CHANGE ) {
             
             LiveObject *ourLiveObject = getOurLiveObject();
@@ -11361,6 +11566,11 @@ void LivingLifePage::step() {
 
         int sayCap = (int)( floor( age ) + 1 );
         
+        if( ourLiveObject->lineage.size() == 0  && sayCap < 30 ) {
+            // eve has a larger say limit
+            sayCap = 30;
+            }
+
         mSayField.setMaxLength( sayCap );
 
 
@@ -12059,6 +12269,9 @@ void LivingLifePage::step() {
             // matter how fast the server responds
             ourLiveObject->pendingActionAnimationProgress = 
                 0.025 * frameRateFactor;
+
+            ourLiveObject->pendingActionAnimationStartTime = 
+                game_getCurrentTime();
             
             if( nextActionEating ) {
                 addNewAnim( ourLiveObject, eating );
@@ -12117,6 +12330,8 @@ void LivingLifePage::step() {
                 isLiveObjectSetFullyLoaded( &mFirstObjectSetLoadingProgress );
             
             if( mDoneLoadingFirstObjectSet ) {
+                printf( "First map load done\n" );
+                
                 restartMusic( computeCurrentAge( ourLiveObject ),
                               ourLiveObject->ageRate );
                 setSoundLoudness( 1.0 );
@@ -13109,6 +13324,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         }
 
     if( playerActionPending ) {
+        printf( "Skipping click, action pending\n" );
+        
         // block further actions until update received to confirm last
         // action
         return;
@@ -14260,6 +14477,7 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
     registerTriggerKeyCommand( inASCII, this );
     
     switch( inASCII ) {
+        /*
         case 'b':
             blackBorder = true;
             whiteBorder = false;
@@ -14268,6 +14486,7 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
             blackBorder = false;
             whiteBorder = true;
             break;
+        */
         /*
         case 'a':
             drawAdd = ! drawAdd;
