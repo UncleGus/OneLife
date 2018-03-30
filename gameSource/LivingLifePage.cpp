@@ -6150,7 +6150,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
                 if( des == NULL ) {
                     des = (char*)translate( "unrelated" );
                     }
-                if( otherObj->name != NULL ) {
+                if( otherObj != NULL && otherObj->name != NULL ) {
                     des = autoSprintf( "%s - %s",
                                        otherObj->name, des );
                     desToDelete = des;
@@ -9382,18 +9382,20 @@ void LivingLifePage::step() {
                                                 existing, eating );
                                             }
 
-                                        ObjectRecord *oldHeldObj =
-                                            getObject( oldHeld );
+                                        if( oldHeld > 0 ) {
+                                            ObjectRecord *oldHeldObj =
+                                                getObject( oldHeld );
                                         
-                                        if( oldHeldObj->
-                                            eatingSound.numSubSounds > 0 ) {
+                                            if( oldHeldObj->
+                                                eatingSound.numSubSounds > 0 ) {
                                             
-                                            playSound( 
-                                                oldHeldObj->eatingSound,
-                                                getVectorFromCamera( 
-                                                    existing->currentPos.x, 
-                                                    existing->currentPos.y ) );
-                                            otherSoundPlayed = true;
+                                                playSound( 
+                                                    oldHeldObj->eatingSound,
+                                                    getVectorFromCamera( 
+                                                     existing->currentPos.x, 
+                                                     existing->currentPos.y ) );
+                                                otherSoundPlayed = true;
+                                                }
                                             }
                                         }
                                     else {
