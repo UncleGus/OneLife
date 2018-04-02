@@ -52,6 +52,8 @@ typedef struct LiveObject {
         
         SimpleVector<int> lineage;
         
+        char *name;
+
         char *relationName;
         
 
@@ -78,6 +80,7 @@ typedef struct LiveObject {
         doublePair heldByDropOffset;
 
         // the actual world pos we were last held at
+        char lastHeldByRawPosSet;
         doublePair lastHeldByRawPos;
         
         
@@ -225,7 +228,8 @@ typedef struct LiveObject {
 
         char pendingAction;
         float pendingActionAnimationProgress;
-
+        double pendingActionAnimationStartTime;
+        
         
         // NULL if no active speech
         char *currentSpeech;
@@ -372,9 +376,19 @@ class LivingLifePage : public GamePage {
         // handles error detection, total byte counting, etc.
         void sendToServerSocket( char *inMessage );
         
+        void sendBugReport( int inBugNumber );
+
+
+        int getRequiredVersion() {
+            return mRequiredVersion;
+            }
+
+
     protected:
 
         int mServerSocket;
+        
+        int mRequiredVersion;
 
         int mFirstServerMessagesReceived;
         

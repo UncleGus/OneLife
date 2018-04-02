@@ -27,6 +27,8 @@
 
 #include "minorGems/formats/encodingUtils.h"
 
+#include "minorGems/io/file/File.h"
+
 
 #include "map.h"
 #include "../gameSource/transitionBank.h"
@@ -41,6 +43,7 @@
 #include "playerStats.h"
 #include "serverCalls.h"
 #include "failureLog.h"
+#include "names.h"
 
 
 #include "minorGems/util/random/JenkinsRandomSource.h"
@@ -91,8 +94,20 @@ static int requireTicketServerCheck = 1;
 static char *clientPassword = NULL;
 static char *ticketServerURL = NULL;
 
+// larger of dataVersionNumber.txt or serverCodeVersionNumber.txt
+static int versionNumber = 1;
+
+
 static double childSameRaceLikelihood = 0.9;
 static int familySpan = 2;
+
+
+// phrases that trigger baby and family naming
+static SimpleVector<char*> nameGivingPhrases;
+static SimpleVector<char*> familyNameGivingPhrases;
+
+static char *eveName = NULL;
+
 
 
 // for incoming socket connections that are still in the login process
@@ -129,8 +144,12 @@ typedef struct LiveObject {
         // object ID used to visually represent this player
         int displayID;
         
-        char isEve;
-        
+        char *name;
+
+        char isEve;        
+
+        int parentID;
+
         // 0 for Eve
         int parentChainLength;
 
@@ -437,7 +456,83 @@ void clearPlayerHeldContained( LiveObject *inPlayer ) {
     inPlayer->subContainedEtaDecays = NULL;
     }
     
+
+
+
+void transferHeldContainedToMap( LiveObject *inPlayer, int inX, int inY ) {
+    if( inPlayer->numContained != 0 ) {
+        timeSec_t curTime = Time::timeSec();
+        float stretch = 
+            getObject( inPlayer->holdingID )->slotTimeStretch;
+        
+        for( int c=0;
+             c < inPlayer->numContained;
+             c++ ) {
             
+            // undo decay stretch before adding
+            // (stretch applied by adding)
+            if( stretch != 1.0 &&
+                inPlayer->containedEtaDecays[c] != 0 ) {
+                
+                timeSec_t offset = 
+                    inPlayer->containedEtaDecays[c] - curTime;
+                
+                offset = offset * stretch;
+                
+                inPlayer->containedEtaDecays[c] =
+                    curTime + offset;
+                }
+
+            addContained( 
+                inX, inY,
+                inPlayer->containedIDs[c],
+                inPlayer->containedEtaDecays[c] );
+
+            int numSub = inPlayer->subContainedIDs[c].size();
+            if( numSub > 0 ) {
+
+                int container = inPlayer->containedIDs[c];
+                
+                if( container < 0 ) {
+                    container *= -1;
+                    }
+                
+                float subStretch = getObject( container )->slotTimeStretch;
+                    
+                
+                int *subIDs = 
+                    inPlayer->subContainedIDs[c].getElementArray();
+                timeSec_t *subDecays = 
+                    inPlayer->subContainedEtaDecays[c].
+                    getElementArray();
+                
+                for( int s=0; s < numSub; s++ ) {
+                    
+                    // undo decay stretch before adding
+                    // (stretch applied by adding)
+                    if( subStretch != 1.0 &&
+                        subDecays[s] != 0 ) {
+                
+                        timeSec_t offset = subDecays[s] - curTime;
+                        
+                        offset = offset * subStretch;
+                        
+                        subDecays[s] = curTime + offset;
+                        }
+
+                    addContained( inX, inY,
+                                  subIDs[s], subDecays[s],
+                                  c + 1 );
+                    }
+                delete [] subIDs;
+                delete [] subDecays;
+                }
+            }
+
+        clearPlayerHeldContained( inPlayer );
+        }
+    }
+
 
 
 
@@ -521,6 +616,10 @@ void quitCleanup() {
         delete nextPlayer->sock;
         delete nextPlayer->sockBuffer;
         delete nextPlayer->lineage;
+
+        if( nextPlayer->name != NULL ) {
+            delete [] nextPlayer->name;
+            }
         
         if( nextPlayer->email != NULL  ) {
             delete [] nextPlayer->email;
@@ -559,6 +658,8 @@ void quitCleanup() {
 
     freePlayerStats();
 
+    freeNames();
+    
     freeLifeLog();
     
     freeFoodLog();
@@ -582,6 +683,14 @@ void quitCleanup() {
     if( ticketServerURL != NULL ) {
         delete [] ticketServerURL;
         ticketServerURL = NULL;
+        }
+
+    nameGivingPhrases.deallocateStringElements();
+    familyNameGivingPhrases.deallocateStringElements();
+    
+    if( eveName != NULL ) {
+        delete [] eveName;
+        eveName = NULL;
         }
     }
 
@@ -693,6 +802,7 @@ typedef enum messageType {
     SAY,
     MAP,
     TRIGGER,
+    BUG,
     UNKNOWN
     } messageType;
 
@@ -704,7 +814,7 @@ typedef struct ClientMessage {
         int x, y, c, i;
         
         int trigger;
-        
+        int bug;
 
         // some messages have extra positions attached
         int numExtraPos;
@@ -715,6 +825,9 @@ typedef struct ClientMessage {
         // null if type not SAY
         char *saidText;
         
+        // null if type not BUG
+        char *bugText;
+
     } ClientMessage;
 
 
@@ -734,10 +847,20 @@ ClientMessage parseMessage( char *inMessage ) {
     m.numExtraPos = 0;
     m.extraPos = NULL;
     m.saidText = NULL;
+    m.bugText = NULL;
     // don't require # terminator here
 
     int numRead = sscanf( inMessage, 
                           "%99s %d %d", nameBuffer, &( m.x ), &( m.y ) );
+
+    
+    if( numRead >= 2 &&
+        strcmp( nameBuffer, "BUG" ) == 0 ) {
+        m.type = BUG;
+        m.bug = m.x;
+        m.bugText = stringDuplicate( inMessage );
+        return m;
+        }
 
 
     if( numRead != 3 ) {
@@ -761,7 +884,7 @@ ClientMessage parseMessage( char *inMessage ) {
         SimpleVector<char *> *tokens =
             tokenizeString( inMessage );
         
-        // require an odd number greater than 5
+        // require an odd number at least 5
         if( tokens->size() < 5 || tokens->size() % 2 != 1 ) {
             tokens->deallocateStringElements();
             delete tokens;
@@ -1036,6 +1159,19 @@ double computeAge( LiveObject *inPlayer ) {
         }
     return age;
     }
+
+
+
+int getSayLimit( LiveObject *inPlayer ) {
+    int limit = (unsigned int)( floor( computeAge( inPlayer ) ) + 1 );
+
+    if( inPlayer->isEve && limit < 30 ) {
+        // give Eve room to name her family line
+        limit = 30;
+        }
+    return limit;
+    }
+
 
 
 
@@ -2057,78 +2193,9 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
     
     setMapObject( targetX, targetY, inDroppingPlayer->holdingID );
     setEtaDecay( targetX, targetY, inDroppingPlayer->holdingEtaDecay );
+
+    transferHeldContainedToMap( inDroppingPlayer, targetX, targetY );
     
-    if( inDroppingPlayer->numContained != 0 ) {
-        timeSec_t curTime = Time::timeSec();
-        float stretch = 
-            getObject( inDroppingPlayer->holdingID )->slotTimeStretch;
-        
-        for( int c=0;
-             c < inDroppingPlayer->numContained;
-             c++ ) {
-            
-            // undo decay stretch before adding
-            // (stretch applied by adding)
-            if( stretch != 1.0 &&
-                inDroppingPlayer->containedEtaDecays[c] != 0 ) {
-                
-                timeSec_t offset = 
-                    inDroppingPlayer->containedEtaDecays[c] - curTime;
-                
-                offset = offset * stretch;
-                
-                inDroppingPlayer->containedEtaDecays[c] =
-                    curTime + offset;
-                }
-
-            addContained( 
-                targetX, targetY,
-                inDroppingPlayer->containedIDs[c],
-                inDroppingPlayer->containedEtaDecays[c] );
-
-            int numSub = inDroppingPlayer->subContainedIDs[c].size();
-            if( numSub > 0 ) {
-
-                int container = inDroppingPlayer->containedIDs[c];
-                
-                if( container < 0 ) {
-                    container *= -1;
-                    }
-                
-                float subStretch = getObject( container )->slotTimeStretch;
-                    
-                
-                int *subIDs = 
-                    inDroppingPlayer->subContainedIDs[c].getElementArray();
-                timeSec_t *subDecays = 
-                    inDroppingPlayer->subContainedEtaDecays[c].
-                    getElementArray();
-                
-                for( int s=0; s < numSub; s++ ) {
-                    
-                    // undo decay stretch before adding
-                    // (stretch applied by adding)
-                    if( subStretch != 1.0 &&
-                        subDecays[s] != 0 ) {
-                
-                        timeSec_t offset = subDecays[s] - curTime;
-                        
-                        offset = offset * subStretch;
-                        
-                        subDecays[s] = curTime + offset;
-                        }
-
-                    addContained( targetX, targetY,
-                                  subIDs[s], subDecays[s],
-                                  c + 1 );
-                    }
-                delete [] subIDs;
-                delete [] subDecays;
-                }
-            }
-
-        clearPlayerHeldContained( inDroppingPlayer );
-        }
                                 
 
     setResponsiblePlayer( -1 );
@@ -2292,7 +2359,8 @@ static char *getUpdateLine( LiveObject *inPlayer, char inDelete,
     int doneMoving = 0;
     
     if( inPlayer->xs == inPlayer->xd &&
-        inPlayer->ys == inPlayer->yd ) {
+        inPlayer->ys == inPlayer->yd &&
+        ! inPlayer->heldByOther ) {
         doneMoving = 1;
         }
     
@@ -2916,6 +2984,8 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.lineage = new SimpleVector<int>();
     
+    newObject.name = NULL;
+    
     newObject.pathLength = 0;
     newObject.pathToDest = NULL;
     newObject.pathTruncated = 0;
@@ -2971,18 +3041,18 @@ void processLoggedInPlayer( Socket *inSock,
         }
 
     
-    int parentID = -1;
+    newObject.parentID = -1;
     char *parentEmail = NULL;
 
     if( parent != NULL && isFertileAge( parent ) ) {
         // do not log babies that new Eve spawns next to as parents
-        parentID = parent->id;
+        newObject.parentID = parent->id;
         parentEmail = parent->email;
 
         newObject.parentChainLength = parent->parentChainLength + 1;
 
         // mother
-        newObject.lineage->push_back( parentID );
+        newObject.lineage->push_back( newObject.parentID );
         
         for( int i=0; 
              i < parent->lineage->size() && 
@@ -3002,7 +3072,7 @@ void processLoggedInPlayer( Socket *inSock,
 
     logBirth( newObject.id,
               newObject.email,
-              parentID,
+              newObject.parentID,
               parentEmail,
               ! getFemale( &newObject ),
               newObject.xd,
@@ -3551,6 +3621,78 @@ static void sendMessageToPlayer( LiveObject *inPlayer,
     
 
 
+void readNameGivingPhrases( const char *inSettingsName, 
+                            SimpleVector<char*> *inList ) {
+    char *cont = SettingsManager::getSettingContents( inSettingsName, "" );
+    
+    if( strcmp( cont, "" ) == 0 ) {
+        delete [] cont;
+        return;    
+        }
+    
+    int numParts;
+    char **parts = split( cont, "\n", &numParts );
+    
+    for( int i=0; i<numParts; i++ ) {
+        if( strcmp( parts[i], "" ) != 0 ) {
+            inList->push_back( stringToUpperCase( parts[i] ) );
+            }
+        delete [] parts[i];
+        }
+    delete [] parts;
+    }
+
+
+
+// returns pointer to name in string
+char *isNamingSay( char *inSaidString, SimpleVector<char*> *inPhraseList ) {
+    for( int i=0; i<inPhraseList->size(); i++ ) {
+        char *testString = inPhraseList->getElementDirect( i );
+        
+        if( strstr( inSaidString, testString ) == inSaidString ) {
+            // hit
+            int phraseLen = strlen( testString );
+            // skip spaces after
+            while( inSaidString[ phraseLen ] == ' ' ) {
+                phraseLen++;
+                }
+            return &( inSaidString[ phraseLen ] );
+            }
+        }
+    return NULL;
+    }
+
+
+
+char *isBabyNamingSay( char *inSaidString ) {
+    return isNamingSay( inSaidString, &nameGivingPhrases );
+    }
+
+char *isFamilyNamingSay( char *inSaidString ) {
+    return isNamingSay( inSaidString, &familyNameGivingPhrases );
+    }
+
+
+
+
+int readIntFromFile( const char *inFileName, int inDefaultValue ) {
+    FILE *f = fopen( inFileName, "r" );
+    
+    if( f == NULL ) {
+        return inDefaultValue;
+        }
+    
+    int val = inDefaultValue;
+    
+    fscanf( f, "%d", &val );
+
+    fclose( f );
+
+    return val;
+    }
+
+
+
 
 
 
@@ -3571,10 +3713,7 @@ int main() {
 
     printf( "\n" );
     
-    initLifeLog();
-    initBackup();
     
-    initPlayerStats();
     
 
     nextSequenceNumber = 
@@ -3588,6 +3727,22 @@ int main() {
     
     clientPassword = 
         SettingsManager::getStringSetting( "clientPassword" );
+
+
+    int dataVer = readIntFromFile( "dataVersionNumber.txt", 1 );
+    int codVer = readIntFromFile( "serverCodeVersionNumber.txt", 1 );
+    
+    versionNumber = dataVer;
+    if( codVer > versionNumber ) {
+        versionNumber = codVer;
+        }
+    
+    printf( "\n" );
+    AppLog::infoF( "Server using version number %d", versionNumber );
+
+    printf( "\n" );
+    
+
 
 
     minFoodDecrementSeconds = 
@@ -3624,6 +3779,13 @@ int main() {
     
     familySpan =
         SettingsManager::getIntSetting( "familySpan", 2 );
+    
+    
+    readNameGivingPhrases( "babyNamingPhrases", &nameGivingPhrases );
+    readNameGivingPhrases( "familyNamingPhrases", &familyNameGivingPhrases );
+    
+    eveName = 
+        SettingsManager::getStringSetting( "eveName", "EVE" );
 
 
 #ifdef WIN_32
@@ -3635,6 +3797,14 @@ int main() {
 
     signal( SIGTSTP, intHandler );
 #endif
+
+    initNames();
+
+    initLifeLog();
+    initBackup();
+    
+    initPlayerStats();
+
 
     char rebuilding;
 
@@ -3688,6 +3858,12 @@ int main() {
     sockPoll.addSocketServer( &server );
     
     AppLog::infoF( "Listening for connection on port %d", port );
+
+    // if we received one the last time we looped, don't sleep when
+    // polling for socket being ready, because there could be more data
+    // waiting in the buffer for a given socket
+    char someClientMessageReceived = false;
+    
 
     while( !quit ) {
         
@@ -3861,6 +4037,12 @@ int main() {
             pollTimeout = 0.01;
             }
 
+        if( someClientMessageReceived ) {
+            // don't wait at all
+            // we need to check for next message right away
+            pollTimeout = 0;
+            }
+
         // we thus use zero CPU as long as no messages or new connections
         // come in, and only wake up when some timed action needs to be
         // handled
@@ -3930,9 +4112,11 @@ int main() {
                 else {
                     message = autoSprintf( "SN\n"
                                            "%d/%d\n"
+                                           "%lu\n"
                                            "%lu\n#",
                                            currentPlayers, maxPlayers,
-                                           newConnection.sequenceNumber );
+                                           newConnection.sequenceNumber,
+                                           versionNumber );
                     newConnection.shutdownMode = false;
                     }
 
@@ -4305,6 +4489,8 @@ int main() {
         
     
         
+    
+        someClientMessageReceived = false;
 
         numLive = players.size();
         
@@ -4316,6 +4502,8 @@ int main() {
         SimpleVector<int> playerIndicesToSendUpdatesAbout;
         
         SimpleVector<int> playerIndicesToSendLineageAbout;
+
+        SimpleVector<int> playerIndicesToSendNamesAbout;
 
         // accumulated text of update lines
         SimpleVector<char> newUpdates;
@@ -4405,6 +4593,8 @@ int main() {
             char *message = getNextClientMessage( nextPlayer->sockBuffer );
             
             if( message != NULL ) {
+                someClientMessageReceived = true;
+                
                 AppLog::infoF( "Got client message from %d: %s",
                                nextPlayer->id, message );
                 
@@ -4425,8 +4615,43 @@ int main() {
                 //Thread::staticSleep( 
                 //    testRandSource.getRandomBoundedInt( 0, 450 ) );
                 
-                
-                if( m.type == MAP ) {
+                if( m.type == BUG ) {
+                    int allow = 
+                        SettingsManager::getIntSetting( "allowBugReports", 0 );
+
+                    if( allow ) {
+                        char *bugName = 
+                            autoSprintf( "bug_%d_%d_%f",
+                                         m.bug,
+                                         nextPlayer->id,
+                                         Time::getCurrentTime() );
+                        char *bugInfoName = autoSprintf( "%s_info.txt",
+                                                         bugName );
+                        char *bugOutName = autoSprintf( "%s_out.txt",
+                                                        bugName );
+                        FILE *bugInfo = fopen( bugInfoName, "w" );
+                        if( bugInfo != NULL ) {
+                            fprintf( bugInfo, 
+                                     "Bug report from player %d\n"
+                                     "Bug text:  %s\n", 
+                                     nextPlayer->id,
+                                     m.bugText );
+                            fclose( bugInfo );
+                            
+                            File outFile( NULL, "serverOut.txt" );
+                            if( outFile.exists() ) {
+                                fflush( stdout );
+                                File outCopyFile( NULL, bugOutName );
+                                
+                                outFile.copy( &outCopyFile );
+                                }
+                            }
+                        delete [] bugName;
+                        delete [] bugInfoName;
+                        delete [] bugOutName;
+                        }
+                    }
+                else if( m.type == MAP ) {
                     
                     int allow = 
                         SettingsManager::getIntSetting( "allowMapRequests", 0 );
@@ -4939,15 +5164,67 @@ int main() {
                         nextPlayer->lastSayTimeSeconds = 
                             Time::getCurrentTime();
 
-                        unsigned int sayLimit = 
-                            (unsigned int)( 
-                                floor( computeAge( nextPlayer ) ) + 1 );
+                        unsigned int sayLimit = getSayLimit( nextPlayer );
                         
                         if( strlen( m.saidText ) > sayLimit ) {
                             // truncate
                             m.saidText[ sayLimit ] = '\0';
                             }
                         
+                        if( nextPlayer->isEve && nextPlayer->name == NULL ) {
+                            char *name = isFamilyNamingSay( m.saidText );
+                            
+                            if( name != NULL && strcmp( name, "" ) != 0 ) {
+                                const char *close = findCloseLastName( name );
+                                nextPlayer->name = autoSprintf( "%s %s",
+                                                                eveName, 
+                                                                close );
+                                logName( nextPlayer->id,
+                                         nextPlayer->name );
+                                playerIndicesToSendNamesAbout.push_back( i );
+                                }
+                            }
+
+                        if( nextPlayer->holdingID < 0 &&
+                            nextPlayer->babyIDs->size() > 0 &&
+                            nextPlayer->babyIDs->getElementIndex(
+                                - nextPlayer->holdingID ) != -1 ) {
+
+                            // we're holding one of our babies
+                            
+                            LiveObject *babyO =
+                                getLiveObject( - nextPlayer->holdingID );
+                            
+                            if( babyO != NULL && babyO->name == NULL ) {
+                                char *name = isBabyNamingSay( m.saidText );
+                                
+                                if( name != NULL && strcmp( name, "" ) != 0 ) {
+                                    const char *lastName = "";
+                                    if( nextPlayer->name != NULL ) {
+                                        lastName = strstr( nextPlayer->name, 
+                                                           " " );
+                                        
+                                        if( lastName == NULL ) {
+                                            lastName = "";
+                                            }
+                                        }
+
+                                    const char *close = 
+                                        findCloseFirstName( name );
+                                    babyO->name = autoSprintf( "%s%s",
+                                                               close, 
+                                                               lastName );
+                                    logName( babyO->id,
+                                             babyO->name );
+                                    
+                                    playerIndicesToSendNamesAbout.push_back( 
+                                        getLiveObjectIndex( babyO->id ) );
+                                    }
+                                }
+                            }
+                        
+                        
+
                         
                         char *line = autoSprintf( "%d %s\n", nextPlayer->id,
                                                   m.saidText );
@@ -4956,7 +5233,6 @@ int main() {
                         
                         delete [] line;
                         
-                        delete [] m.saidText;
 
                         
                         ChangePosition p = { nextPlayer->xd, nextPlayer->yd, 
@@ -5251,11 +5527,47 @@ int main() {
                                 TransRecord *r = NULL;
                                 char defaultTrans = false;
 
-                                if( nextPlayer->holdingID >= 0 &&
-                                    // if what we're holding contains
+                                char heldCanBeUsed = false;
+                                char containmentTransfer = false;
+                                if( // if what we're holding contains
                                     // stuff, block it from being
                                     // used as a tool
                                     nextPlayer->numContained == 0 ) {
+                                    heldCanBeUsed = true;
+                                    }
+                                else if( nextPlayer->holdingID > 0 ) {
+                                    // see if result of trans
+                                    // would preserve containment
+
+                                    r = getTrans( nextPlayer->holdingID,
+                                                  target );
+
+
+                                    ObjectRecord *heldObj = getObject( 
+                                        nextPlayer->holdingID );
+                                    
+                                    if( r != NULL && r->newActor == 0 &&
+                                        r->newTarget > 0 ) {
+                                        ObjectRecord *newTargetObj =
+                                            getObject( r->newTarget );
+                                        
+                                        if( targetObj->numSlots == 0
+                                            && newTargetObj->numSlots >=
+                                            heldObj->numSlots
+                                            &&
+                                            newTargetObj->slotSize >=
+                                            heldObj->slotSize ) {
+                                            
+                                            containmentTransfer = true;
+                                            heldCanBeUsed = true;
+                                            }
+                                        }
+                                    r = NULL;
+                                    }
+                                
+
+                                if( nextPlayer->holdingID >= 0 &&
+                                    heldCanBeUsed ) {
                                     // negative holding is ID of baby
                                     // which can't be used
                                     // (and no bare hand action available)
@@ -5290,7 +5602,20 @@ int main() {
                                     newTargetE = getTargetFromBreakageCalculation( r );
                                 }
                                 
-                                if( r != NULL &&
+                                if( r != NULL && containmentTransfer ) {
+                                    // special case contained items
+                                    // moving from actor into new target
+                                    // (and hand left empty)
+                                    setResponsiblePlayer( - nextPlayer->id );
+                                    setMapObject( m.x, m.y, r->newTarget );
+                                    setResponsiblePlayer( -1 );
+                                    
+                                    transferHeldContainedToMap( nextPlayer,
+                                                                m.x, m.y );
+                                    handleHoldingChange( nextPlayer,
+                                                         r->newActor );
+                                    }
+                                else if( r != NULL &&
                                     // are we old enough to handle
                                     // what we'd get out of this transition?
                                     ( newActorE == 0 || 
@@ -5338,17 +5663,54 @@ int main() {
 
 
                                     // has target shrunken as a container?
+                                    int oldSlots = 
+                                        getNumContainerSlots( target );
                                     int newSlots = 
                                         getNumContainerSlots( newTargetE );
- 
-                                    shrinkContainer( m.x, m.y, newSlots );
                                     
-                                    if( newSlots > 0 ) {    
-                                        restretchMapContainedDecays( 
-                                            m.x, m.y,
-                                            target,
-                                            newTargetE );
+                                    if( oldSlots > 0 &&
+                                        newSlots == 0 && 
+                                        r->actor == 0 &&
+                                        r->newActor > 0
+                                        &&
+                                        getNumContainerSlots( r->newActor ) ==
+                                        oldSlots &&
+                                        getObject( r->newActor )->slotSize >=
+                                        targetObj->slotSize ) {
+                                        
+                                        // bare-hand action that results
+                                        // in something new in hand
+                                        // with same number of slots 
+                                        // as target
+                                        // keep what was contained
+
+                                        FullMapContained f =
+                                            getFullMapContained( m.x, m.y );
+
+                                        setContained( nextPlayer, f );
+                                    
+                                        clearAllContained( m.x, m.y );
+                                        
+                                        restretchDecays( 
+                                            nextPlayer->numContained,
+                                            nextPlayer->containedEtaDecays,
+                                            target, r->newActor );
                                         }
+                                    else {
+                                        // target on ground changed
+                                        // and we don't have the same
+                                        // number of slots in a new held obj
+                                        
+                                        shrinkContainer( m.x, m.y, newSlots );
+                                    
+                                        if( newSlots > 0 ) {    
+                                            restretchMapContainedDecays( 
+                                                m.x, m.y,
+                                                target,
+                                            newTargetE );
+                                            }
+                                        }
+                                    
                                     
                                     timeSec_t oldEtaDecay = 
                                         getEtaDecay( m.x, m.y );
@@ -5669,30 +6031,58 @@ int main() {
                                     
                                     if( canPlace ) {
 
-                                        handleHoldingChange( nextPlayer,
+                                        if( nextPlayer->numContained > 0 &&
+                                            r->newActor == 0 &&
+                                            r->newTarget > 0 &&
+                                            getObject( r->newTarget )->numSlots 
+                                            >= nextPlayer->numContained &&
+                                            getObject( r->newTarget )->slotSize
+                                            >= obj->slotSize ) {
+
+                                            // use on bare ground with full
+                                            // container that leaves
+                                            // hand empty
+                                            
+                                            // and there's room in newTarget
+
+                                            setResponsiblePlayer( 
+                                                - nextPlayer->id );
+                                            setMapObject( m.x, m.y, 
+                                                          r->newTarget );
+                                            setResponsiblePlayer( -1 );
+                                    
+                                            transferHeldContainedToMap( 
+                                                nextPlayer, m.x, m.y );
+                                            
+                                            handleHoldingChange( nextPlayer,
+                                                                 r->newActor );
+                                            }
+                                        else {
+                                            handleHoldingChange( nextPlayer,
                                                              newActorE );
                                         
-                                        setResponsiblePlayer( 
-                                            - nextPlayer->id );
-                                        
+                                            setResponsiblePlayer( 
+                                                - nextPlayer->id );
+                                            
                                         if( newTargetE > 0 
                                             && getObject( newTargetE )->
-                                               floor ) {
-
-                                            setMapFloor( m.x, m.y, 
+                                                floor ) {
+                                                
+                                                setMapFloor( m.x, m.y, 
                                                          newTargetE );
-                                            }
-                                        else {    
-                                            setMapObject( m.x, m.y, 
+                                                }
+                                            else {    
+                                                setMapObject( m.x, m.y, 
                                                           newTargetE );
-                                            }
-                                        
-                                        setResponsiblePlayer( -1 );
-                                        
-                                        handleMapChangeToPaths( 
-                                            m.x, m.y,
+                                                }
+                                            
+                                            setResponsiblePlayer( -1 );
+                                            
+                                            handleMapChangeToPaths( 
+                                             m.x, m.y,
                                             getObject( newTargetE ),
-                                            &playerIndicesToSendUpdatesAbout );
+                                             &playerIndicesToSendUpdatesAbout );
+                                            }
                                         }
                                     }
                                 }
@@ -6513,7 +6903,14 @@ int main() {
                     if( m.numExtraPos > 0 ) {
                         delete [] m.extraPos;
                         }
-                    }                
+
+                    if( m.saidText != NULL ) {
+                        delete [] m.saidText;
+                        }
+                    if( m.bugText != NULL ) {
+                        delete [] m.bugText;
+                        }
+                    }
                 }
             }
 
@@ -6867,7 +7264,8 @@ int main() {
                         &playerIndicesToSendUpdatesAbout );
                     }
                 }
-            else {
+            else if( ! nextPlayer->error ) {
+                // other update checks for living players
                 
                 if( nextPlayer->holdingEtaDecay != 0 &&
                     nextPlayer->holdingEtaDecay < curTime ) {
@@ -7266,9 +7664,8 @@ int main() {
                 // if so, send an update
                 
 
-                if( ! nextPlayer->error &&
-                    ( nextPlayer->xd != nextPlayer->xs ||
-                      nextPlayer->yd != nextPlayer->ys ) ) {
+                if( nextPlayer->xd != nextPlayer->xs ||
+                    nextPlayer->yd != nextPlayer->ys ) {
                 
                     
                     if( Time::getCurrentTime() - nextPlayer->moveStartTime
@@ -7296,8 +7693,7 @@ int main() {
                     }
                 
                 // check if we need to decrement their food
-                if( ! nextPlayer->error &&
-                    Time::getCurrentTime() > 
+                if( Time::getCurrentTime() > 
                     nextPlayer->foodDecrementETASeconds ) {
                     
                     // only if femail of fertile age
@@ -7981,6 +8377,54 @@ int main() {
                     }
                 }
             }
+
+
+
+
+        unsigned char *namesMessage = NULL;
+        int namesMessageLength = 0;
+        
+        if( playerIndicesToSendNamesAbout.size() > 0 ) {
+            SimpleVector<char> namesWorking;
+            namesWorking.appendElementString( "NM\n" );
+            
+            int numAdded = 0;
+            for( int i=0; i<playerIndicesToSendNamesAbout.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( 
+                    playerIndicesToSendNamesAbout.getElementDirect( i ) );
+
+                if( nextPlayer->error ) {
+                    continue;
+                    }
+
+                char *line = autoSprintf( "%d %s\n", nextPlayer->id,
+                                          nextPlayer->name );
+                numAdded++;
+                namesWorking.appendElementString( line );
+                delete [] line;
+                }
+            
+            namesWorking.push_back( '#' );
+            
+            if( numAdded > 0 ) {
+
+                char *namesMessageText = namesWorking.getElementString();
+                
+                namesMessageLength = strlen( namesMessageText );
+                
+                if( namesMessageLength < maxUncompressedSize ) {
+                    namesMessage = (unsigned char*)namesMessageText;
+                    }
+                else {
+                    // compress for all players once here
+                    namesMessage = makeCompressedMessage( 
+                        namesMessageText, 
+                        namesMessageLength, &namesMessageLength );
+                    
+                    delete [] namesMessageText;
+                    }
+                }
+            }
         
         
         // send moves and updates to clients
@@ -8064,6 +8508,8 @@ int main() {
                     delete [] movesMessage;
                     }
 
+
+
                 // send lineage for everyone alive
                 
                 
@@ -8106,6 +8552,43 @@ int main() {
                 
                     delete [] linMessage;
                     }
+
+
+
+                // send names for everyone alive
+                
+                SimpleVector<char> namesWorking;
+                namesWorking.appendElementString( "NM\n" );
+
+                numAdded = 0;
+                
+                for( int i=0; i<numPlayers; i++ ) {
+                
+                    LiveObject *o = players.getElement( i );
+                
+                    if( o->error || o->name == NULL) {
+                        continue;
+                        }
+
+                    char *line = autoSprintf( "%d %s\n", o->id, o->name );
+                    namesWorking.appendElementString( line );
+                    delete [] line;
+                    
+                    numAdded++;
+                    }
+                
+                namesWorking.push_back( '#' );
+            
+                if( numAdded > 0 ) {
+                    char *namesMessage = namesWorking.getElementString();
+
+
+                    sendMessageToPlayer( nextPlayer, namesMessage, 
+                                         strlen( namesMessage ) );
+                
+                    delete [] namesMessage;
+                    }
+
                 
                 nextPlayer->firstMessageSent = true;
                 }
@@ -8459,6 +8942,23 @@ int main() {
                             "Socket write failed";
                         }
                     }
+
+                // EVERYONE gets newly-given names
+                if( namesMessage != NULL ) {
+                    int numSent = 
+                        nextPlayer->sock->send( 
+                            namesMessage, 
+                            namesMessageLength, 
+                            false, false );
+                    
+                    if( numSent != namesMessageLength ) {
+                        setDeathReason( nextPlayer, "disconnected" );
+
+                        nextPlayer->error = true;
+                        nextPlayer->errorCauseString =
+                            "Socket write failed";
+                        }
+                    }
                 
 
 
@@ -8525,6 +9025,9 @@ int main() {
         if( lineageMessage != NULL ) {
             delete [] lineageMessage;
             }
+        if( namesMessage != NULL ) {
+            delete [] namesMessage;
+            }
 
         
         // handle closing any that have an error
@@ -8544,6 +9047,10 @@ int main() {
                 delete nextPlayer->sock;
                 delete nextPlayer->sockBuffer;
                 delete nextPlayer->lineage;
+                
+                if( nextPlayer->name != NULL ) {
+                    delete [] nextPlayer->name;
+                    }
                 
                 if( nextPlayer->containedIDs != NULL ) {
                     delete [] nextPlayer->containedIDs;

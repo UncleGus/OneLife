@@ -1,4 +1,4 @@
-int versionNumber = 68;
+int versionNumber = 70;
 
 
 // NOTE that OneLife doesn't use account hmacs
@@ -1674,6 +1674,28 @@ void drawFrame( char inUpdate ) {
                 
                 existingAccountPage->setStatus( "loginFailed", true );
 
+                existingAccountPage->setStatusPositiion( true );
+
+                currentGamePage->base_makeActive( true );
+                }
+            else if( livingLifePage->checkSignal( "versionMismatch" ) ) {
+                lastScreenViewCenter.x = 0;
+                lastScreenViewCenter.y = 0;
+
+                setViewCenterPosition( lastScreenViewCenter.x, 
+                                       lastScreenViewCenter.y );
+                
+                currentGamePage = existingAccountPage;
+                
+                char *message = autoSprintf( translate( "versionMismatch" ),
+                                             versionNumber,
+                                             livingLifePage->
+                                             getRequiredVersion() );
+
+                existingAccountPage->setStatusDirect( message, true );
+                
+                delete [] message;
+                
                 existingAccountPage->setStatusPositiion( true );
 
                 currentGamePage->base_makeActive( true );

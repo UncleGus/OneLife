@@ -138,6 +138,13 @@ static int getBiomeIndex( int inBiome ) {
     }
 
 
+
+// tracking when a given map cell was last seen
+static KISSDB lookTimeDB;
+static char lookTimeDBOpen = false;
+
+
+
 static KISSDB db;
 static char dbOpen = false;
 
@@ -340,7 +347,8 @@ timeSec_t valueToTime( unsigned char *inValue ) {
 
 
 
-
+timeSec_t dbLookTimeGet( int inX, int inY );
+void dbLookTimePut( int inX, int inY, timeSec_t inTime );
 
 
 
@@ -392,6 +400,8 @@ static void biomeDBPut( int inX, int inY, int inValue, int inSecondPlace,
             
     
     KISSDB_put( &biomeDB, key, value );
+
+    dbLookTimePut( inX, inY, MAP_TIMESEC );
     }
     
 
@@ -1235,6 +1245,156 @@ static void dbPutCached( int inX, int inY, int inSlot, int inSubCont,
 
 
 
+char lookTimeDBEmpty = false;
+
+
+// version of open call that checks whether look time exists in lookTimeDB
+// for each record in opened DB, and clears any entries that are not
+// rebuilding file storage for DB in the process
+// lookTimeDB MUST be open before calling this
+//
+// If lookTimeDBEmpty, this call just opens the target DB normally without
+// shrinking it.
+//
+// Can handle max key and value size of 16 and 12 bytes
+// Assumes that first 8 bytes of key are xy as 32-bit ints
+int KISSDB_open_timeShrunk(
+	KISSDB *db,
+	const char *path,
+	int mode,
+	unsigned long hash_table_size,
+	unsigned long key_size,
+	unsigned long value_size) {
+
+    File dbFile( NULL, path );
+    
+    if( ! dbFile.exists() || lookTimeDBEmpty ) {
+
+        if( lookTimeDBEmpty ) {
+            AppLog::infoF( "No lookTimes present, not cleaning %s", path );
+            }
+        
+        return KISSDB_open( db, 
+                            path, 
+                            mode,
+                            hash_table_size,
+                            key_size,
+                            value_size );
+        }
+    
+    char *dbTempName = autoSprintf( "%s.temp", path );
+    File dbTempFile( NULL, dbTempName );
+    
+    if( dbTempFile.exists() ) {
+        dbTempFile.remove();
+        }
+    
+    if( dbTempFile.exists() ) {
+        AppLog::errorF( "Failed to remove temp DB file %s", dbTempName );
+
+        delete [] dbTempName;
+
+        return KISSDB_open( db, 
+                            path, 
+                            mode,
+                            hash_table_size,
+                            key_size,
+                            value_size );
+        }
+    
+    KISSDB oldDB;
+    
+    int error = KISSDB_open( &oldDB, 
+                             path, 
+                             mode,
+                             hash_table_size,
+                             key_size,
+                             value_size );
+    if( error ) {
+        AppLog::errorF( "Failed to open DB file %s in KISSDB_open_timeShrunk",
+                        path );
+        delete [] dbTempName;
+
+        return error;
+        }
+
+    KISSDB tempDB;
+    
+    error = KISSDB_open( &tempDB, 
+                         dbTempName, 
+                         mode,
+                         hash_table_size,
+                         key_size,
+                         value_size );
+    if( error ) {
+        AppLog::errorF( "Failed to open DB file %s in KISSDB_open_timeShrunk",
+                        dbTempName );
+        delete [] dbTempName;
+        KISSDB_close( &oldDB );
+        return error;
+        }
+
+
+    
+
+    
+    KISSDB_Iterator dbi;
+    
+    
+    KISSDB_Iterator_init( &oldDB, &dbi );
+    
+    // key and value size that are big enough to handle all of our DB
+    unsigned char key[16];
+    
+    unsigned char value[12];
+    
+    int total = 0;
+    int stale = 0;
+
+    while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+        total++;
+
+        int x = valueToInt( key );
+        int y = valueToInt( &( key[4] ) );
+
+        if( dbLookTimeGet( x, y ) > 0 ) {
+            // keep
+            // insert it in temp
+            KISSDB_put( &tempDB, key, value );
+            }
+        else {
+            // stale
+            // ignore
+            stale++;
+            }
+        }
+    
+    AppLog::infoF( "Cleaned %d / %d stale map cells from %s", stale, total,
+                   path );
+
+    printf( "\n" );
+    
+    
+    KISSDB_close( &tempDB );
+    KISSDB_close( &oldDB );
+
+    dbTempFile.copy( &dbFile );
+    dbTempFile.remove();
+
+    delete [] dbTempName;
+
+    // now open new, shrunk file
+    return KISSDB_open( db, 
+                        path, 
+                        mode,
+                        hash_table_size,
+                        key_size,
+                        value_size );
+    }
+
+
+
+
 
 void initMap() {
     initDBCache();
@@ -1277,33 +1437,171 @@ void initMap() {
 
         fclose( eveRadFile );
         }
+
+
+
+
+
     
+    const char *lookTimeDBName = "lookTime.db";
+    
+    char lookTimeDBExists = false;
+    
+    File lookTimeDBFile( NULL, lookTimeDBName );
+    
+    lookTimeDBExists = lookTimeDBFile.exists();
+
+    if( ! lookTimeDBExists ) {
+        lookTimeDBEmpty = true;
+        }
+
+    KISSDB lookTimeDB_old;
+
+    int error = KISSDB_open( &lookTimeDB_old, 
+                             lookTimeDBName, 
+                             KISSDB_OPEN_MODE_RWCREAT,
+                             80000,
+                             8, // two 32-bit ints, xy
+                             8 // one 64-bit double, representing an ETA time
+                               // in whatever binary format and byte order
+                               // "double" on the server platform uses
+                             );
+    
+    if( error ) {
+        AppLog::errorF( "Error %d opening look time KissDB", error );
+        return;
+        }
+    
+    lookTimeDBOpen = true;
+
+    
+
+    int staleSec = SettingsManager::getIntSetting( "mapCellForgottenSeconds", 
+                                                   0 );
+    
+    if( lookTimeDBExists && staleSec > 0 ) {
+        AppLog::info( "\nCleaning stale look times from map..." );
+
+
+        static KISSDB lookTimeDB_temp;
+        
+        const char *lookTimeDBName_temp = "lookTime_temp.db";
+
+        File tempDBFile( NULL, lookTimeDBName_temp );
+        
+        if( tempDBFile.exists() ) {
+            tempDBFile.remove();
+            }
+        
+
+        error = KISSDB_open( &lookTimeDB_temp, 
+                             lookTimeDBName_temp, 
+                             KISSDB_OPEN_MODE_RWCREAT,
+                             80000,
+                             8, // two 32-bit ints, xy
+                             8 // one 64-bit double, representing an ETA time
+                             // in whatever binary format and byte order
+                             // "double" on the server platform uses
+                             );
+    
+        if( error ) {
+            AppLog::errorF( "Error %d opening look time temp KissDB", error );
+            return;
+            }
+        
+        KISSDB_Iterator dbi;
+        
+        
+        KISSDB_Iterator_init( &lookTimeDB_old, &dbi );
+        
+    
+        timeSec_t curTime = MAP_TIMESEC;
+        
+        unsigned char key[8];
+        unsigned char value[8];
+
+        int total = 0;
+        int stale = 0;
+
+        while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+            total++;
+
+            timeSec_t t = valueToTime( value );
             
+            if( curTime - t >= staleSec ) {
+                // stale cell
+                // ignore
+                stale++;
+                }
+            else {
+                // non-stale
+                // insert it in temp
+                KISSDB_put( &lookTimeDB_temp, key, value );
+                }
+            }
+        
+        AppLog::infoF( "Cleaned %d / %d stale look times", stale, total );
+
+        printf( "\n" );
+
+        if( total == 0 ) {
+            lookTimeDBEmpty = true;
+            }
+
+        KISSDB_close( &lookTimeDB_temp );
+        KISSDB_close( &lookTimeDB_old );
+
+        tempDBFile.copy( &lookTimeDBFile );
+        tempDBFile.remove();
+        }
+    else {
+        KISSDB_close( &lookTimeDB_old );
+        }
+    
+
+
+    error = KISSDB_open( &lookTimeDB, 
+                         lookTimeDBName, 
+                         KISSDB_OPEN_MODE_RWCREAT,
+                         80000,
+                         8, // two 32-bit ints, xy
+                         8 // one 64-bit double, representing an ETA time
+                         // in whatever binary format and byte order
+                         // "double" on the server platform uses
+                         );
+    
+    if( error ) {
+        AppLog::errorF( "Error %d opening look time KissDB", error );
+        return;
+        }
+
+    
+
 
     // note that the various decay ETA slots in map.db 
     // are define but unused, because we store times separately
     // in mapTime.db
-    int error = KISSDB_open( &db, 
-                             "map.db", 
-                             KISSDB_OPEN_MODE_RWCREAT,
-                             80000,
-                             16, // four 32-bit ints, xysb
-                                 // s is the slot number 
-                                 // s=0 for base object
-                                 // s=1 decay ETA seconds (wall clock time)
-                                 // s=2 for count of contained objects
-                                 // s=3 first contained object
-                                 // s=4 second contained object
-                                 // s=... remaining contained objects
-                                 // Then decay ETA for each slot, in order,
-                                 //   after that.
-                                 // s = -1
-                                 //  is a special flag slot set to 0 if NONE
-                                 //  of the contained items have ETA decay
-                                 //  or 1 if some of the contained items might 
-                                 //  have ETA decay.
-                                 //  (this saves us from having to check each
-                                 //   one)
+    error = KISSDB_open_timeShrunk( &db, 
+                         "map.db", 
+                         KISSDB_OPEN_MODE_RWCREAT,
+                         80000,
+                         16, // four 32-bit ints, xysb
+                             // s is the slot number 
+                             // s=0 for base object
+                             // s=1 decay ETA seconds (wall clock time)
+                             // s=2 for count of contained objects
+                             // s=3 first contained object
+                             // s=4 second contained object
+                             // s=... remaining contained objects
+                             // Then decay ETA for each slot, in order,
+                             //   after that.
+                             // s = -1
+                             //  is a special flag slot set to 0 if NONE
+                             //  of the contained items have ETA decay
+                             //  or 1 if some of the contained items might 
+                             //  have ETA decay.
+                             //  (this saves us from having to check each
+                             //   one)
                              // If a contained object id is negative,
                              // that indicates that it sub-contains
                              // other objects in its corresponding b slot
@@ -1311,9 +1609,9 @@ void initMap() {
                              // b is for indexing sub-container slots
                              // b=0 is the main object 
                              // b=1 is the first sub-slot, etc.
-                             4 // one int, object ID at x,y in slot (s-3)
-                               // OR contained count if s=2
-                             );
+                         4 // one int, object ID at x,y in slot (s-3)
+                           // OR contained count if s=2
+                         );
     
     if( error ) {
         AppLog::errorF( "Error %d opening map KissDB", error );
@@ -1327,7 +1625,7 @@ void initMap() {
     // this DB uses the same slot numbers as the map.db
     // however, only times are stored here, because they require 8 bytes
     // so, slot 0 and 2 are never used, for example
-    error = KISSDB_open( &timeDB, 
+    error = KISSDB_open_timeShrunk( &timeDB, 
                          "mapTime.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1365,7 +1663,7 @@ void initMap() {
 
 
 
-    error = KISSDB_open( &biomeDB, 
+    error = KISSDB_open_timeShrunk( &biomeDB, 
                          "biome.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1388,7 +1686,7 @@ void initMap() {
 
 
 
-    error = KISSDB_open( &floorDB, 
+    error = KISSDB_open_timeShrunk( &floorDB, 
                          "floor.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1405,7 +1703,7 @@ void initMap() {
 
 
 
-    error = KISSDB_open( &floorTimeDB, 
+    error = KISSDB_open_timeShrunk( &floorTimeDB, 
                          "floorTime.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1692,6 +1990,9 @@ void initMap() {
                     delete [] newSubArray;
                     delete [] newSubDecayArray;
                     }
+                else {
+                    clearAllContained( x, y, c + 1 );
+                    }
                 }
             
 
@@ -1865,7 +2166,14 @@ void freeAndNullString( char **inStringPointer ) {
 
 void freeMap() {
     printf( "%d calls to getBaseMap\n", getBaseMapCallCount );
+
     
+    if( lookTimeDBOpen ) {
+        KISSDB_close( &lookTimeDB );
+        lookTimeDBOpen = false;
+        }
+
+
     if( dbOpen ) {
         
         AppLog::infoF( "Cleaning up map database on server shutdown." );
@@ -2130,6 +2438,25 @@ static timeSec_t dbFloorTimeGet( int inX, int inY ) {
 
 
 
+// returns 0 if not found
+timeSec_t dbLookTimeGet( int inX, int inY ) {
+    unsigned char key[8];
+    unsigned char value[8];
+
+    intPairToKey( inX, inY, key );
+    
+    int result = KISSDB_get( &lookTimeDB, key, value );
+    
+    if( result == 0 ) {
+        // found
+        return valueToTime( value );
+        }
+    else {
+        return 0;
+        }
+    }
+
+
 
 
 static void dbPut( int inX, int inY, int inSlot, int inValue, 
@@ -2171,6 +2498,7 @@ static void dbPut( int inX, int inY, int inSlot, int inValue,
     KISSDB_put( &db, key, value );
 
     dbPutCached( inX, inY, inSlot, inSubCont, inValue );
+    dbLookTimePut( inX, inY, MAP_TIMESEC );
     }
 
 
@@ -2227,6 +2555,7 @@ static void dbFloorPut( int inX, int inY, int inValue ) {
             
     
     KISSDB_put( &floorDB, key, value );
+    dbLookTimePut( inX, inY, MAP_TIMESEC );
     }
 
 
@@ -2245,6 +2574,21 @@ static void dbFloorTimePut( int inX, int inY, timeSec_t inTime ) {
     KISSDB_put( &floorTimeDB, key, value );
     }
 
+
+
+void dbLookTimePut( int inX, int inY, timeSec_t inTime ) {
+    if( !lookTimeDBOpen ) return;
+    
+    unsigned char key[8];
+    unsigned char value[8];
+    
+
+    intPairToKey( inX, inY, key );
+    timeToValue( inTime, value );
+            
+    
+    KISSDB_put( &lookTimeDB, key, value );
+    }
 
 
 
@@ -3330,11 +3674,14 @@ int getMapObject( int inX, int inY ) {
         liveDecayRecordLastLookTimeHashTable.lookupPointer( inX, inY, 0, 0,
                                                             &found );
     
+    timeSec_t curTime = MAP_TIMESEC;
+
     if( oldLookTime != NULL ) {
         // we're tracking decay for this cell
-        *oldLookTime = MAP_TIMESEC;
+        *oldLookTime = curTime;
         }
 
+    dbLookTimePut( inX, inY, curTime );
 
     // apply any decay that should have happened by now
     return checkDecayObject( inX, inY, getMapObjectRaw( inX, inY ) );
