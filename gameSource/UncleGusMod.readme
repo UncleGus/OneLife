@@ -3,6 +3,7 @@ ReadMe for mod pack install zip version 7, mod version 20001
 This file should be in the same directory as your OneLife executable.
 If it is not, move it and everything else in the same folder into the same folder as your OneLife executable.
 It will ask you if you want to merge the settings folder, which you do; it only contains new files.
+If you already have a previous version of the mod, you want to overwrite those files.
 
 Now run installUncleGusMod.bat on Windows or installUncleGusMod.sh on linux.
 Launch the game as normal; it will now be pointing to the mod server.
