@@ -10,6 +10,14 @@ if [ -d "categories_base" ]; then
   mv categories categories_UncleGusMod
   mv categories_base categories
 fi
+if [ -d "sprites_base" ]; then
+  mv sprites sprites_UncleGusMod
+  mv sprites_base sprites
+fi
+if [ -d "ground_base" ]; then
+  mv ground ground_UncleGusMod
+  mv ground_base ground
+fi
 if [ -f "dataVersionNumber_base.txt" ]; then
   mv dataVersionNumber.txt dataVersionNumber_UncleGusMod.txt
   mv dataVersionNumber_base.txt dataVersionNumber.txt

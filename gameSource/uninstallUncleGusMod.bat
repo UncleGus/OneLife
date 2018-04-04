@@ -14,6 +14,16 @@ if EXIST categories_base\ (
   rename categories categories_UncleGusMod
   rename categories_base categories
 )
+if EXIST sprites_base\ (
+  echo "Backing up mod sprites folder and replacing with sprites folder"
+  rename sprites sprites_UncleGusMod
+  rename sprites_base sprites
+)
+if EXIST ground_base\ (
+  echo "Backing up mod ground folder and replacing with ground folder"
+  rename ground ground_UncleGusMod
+  rename ground_base ground
+)
 if EXIST dataVersionNumber_base.txt (
   echo "Backing up mod dataVersionNumber file and replacing with dataVersionNumber file"
   rename dataVersionNumber.txt dataVersionNumber_UncleGusMod.txt
