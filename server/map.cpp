@@ -2885,7 +2885,7 @@ int checkDecayObject( int inX, int inY, int inID ) {
             // object in map has decayed (eta expired)
 
             // apply the transition
-            newID = t->newTarget;
+            newID = getTargetFromBreakageCalculation( t );
             movingObjID = newID;
 
             int oldSlots = getNumContainerSlots( inID );
