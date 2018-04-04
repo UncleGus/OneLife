@@ -27,8 +27,8 @@ if [ -f "settings/useCustomServer_UncleGusMod.ini" ]; then
   mv settings/useCustomServer_UncleGusMod.ini settings/useCustomServer.ini
 fi
 if [ -f "settings/customServerAddress_UncleGusMod.ini" ]; then
-  mv settings/customServerAddress.ini settings/CustomServerAddress_base.ini
-  mv settings/customServerAddress_UncleGusMod.ini settings/CustomServerAddress.ini
+  mv settings/customServerAddress.ini settings/customServerAddress_base.ini
+  mv settings/customServerAddress_UncleGusMod.ini settings/customServerAddress.ini
 fi
 if [ -f "settings/customServerPort_UncleGusMod.ini" ]; then
   mv settings/customServerPort.ini settings/customServerPort_base.ini

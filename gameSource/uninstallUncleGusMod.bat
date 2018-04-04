@@ -36,8 +36,8 @@ if EXIST settings\useCustomServer_base.ini (
 )
 if EXIST settings\customServerAddress_base.ini (
   echo "Backing up mod customServerAddress setting and replacing with customServerAddress setting"
-  rename settings\customServerAddress.ini CustomServerAddress_UncleGusMod.ini
-  rename settings\customServerAddress_base.ini CustomServerAddress.ini
+  rename settings\customServerAddress.ini customServerAddress_UncleGusMod.ini
+  rename settings\customServerAddress_base.ini customServerAddress.ini
 )
 if EXIST settings\customServerPort_base.ini (
   echo "Backing up mod customServerPort setting and replacing with customServerPort setting"
