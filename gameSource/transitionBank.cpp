@@ -109,7 +109,7 @@ float initTransBankStep() {
             }
         
         sscanf( txtFileName, "%d_%d", &actor, &target );
-        
+
         if(  target != -2 ) {
 
             char *contents = getFileContents( cache, i );
@@ -199,6 +199,12 @@ float initTransBankStep() {
                 if( newTarget > maxID ) {
                     maxID = newTarget;
                     }
+                if( brokenActor > maxID ) {
+                    maxID = brokenActor;
+                    }
+                if( brokenTarget > maxID ) {
+                    maxID = brokenTarget;
+                    }
 
                 delete [] contents;
                 }
@@ -221,6 +227,10 @@ void initTransBankFinish() {
     
 
     usesMap = new SimpleVector<TransRecord *>[ mapSize ];
+
+    // used to store generic transition breakage details
+    int genericTransitionIds[mapSize][2];
+    float genericTransitionPs[mapSize][2];
         
     producesMap = new SimpleVector<TransRecord *>[ mapSize ];
     
@@ -229,7 +239,7 @@ void initTransBankFinish() {
     
     for( int i=0; i<numRecords; i++ ) {
         TransRecord *t = records.getElementDirect( i );
-        
+
         
         if( t->actor > 0 ) {
             usesMap[t->actor].push_back( t );
@@ -248,7 +258,15 @@ void initTransBankFinish() {
         if( t->newTarget != 0 && t->newTarget != t->newActor ) {    
             producesMap[t->newTarget].push_back( t );
             }
+
+        // remembering breakage details for generic transition
+        if( t->target == -1 && t->newTarget == 0 ) {
+            genericTransitionPs[t->actor][0] = t->actorBreakChance;
+            genericTransitionIds[t->actor][0] = t->brokenActor;
+            genericTransitionPs[t->actor][1] = t->targetBreakChance;
+            genericTransitionIds[t->actor][1] = t->brokenTarget;
         }
+    }
     
     printf( "Loaded %d transitions from transitions folder\n", numRecords );
 
@@ -279,7 +297,7 @@ void initTransBankFinish() {
                 for( int t=0; t<numParentTrans; t++ ) {
                     
                     TransRecord *tr = parentTrans->getElementDirect( t );
-                    
+
                     // override transitions might exist for object
                     // concretely
 
@@ -290,7 +308,7 @@ void initTransBankFinish() {
                     if( tr->actor == parentID ) {
                         // check if an override trans exists for the object
                         // as actor
-                        
+
                         TransRecord *oTR = getTrans( oID, tr->target, 
                                                      tr->lastUseActor,
                                                      tr->lastUseTarget );
@@ -303,7 +321,7 @@ void initTransBankFinish() {
                     if( tr->target == parentID ) {
                         // check if an override trans exists for the object
                         // as target
-                        
+
                         TransRecord *oTR = getTrans( tr->actor, oID,
                                                      tr->lastUseActor,
                                                      tr->lastUseTarget );
@@ -316,12 +334,16 @@ void initTransBankFinish() {
                     
                     // got here:  no override transition exists for this
                     // object
-                    
+
                     int actor = tr->actor;
                     int target = tr->target;
                     int newActor = tr->newActor;
                     int newTarget = tr->newTarget;
-                    
+                    float actorBreakChance = 0.0f;
+                    int brokenActor = 0;
+                    float targetBreakChance = 0.0f;
+                    int brokenTarget = 0;
+
                     // plug object in to replace parent
                     if( actor == parentID ) {
                         actor = oID;
@@ -335,6 +357,13 @@ void initTransBankFinish() {
                     if( newTarget == parentID ) {
                         newTarget = oID;
                         }
+
+                    if ( genericTransitionPs[actor][0] != NULL ) {
+                        actorBreakChance = genericTransitionPs[actor][0];
+                        brokenActor = genericTransitionIds[actor][0];
+                        targetBreakChance = genericTransitionPs[actor][1];
+                        brokenTarget = genericTransitionIds[actor][1];
+                    }
                     
                     // don't write to disk
                     addTrans( actor, target, newActor, newTarget,
@@ -347,10 +376,10 @@ void initTransBankFinish() {
                               tr->targetMinUseFraction, 
                               tr->move,
                               tr->desiredMoveDist,
-                              tr->actorBreakChance,
-                              tr->brokenActor,
-                              tr->targetBreakChance,
-                              tr->brokenTarget,
+                              actorBreakChance,
+                              brokenActor,
+                              targetBreakChance,
+                              brokenTarget,
                               true );
                     }
                 }

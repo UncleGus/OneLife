@@ -5543,14 +5543,18 @@ int main() {
                                     r = getTrans( nextPlayer->holdingID,
                                                   target );
 
+                                    if( r != NULL) {
+                                        newActorE = getActorFromBreakageCalculation( r );
+                                        newTargetE = getTargetFromBreakageCalculation( r );
+                                    }
 
                                     ObjectRecord *heldObj = getObject( 
                                         nextPlayer->holdingID );
-                                    
-                                    if( r != NULL && r->newActor == 0 &&
-                                        r->newTarget > 0 ) {
+
+                                    if( r != NULL && newActorE == 0 &&
+                                        newTargetE > 0 ) {
                                         ObjectRecord *newTargetObj =
-                                            getObject( r->newTarget );
+                                            getObject( newTargetE );
                                         
                                         if( targetObj->numSlots == 0
                                             && newTargetObj->numSlots >=
@@ -5608,13 +5612,13 @@ int main() {
                                     // moving from actor into new target
                                     // (and hand left empty)
                                     setResponsiblePlayer( - nextPlayer->id );
-                                    setMapObject( m.x, m.y, r->newTarget );
+                                    setMapObject( m.x, m.y, newTargetE );
                                     setResponsiblePlayer( -1 );
                                     
                                     transferHeldContainedToMap( nextPlayer,
                                                                 m.x, m.y );
                                     handleHoldingChange( nextPlayer,
-                                                         r->newActor );
+                                                         newActorE );
                                     }
                                 else if( r != NULL &&
                                     // are we old enough to handle
@@ -5672,11 +5676,11 @@ int main() {
                                     if( oldSlots > 0 &&
                                         newSlots == 0 && 
                                         r->actor == 0 &&
-                                        r->newActor > 0
+                                        newActorE > 0
                                         &&
-                                        getNumContainerSlots( r->newActor ) ==
+                                        getNumContainerSlots( newActorE ) ==
                                         oldSlots &&
-                                        getObject( r->newActor )->slotSize >=
+                                        getObject( newActorE )->slotSize >=
                                         targetObj->slotSize ) {
                                         
                                         // bare-hand action that results
@@ -5695,7 +5699,7 @@ int main() {
                                         restretchDecays( 
                                             nextPlayer->numContained,
                                             nextPlayer->containedEtaDecays,
-                                            target, r->newActor );
+                                            target, newActorE );
                                         }
                                     else {
                                         // target on ground changed
@@ -6033,11 +6037,11 @@ int main() {
                                     if( canPlace ) {
 
                                         if( nextPlayer->numContained > 0 &&
-                                            r->newActor == 0 &&
-                                            r->newTarget > 0 &&
-                                            getObject( r->newTarget )->numSlots 
+                                            newActorE == 0 &&
+                                            newTargetE > 0 &&
+                                            getObject( newTargetE )->numSlots 
                                             >= nextPlayer->numContained &&
-                                            getObject( r->newTarget )->slotSize
+                                            getObject( newTargetE )->slotSize
                                             >= obj->slotSize ) {
 
                                             // use on bare ground with full
@@ -6049,14 +6053,14 @@ int main() {
                                             setResponsiblePlayer( 
                                                 - nextPlayer->id );
                                             setMapObject( m.x, m.y, 
-                                                          r->newTarget );
+                                                          newTargetE );
                                             setResponsiblePlayer( -1 );
                                     
                                             transferHeldContainedToMap( 
                                                 nextPlayer, m.x, m.y );
                                             
                                             handleHoldingChange( nextPlayer,
-                                                                 r->newActor );
+                                                                 newActorE );
                                             }
                                         else {
                                             handleHoldingChange( nextPlayer,
