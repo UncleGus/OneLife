@@ -24,6 +24,11 @@ if EXIST ground_base\ (
   rename ground ground_UncleGusMod
   rename ground_base ground
 )
+if EXIST animations_base\ (
+  echo "Backing up mod animations folder and replacing with animations folder"
+  rename animations animations_UncleGusMod
+  rename animations_base animations
+)
 if EXIST dataVersionNumber_base.txt (
   echo "Backing up mod dataVersionNumber file and replacing with dataVersionNumber file"
   rename dataVersionNumber.txt dataVersionNumber_UncleGusMod.txt

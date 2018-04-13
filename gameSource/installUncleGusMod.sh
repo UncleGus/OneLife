@@ -18,6 +18,10 @@ if [ -d "ground_UncleGusMod" ]; then
   mv ground ground_base
   mv ground_UncleGusMod ground
 fi
+if [ -d "animations_UncleGusMod" ]; then
+  mv animations animations_base
+  mv animations_UncleGusMod animations
+fi
 if [ -f "dataVersionNumber_UncleGusMod.txt" ]; then
   mv dataVersionNumber.txt dataVersionNumber_base.txt
   mv dataVersionNumber_UncleGusMod.txt dataVersionNumber.txt
