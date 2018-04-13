@@ -4,7 +4,94 @@ http://onehouronelife.com/updateLog.php
 
 
 
-Version 71    ???
+Version 73    ???
+
+--Fixed editor to allow smaller map chances.
+
+--Fixed editor to NOT apply < 1.0 speed multiplier on ground animations, to
+  match client behavior.  Thanks TyrantNomad.
+
+--Fixed update process to NOT rewrite a lingering .bak file that failed to be
+  deleted.  On Windows, we must move our EXE out of the way, but on a
+  multi-part update, this results in trying to move it to the .bak file
+  multiple times, with later moves failing.
+
+--Fixed postUpdate process to remove any lingering .bak files.
+
+--Client displays red speech for staggering murder victims before death, and
+  shows bloody GUI overlay to victim.
+
+--Fixed three bugs in copying map animation data when a new chunk arrives
+  (thanks Christoffer Baar).
+
+
+
+Server Fixes:
+
+--Bug reporting back on in server.
+
+--Apocalypse off again for now.
+
+--Fixed various scripts to handle git tag changes.
+
+--Fixed so that server checks apocalypsePermitted setting live, when about to
+  trigger an apocalypse.
+
+--After a family line dies out, next Eve is spawned in a random direction 2000
+  tiles away.  After a server restart, the next three Eves are spawned around
+  the last Eve location before restart, and then the random-2000 jumping starts
+  for the fourth and subsequent Eves.
+
+--Held baby was killed if dangerous animal walked over its last ground
+  position.  Fixed.
+
+--Fixed website stats generation.
+
+--Bug reporting back off.  I think it may be causing a CPU vicious cycle.
+
+--Disabled biome database to memorize proc-genned biome map.  This helped
+  preserve seen map areas when a new biome was added, but it consumed gobs of
+  RAM and CPU resources as players and Eve spreading explores huge areas of
+  wilderness.  New biomes aren't added that often, and it's okay for them to
+  shift under existing villages for now.  No longer saving look time for every
+  single map cell that is seen, only for modified cells. 
+
+--Switched to a stack implementation of a hash table database to improve
+  performance on the most recent items.  Thus, performance won't degrade as
+  much as more and more areas of the map are explored.
+
+--Further improved performance of stack-based database implementation,
+  especially on case of repeated misses.  Individual operations are between 3x
+  and 10x faster than old kissDB engine, with 7x average speed improvement over
+  a whole range of operations on test data.  StackDB also uses 6% less disk
+  space for this test data, and 13,000x less RAM (plus, RAM usage is constant
+  regardless of data size, where kissDB RAM usage grows over time as data
+  grows).  The only place where stackDB is slightly slower is iterating through
+  all database items, but this only happens when rebuilding a database to cull
+  at startup, and we make up for it with the dramtically faster insertion
+  performance of the stack.
+
+--Server now makes use of high-performance STACKDB_put_new when rebuilding
+  databases during the map cull after restart.  Shrank table in eve location
+  database to save disk space given long email key.
+
+--Added 20 seconds of 'stagger around' time after you are murdered.  Server
+  sends clients a DY message to indicate that a player has entered this state.
+
+--Optimization:  Valgrind profiler found 40% of CPU on a live 20-player server
+  spent on computeMapBiomeIndex.  Caching this in a RAM-based hash table.
+
+--Fixed so that if we're holding something permanent that can only be dropped
+  with a use-on-bare-ground action, we drop the result of that use-on-bare-
+  ground action when we die (instead of leaving permanent version of the held
+  object on the ground after death).
+
+
+
+
+
+
+Version 72    2018-April-5
 
 --Server now reports its version number in its first SN number, and client
   displays error on version mismatch.
@@ -26,6 +113,15 @@ Version 71    ???
 --Mac fullscreen mode fixed (using borderless window AND hiding menu/dock).
   Thanks Chard.
 
+--Support in client and server for The Apocalypse, and propagation of
+  apocalypse wave through all official servers via the reflector.
+
+--Client now sends server KA keep-alive message every 15 seconds of player
+  idleness to make sure a NAT or other router doesn't drop the connection if
+  idle.
+
+--Fixed so that speech isn't drawn off top of the screen for a character that
+  is nearby.
 
 
 
@@ -49,6 +145,8 @@ Server Fixes:
   server restarts again in less than 24 hours.
 
 --Fixed a memory leak in naming phrases init.
+
+--Removed duplicates from firstNames list (thanks Chard).
 
 
 

@@ -121,6 +121,7 @@ NAME (NM)
 
 APOCALYPSE (AP)
 
+DYING (DY)
 
 
 Client can expect to receive these at any time, and in any order.
@@ -423,10 +424,23 @@ last_name may be ommitted.
 
 
 
-AP#
+AP
+#
 
-Inidicates that an apocalypse is pending (and death is coming).  Gives client
+Indicates that an apocalypse is pending (and death is coming).  Gives client
 time to show a visual effect before death-by-apocalypse happens.
+
+
+
+DY
+p_id
+p_id
+p_id
+...
+p_id
+#
+
+Indicates that the listed players have been mortally wounded and will die soon.
 
 
 
@@ -442,6 +456,7 @@ a full player update message for ALL players on entire server.
 
 Clients send moves in the following format:
 
+KA x y#
 USE x y#
 BABY x y#
 SELF x y i#
@@ -451,6 +466,12 @@ SREMV x y c i#
 DROP x y c#
 KILL x y#
 
+
+KA   is a keep-alive message used to keep the connection alive when the client
+     is idle and not sending any other messages (NATs and other routers can
+     close a connection if too long passes without outbound packets).
+     The x y parameters to KA are currently ignored and can be 0, but must
+     be present.
 
 DROP is for setting held object down on empty grid square OR
 	 for adding something to a container

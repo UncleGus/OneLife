@@ -52,6 +52,8 @@ typedef struct LiveObject {
         
         SimpleVector<int> lineage;
         
+        char dying;
+        
         char *name;
 
         char *relationName;
@@ -484,6 +486,7 @@ class LivingLifePage : public GamePage {
         
 
         SpriteHandle mGuiPanelSprite;
+        SpriteHandle mGuiBloodSprite;
         
 
         SpriteHandle mHungerBoxSprites[ NUM_HUNGER_BOX_SPRITES ];
@@ -690,6 +693,7 @@ class LivingLifePage : public GamePage {
                                         const char *inString,
                                         double inFade,
                                         double inMaxWidth,
+                                        LiveObject *inSpeaker,
                                         int inForceMinChalkBlots = -1 );
         
 

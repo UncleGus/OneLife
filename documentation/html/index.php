@@ -14,9 +14,15 @@ function showPayLinks( $inSimple ) {
         $referrer = urlencode( $_SERVER['HTTP_REFERER'] );
         }
     
-    
-
+    if( $inSimple ) {
     ?>
+      <a href="https://sites.fastspring.com/jasonrohrer/instant/onehouronelife?referrer=<?php echo $referrer;?>"><img src="fs_cards.png" width=280 height=45 border=0></a>
+
+<?php
+        return;
+        }
+?>    
+        
  <center>
       <center><table border=0><tr><td> 
 <font size=3><ul> 
@@ -63,7 +69,9 @@ function showLogo( $inImageFile, $inText ) {
 <tr>
 <td><img src=portraitLeft.jpg border=0 width=197 height=414></td>
 <td>
-<center><?php include( "lifeStats.php" ); ?></center>
+<center><?php include( "lifeStats.php" ); ?><br>
+<?php include( "reflector/apocalypseStats.php" ); ?>
+</center>
 
 
 
@@ -95,6 +103,9 @@ if( $rs_reviewCount > 0 ) {
 
 <br>
 <br>
+<?php
+   showPayLinks( true );
+?>
 
 <center><iframe title="YouTube video player" width="640" height="390" src="http://www.youtube.com/embed/mT4JktcVQuE?rel=0" frameborder="0" allowfullscreen></iframe></center>
 

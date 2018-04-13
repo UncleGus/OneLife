@@ -18,6 +18,38 @@
 #include "minorGems/formats/encodingUtils.h"
 
 #include "kissdb.h"
+#include "stackdb.h"
+
+
+/*
+#define DB KISSDB
+#define DB_open KISSDB_open
+#define DB_close KISSDB_close
+#define DB_get KISSDB_get
+#define DB_put KISSDB_put
+// no distinction between insert and replace in KISSS
+#define DB_put_new KISSDB_put
+#define DB_Iterator  KISSDB_Iterator
+#define DB_Iterator_init  KISSDB_Iterator_init
+#define DB_Iterator_next  KISSDB_Iterator_next
+*/
+
+/**/
+#define DB STACKDB
+#define DB_open STACKDB_open
+#define DB_close STACKDB_close
+#define DB_get STACKDB_get
+#define DB_put STACKDB_put
+// stack DB has faster insert
+#define DB_put_new STACKDB_put_new
+#define DB_Iterator  STACKDB_Iterator
+#define DB_Iterator_init  STACKDB_Iterator_init
+#define DB_Iterator_next  STACKDB_Iterator_next
+/**/
+
+
+
+
 
 #include "dbCommon.h"
 
@@ -86,10 +118,23 @@ static int nextPlacementIndex = 0;
 static int eveRadiusStart = 2;
 static int eveRadius = eveRadiusStart;
 
+
+
+GridPos eveLocation = { 0,0 };
+static int eveLocationUsage = 0;
+static int maxEveLocationUsage = 3;
+                            
+
+
 // what human-placed stuff, together, counts as a camp
 static int campRadius = 20;
 
 static float minEveCampRespawnAge = 60.0;
+
+
+extern int apocalypsePossible;
+extern char apocalypseTriggered;
+extern GridPos apocalypseLocation;
 
 
 
@@ -140,32 +185,32 @@ static int getBiomeIndex( int inBiome ) {
 
 
 // tracking when a given map cell was last seen
-static KISSDB lookTimeDB;
+static DB lookTimeDB;
 static char lookTimeDBOpen = false;
 
 
 
-static KISSDB db;
+static DB db;
 static char dbOpen = false;
 
 
-static KISSDB timeDB;
+static DB timeDB;
 static char timeDBOpen = false;
 
 
-static KISSDB biomeDB;
+static DB biomeDB;
 static char biomeDBOpen = false;
 
 
-static KISSDB floorDB;
+static DB floorDB;
 static char floorDBOpen = false;
 
-static KISSDB floorTimeDB;
+static DB floorTimeDB;
 static char floorTimeDBOpen = false;
 
 
 // per-player memory of where they should spawn as eve
-static KISSDB eveDB;
+static DB eveDB;
 static char eveDBOpen = false;
 
 
@@ -250,6 +295,9 @@ static MinPriorityQueue<MovementRecord> liveMovements;
 // track all map changes that happened since the last
 // call to stepMap
 static SimpleVector<ChangePosition> mapChangePosSinceLastStep;
+
+
+static char anyBiomesInDB = false;
 
 
 
@@ -363,7 +411,7 @@ static int biomeDBGet( int inX, int inY,
     // look for changes to default in database
     intPairToKey( inX, inY, key );
     
-    int result = KISSDB_get( &biomeDB, key, value );
+    int result = DB_get( &biomeDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -399,7 +447,8 @@ static void biomeDBPut( int inX, int inY, int inValue, int inSecondPlace,
                 &( value[8] ) );
             
     
-    KISSDB_put( &biomeDB, key, value );
+    anyBiomesInDB = true;
+    DB_put( &biomeDB, key, value );
 
     dbLookTimePut( inX, inY, MAP_TIMESEC );
     }
@@ -416,7 +465,7 @@ static int eveDBGet( char *inEmail, int *outX, int *outY, int *outRadius ) {
 
     emailToKey( inEmail, key );
     
-    int result = KISSDB_get( &eveDB, key, value );
+    int result = DB_get( &eveDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -445,7 +494,7 @@ static void eveDBPut( char *inEmail, int inX, int inY, int inRadius ) {
     intToValue( inRadius, &( value[8] ) );
             
     
-    KISSDB_put( &eveDB, key, value );
+    DB_put( &eveDB, key, value );
     }
 
 
@@ -486,16 +535,115 @@ double sigmoid( double inInput, double inKnee ) {
 
 
 
+
+
+
+// optimization:
+// cache biomeIndex results in RAM
+
+// 3.1 MB of RAM for this.
+#define BIOME_CACHE_SIZE 131072
+
+typedef struct BiomeCacheRecord {
+        int x, y;
+        int biome, secondPlace;
+        double secondPlaceGap;
+    } BiomeCacheRecord;
+    
+static BiomeCacheRecord biomeCache[ BIOME_CACHE_SIZE ];
+
+
+#define CACHE_PRIME_A 776509273
+#define CACHE_PRIME_B 904124281
+#define CACHE_PRIME_C 528383237
+#define CACHE_PRIME_D 148497157
+
+static int computeBiomeCacheHash( int inKeyA, int inKeyB ) {
+    
+    int hashKey = ( inKeyA * CACHE_PRIME_A + 
+                    inKeyB * CACHE_PRIME_B ) % BIOME_CACHE_SIZE;
+    if( hashKey < 0 ) {
+        hashKey += BIOME_CACHE_SIZE;
+        }
+    return hashKey;
+    }
+
+
+
+static void initBiomeCache() {
+    BiomeCacheRecord blankRecord = { 0, 0, -2, 0, 0 };
+    for( int i=0; i<BIOME_CACHE_SIZE; i++ ) {
+        biomeCache[i] = blankRecord;
+        }
+    }
+
+    
+
+
+// returns -2 on miss
+static int biomeGetCached( int inX, int inY, 
+                           int *outSecondPlaceIndex,
+                           double *outSecondPlaceGap ) {
+    BiomeCacheRecord r =
+        biomeCache[ computeBiomeCacheHash( inX, inY ) ];
+
+    if( r.x == inX && r.y == inY ) {
+        *outSecondPlaceIndex = r.secondPlace;
+        *outSecondPlaceGap = r.secondPlaceGap;
+        
+        return r.biome;
+        }
+    else {
+        return -2;
+        }
+    }
+
+
+
+static void biomePutCached( int inX, int inY, int inBiome, int inSecondPlace,
+                            double inSecondPlaceGap ) {
+    BiomeCacheRecord r = { inX, inY, inBiome, inSecondPlace, inSecondPlaceGap };
+    
+    biomeCache[ computeBiomeCacheHash( inX, inY ) ] = r;
+    }
+
+
+
+
+
+
+
+
+
 static int computeMapBiomeIndex( int inX, int inY, 
                                  int *outSecondPlaceIndex = NULL,
                                  double *outSecondPlaceGap = NULL ) {
-    int pickedBiome = -1;
-        
-    double maxValue = -DBL_MAX;
         
     int secondPlace = -1;
     
     double secondPlaceGap = 0;
+
+
+    int pickedBiome = biomeGetCached( inX, inY, &secondPlace, &secondPlaceGap );
+        
+    if( pickedBiome != -2 ) {
+        // hit cached
+
+        if( outSecondPlaceIndex != NULL ) {
+            *outSecondPlaceIndex = secondPlace;
+            }
+        if( outSecondPlaceGap != NULL ) {
+            *outSecondPlaceGap = secondPlaceGap;
+            }
+    
+        return pickedBiome;
+        }
+
+    // else cache miss
+    pickedBiome = -1;
+
+
+    double maxValue = -DBL_MAX;
 
     
     for( int i=0; i<numBiomes; i++ ) {
@@ -526,8 +674,9 @@ static int computeMapBiomeIndex( int inX, int inY,
             }
         }
     
-
-
+    biomePutCached( inX, inY, pickedBiome, secondPlace, secondPlaceGap );
+    
+    
     if( outSecondPlaceIndex != NULL ) {
         *outSecondPlaceIndex = secondPlace;
         }
@@ -547,9 +696,17 @@ static int getMapBiomeIndex( int inX, int inY,
     
     int secondPlaceBiome = -1;
     
-    int dbBiome = biomeDBGet( inX, inY,
+    int dbBiome = -1;
+    
+    if( anyBiomesInDB ) {
+        // don't bother with this call unless biome DB has
+        // something in it
+        dbBiome = biomeDBGet( inX, inY,
                               &secondPlaceBiome,
                               outSecondPlaceGap );
+        }
+    
+
     if( dbBiome != -1 ) {
 
         int index = getBiomeIndex( dbBiome );
@@ -609,8 +766,14 @@ static int getMapBiomeIndex( int inX, int inY,
             secondPlaceBiome = biomes[ secondPlace ];
             }
         
+        // skip saving proc-genned biomes for now
+        // huge RAM impact as players explore distant areas of map
+        
+        // we still check the biomeDB above for loading test maps
+        /*
         biomeDBPut( inX, inY, biomes[pickedBiome], 
                     secondPlaceBiome, secondPlaceGap );
+        */
         }
     
     
@@ -1262,8 +1425,8 @@ int cellsLookedAtToInit = 0;
 //
 // Can handle max key and value size of 16 and 12 bytes
 // Assumes that first 8 bytes of key are xy as 32-bit ints
-int KISSDB_open_timeShrunk(
-	KISSDB *db,
+int DB_open_timeShrunk(
+	DB *db,
 	const char *path,
 	int mode,
 	unsigned long hash_table_size,
@@ -1278,7 +1441,7 @@ int KISSDB_open_timeShrunk(
             AppLog::infoF( "No lookTimes present, not cleaning %s", path );
             }
         
-        int error = KISSDB_open( db, 
+        int error = DB_open( db, 
                                  path, 
                                  mode,
                                  hash_table_size,
@@ -1289,17 +1452,17 @@ int KISSDB_open_timeShrunk(
             // add look time for cells in this DB to present
             // essentially resetting all look times to NOW
             
-            KISSDB_Iterator dbi;
+            DB_Iterator dbi;
     
     
-            KISSDB_Iterator_init( db, &dbi );
+            DB_Iterator_init( db, &dbi );
     
             // key and value size that are big enough to handle all of our DB
             unsigned char key[16];
     
             unsigned char value[12];
     
-            while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+            while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
                 int x = valueToInt( key );
                 int y = valueToInt( &( key[4] ) );
 
@@ -1323,7 +1486,7 @@ int KISSDB_open_timeShrunk(
 
         delete [] dbTempName;
 
-        return KISSDB_open( db, 
+        return DB_open( db, 
                             path, 
                             mode,
                             hash_table_size,
@@ -1331,35 +1494,35 @@ int KISSDB_open_timeShrunk(
                             value_size );
         }
     
-    KISSDB oldDB;
+    DB oldDB;
     
-    int error = KISSDB_open( &oldDB, 
+    int error = DB_open( &oldDB, 
                              path, 
                              mode,
                              hash_table_size,
                              key_size,
                              value_size );
     if( error ) {
-        AppLog::errorF( "Failed to open DB file %s in KISSDB_open_timeShrunk",
+        AppLog::errorF( "Failed to open DB file %s in DB_open_timeShrunk",
                         path );
         delete [] dbTempName;
 
         return error;
         }
 
-    KISSDB tempDB;
+    DB tempDB;
     
-    error = KISSDB_open( &tempDB, 
+    error = DB_open( &tempDB, 
                          dbTempName, 
                          mode,
                          hash_table_size,
                          key_size,
                          value_size );
     if( error ) {
-        AppLog::errorF( "Failed to open DB file %s in KISSDB_open_timeShrunk",
+        AppLog::errorF( "Failed to open DB file %s in DB_open_timeShrunk",
                         dbTempName );
         delete [] dbTempName;
-        KISSDB_close( &oldDB );
+        DB_close( &oldDB );
         return error;
         }
 
@@ -1367,10 +1530,10 @@ int KISSDB_open_timeShrunk(
     
 
     
-    KISSDB_Iterator dbi;
+    DB_Iterator dbi;
     
     
-    KISSDB_Iterator_init( &oldDB, &dbi );
+    DB_Iterator_init( &oldDB, &dbi );
     
     // key and value size that are big enough to handle all of our DB
     unsigned char key[16];
@@ -1380,7 +1543,7 @@ int KISSDB_open_timeShrunk(
     int total = 0;
     int stale = 0;
 
-    while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+    while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
         total++;
 
         int x = valueToInt( key );
@@ -1389,7 +1552,7 @@ int KISSDB_open_timeShrunk(
         if( dbLookTimeGet( x, y ) > 0 ) {
             // keep
             // insert it in temp
-            KISSDB_put( &tempDB, key, value );
+            DB_put_new( &tempDB, key, value );
             }
         else {
             // stale
@@ -1404,8 +1567,8 @@ int KISSDB_open_timeShrunk(
     printf( "\n" );
     
     
-    KISSDB_close( &tempDB );
-    KISSDB_close( &oldDB );
+    DB_close( &tempDB );
+    DB_close( &oldDB );
 
     dbTempFile.copy( &dbFile );
     dbTempFile.remove();
@@ -1413,7 +1576,7 @@ int KISSDB_open_timeShrunk(
     delete [] dbTempName;
 
     // now open new, shrunk file
-    return KISSDB_open( db, 
+    return DB_open( db, 
                         path, 
                         mode,
                         hash_table_size,
@@ -1427,7 +1590,8 @@ int KISSDB_open_timeShrunk(
 
 void initMap() {
     initDBCache();
-    
+    initBiomeCache();
+
     mapCacheClear();
     
     edgeObjectID = SettingsManager::getIntSetting( "edgeObject", 0 );
@@ -1467,6 +1631,14 @@ void initMap() {
         fclose( eveRadFile );
         }
 
+    FILE *eveLocFile = fopen( "lastEveLocation.txt", "r" );
+    if( eveLocFile != NULL ) {
+        
+        fscanf( eveLocFile, "%d,%d", &( eveLocation.x ), &( eveLocation.y ) );
+
+        fclose( eveLocFile );
+        }
+
 
 
 
@@ -1484,9 +1656,9 @@ void initMap() {
         lookTimeDBEmpty = true;
         }
 
-    KISSDB lookTimeDB_old;
+    DB lookTimeDB_old;
 
-    int error = KISSDB_open( &lookTimeDB_old, 
+    int error = DB_open( &lookTimeDB_old, 
                              lookTimeDBName, 
                              KISSDB_OPEN_MODE_RWCREAT,
                              80000,
@@ -1512,7 +1684,7 @@ void initMap() {
         AppLog::info( "\nCleaning stale look times from map..." );
 
 
-        static KISSDB lookTimeDB_temp;
+        static DB lookTimeDB_temp;
         
         const char *lookTimeDBName_temp = "lookTime_temp.db";
 
@@ -1523,7 +1695,7 @@ void initMap() {
             }
         
 
-        error = KISSDB_open( &lookTimeDB_temp, 
+        error = DB_open( &lookTimeDB_temp, 
                              lookTimeDBName_temp, 
                              KISSDB_OPEN_MODE_RWCREAT,
                              80000,
@@ -1538,10 +1710,10 @@ void initMap() {
             return;
             }
         
-        KISSDB_Iterator dbi;
+        DB_Iterator dbi;
         
         
-        KISSDB_Iterator_init( &lookTimeDB_old, &dbi );
+        DB_Iterator_init( &lookTimeDB_old, &dbi );
         
     
         timeSec_t curTime = MAP_TIMESEC;
@@ -1552,7 +1724,7 @@ void initMap() {
         int total = 0;
         int stale = 0;
 
-        while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+        while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
             total++;
 
             timeSec_t t = valueToTime( value );
@@ -1565,7 +1737,7 @@ void initMap() {
             else {
                 // non-stale
                 // insert it in temp
-                KISSDB_put( &lookTimeDB_temp, key, value );
+                DB_put_new( &lookTimeDB_temp, key, value );
                 }
             }
         
@@ -1577,19 +1749,19 @@ void initMap() {
             lookTimeDBEmpty = true;
             }
 
-        KISSDB_close( &lookTimeDB_temp );
-        KISSDB_close( &lookTimeDB_old );
+        DB_close( &lookTimeDB_temp );
+        DB_close( &lookTimeDB_old );
 
         tempDBFile.copy( &lookTimeDBFile );
         tempDBFile.remove();
         }
     else {
-        KISSDB_close( &lookTimeDB_old );
+        DB_close( &lookTimeDB_old );
         }
     
 
 
-    error = KISSDB_open( &lookTimeDB, 
+    error = DB_open( &lookTimeDB, 
                          lookTimeDBName, 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1610,7 +1782,7 @@ void initMap() {
     // note that the various decay ETA slots in map.db 
     // are define but unused, because we store times separately
     // in mapTime.db
-    error = KISSDB_open_timeShrunk( &db, 
+    error = DB_open_timeShrunk( &db, 
                          "map.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1654,7 +1826,7 @@ void initMap() {
     // this DB uses the same slot numbers as the map.db
     // however, only times are stored here, because they require 8 bytes
     // so, slot 0 and 2 are never used, for example
-    error = KISSDB_open_timeShrunk( &timeDB, 
+    error = DB_open_timeShrunk( &timeDB, 
                          "mapTime.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1692,7 +1864,7 @@ void initMap() {
 
 
 
-    error = KISSDB_open_timeShrunk( &biomeDB, 
+    error = DB_open_timeShrunk( &biomeDB, 
                          "biome.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1713,9 +1885,22 @@ void initMap() {
 
 
 
+    // see if any biomes are listed in DB
+    // if not, we don't even need to check it when generating map
+    DB_Iterator biomeDBi;
+    DB_Iterator_init( &biomeDB, &biomeDBi );
+    
+    unsigned char *biomeKey[8];
+    unsigned char *biomeValue[12];
+    
+    if( DB_Iterator_next( &biomeDBi, biomeKey, biomeValue ) ) {
+        // only check for the first one
+        anyBiomesInDB = true;
+        }
+    
 
 
-    error = KISSDB_open_timeShrunk( &floorDB, 
+    error = DB_open_timeShrunk( &floorDB, 
                          "floor.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1732,7 +1917,7 @@ void initMap() {
 
 
 
-    error = KISSDB_open_timeShrunk( &floorTimeDB, 
+    error = DB_open_timeShrunk( &floorTimeDB, 
                          "floorTime.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
                          80000,
@@ -1754,10 +1939,13 @@ void initMap() {
 
 
 
-    error = KISSDB_open( &eveDB, 
+    error = DB_open( &eveDB, 
                          "eve.db", 
                          KISSDB_OPEN_MODE_RWCREAT,
-                         80000,
+                         // this can be a lot smaller than other DBs
+                         // it's not performance-critical, and the keys are
+                         // much longer, so stackdb will waste disk space
+                         5000,
                          50, // first 50 characters of email address
                              // append spaces to the end if needed 
                          12 // three ints,  x_center, y_center, radius
@@ -1853,10 +2041,10 @@ void initMap() {
     AppLog::info( "\nCleaning map of objects that have been removed..." );
     
 
-    KISSDB_Iterator dbi;
+    DB_Iterator dbi;
     
     
-    KISSDB_Iterator_init( &db, &dbi );
+    DB_Iterator_init( &db, &dbi );
     
     unsigned char key[16];
     
@@ -1877,7 +2065,7 @@ void initMap() {
     int totalNumContained = 0;
     int numContainedCleared = 0;
     
-    while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+    while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
         
         int s = valueToInt( &( key[8] ) );
         int b = valueToInt( &( key[12] ) );
@@ -2203,7 +2391,7 @@ void freeMap() {
 
     
     if( lookTimeDBOpen ) {
-        KISSDB_close( &lookTimeDB );
+        DB_close( &lookTimeDB );
         lookTimeDBOpen = false;
         }
 
@@ -2218,10 +2406,10 @@ void freeMap() {
         // and their IDs may change in the future, so they're
         // not safe to store in the map between server runs.
         
-        KISSDB_Iterator dbi;
+        DB_Iterator dbi;
     
     
-        KISSDB_Iterator_init( &db, &dbi );
+        DB_Iterator_init( &db, &dbi );
     
         unsigned char key[16];
     
@@ -2241,7 +2429,7 @@ void freeMap() {
         SimpleVector<int> bContToCheck;
         
         
-        while( KISSDB_Iterator_next( &dbi, key, value ) > 0 ) {
+        while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
         
             int s = valueToInt( &( key[8] ) );
             int b = valueToInt( &( key[12] ) );
@@ -2334,29 +2522,29 @@ void freeMap() {
 
         printf( "\n" );
         
-        KISSDB_close( &db );
+        DB_close( &db );
         }
 
     if( timeDBOpen ) {
-        KISSDB_close( &timeDB );
+        DB_close( &timeDB );
         }
 
     if( biomeDBOpen ) {
-        KISSDB_close( &biomeDB );
+        DB_close( &biomeDB );
         }
 
 
     if( floorDBOpen ) {
-        KISSDB_close( &floorDB );
+        DB_close( &floorDB );
         }
 
     if( floorTimeDBOpen ) {
-        KISSDB_close( &floorTimeDB );
+        DB_close( &floorTimeDB );
         }
 
 
     if( eveDBOpen ) {
-        KISSDB_close( &eveDB );
+        DB_close( &eveDB );
         }
     
     writeEveRadius();
@@ -2367,7 +2555,44 @@ void freeMap() {
     delete [] naturalMapIDs;
     delete [] naturalMapChances;
     delete [] totalChanceWeight;
+
+    
+    allNaturalMapIDs.deleteAll();
+
+    liveDecayQueue.clear();
+    liveDecayRecordPresentHashTable.clear();
+    liveDecayRecordLastLookTimeHashTable.clear();
+    liveMovementEtaTimes.clear();
+
+    liveMovements.clear();
+    
+    mapChangePosSinceLastStep.deleteAll();
     }
+
+
+
+
+static void deleteFileByName( const char *inFileName ) {
+    File f( NULL, inFileName );
+    
+    if( f.exists() ) {
+        f.remove();
+        }
+    }
+
+
+
+void wipeMapFiles() {
+    deleteFileByName( "biome.db" );
+    deleteFileByName( "eve.db" );
+    deleteFileByName( "floor.db" );
+    deleteFileByName( "floorTime.db" );
+    deleteFileByName( "lookTime.db" );
+    deleteFileByName( "map.db" );
+    deleteFileByName( "mapTime.db" );
+    deleteFileByName( "playerStats.db" );
+    }
+
 
 
 
@@ -2389,7 +2614,7 @@ static int dbGet( int inX, int inY, int inSlot, int inSubCont = 0 ) {
     // look for changes to default in database
     intQuadToKey( inX, inY, inSlot, inSubCont, key );
     
-    int result = KISSDB_get( &db, key, value );
+    int result = DB_get( &db, key, value );
     
     
     
@@ -2419,7 +2644,7 @@ static timeSec_t dbTimeGet( int inX, int inY, int inSlot, int inSubCont = 0 ) {
     // look for changes to default in database
     intQuadToKey( inX, inY, inSlot, inSubCont, key );
     
-    int result = KISSDB_get( &timeDB, key, value );
+    int result = DB_get( &timeDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -2439,7 +2664,7 @@ static int dbFloorGet( int inX, int inY ) {
     // look for changes to default in database
     intPairToKey( inX, inY, key );
     
-    int result = KISSDB_get( &floorDB, key, value );
+    int result = DB_get( &floorDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -2459,7 +2684,7 @@ static timeSec_t dbFloorTimeGet( int inX, int inY ) {
 
     intPairToKey( inX, inY, key );
     
-    int result = KISSDB_get( &floorTimeDB, key, value );
+    int result = DB_get( &floorTimeDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -2479,7 +2704,7 @@ timeSec_t dbLookTimeGet( int inX, int inY ) {
 
     intPairToKey( inX, inY, key );
     
-    int result = KISSDB_get( &lookTimeDB, key, value );
+    int result = DB_get( &lookTimeDB, key, value );
     
     if( result == 0 ) {
         // found
@@ -2521,6 +2746,18 @@ static void dbPut( int inX, int inY, int inSlot, int inValue,
         }
     
     
+
+    if( apocalypsePossible && inValue > 0 && inSlot == 0 && inSubCont == 0 ) {
+        // a primary tile put
+        // check if this triggers the apocalypse
+        if( isApocalypseTrigger( inValue ) ) {
+            apocalypseTriggered = true;
+            apocalypseLocation.x = inX;
+            apocalypseLocation.y = inY;
+            }
+        }
+    
+
     unsigned char key[16];
     unsigned char value[4];
     
@@ -2529,7 +2766,7 @@ static void dbPut( int inX, int inY, int inSlot, int inValue,
     intToValue( inValue, value );
             
     
-    KISSDB_put( &db, key, value );
+    DB_put( &db, key, value );
 
     dbPutCached( inX, inY, inSlot, inSubCont, inValue );
     dbLookTimePut( inX, inY, MAP_TIMESEC );
@@ -2551,7 +2788,7 @@ static void dbTimePut( int inX, int inY, int inSlot, timeSec_t inTime,
     timeToValue( inTime, value );
             
     
-    KISSDB_put( &timeDB, key, value );
+    DB_put( &timeDB, key, value );
     }
 
 
@@ -2588,7 +2825,7 @@ static void dbFloorPut( int inX, int inY, int inValue ) {
     intToValue( inValue, value );
             
     
-    KISSDB_put( &floorDB, key, value );
+    DB_put( &floorDB, key, value );
     dbLookTimePut( inX, inY, MAP_TIMESEC );
     }
 
@@ -2605,7 +2842,7 @@ static void dbFloorTimePut( int inX, int inY, timeSec_t inTime ) {
     timeToValue( inTime, value );
             
     
-    KISSDB_put( &floorTimeDB, key, value );
+    DB_put( &floorTimeDB, key, value );
     }
 
 
@@ -2621,7 +2858,7 @@ void dbLookTimePut( int inX, int inY, timeSec_t inTime ) {
     timeToValue( inTime, value );
             
     
-    KISSDB_put( &lookTimeDB, key, value );
+    DB_put( &lookTimeDB, key, value );
     }
 
 
@@ -3714,8 +3951,6 @@ int getMapObject( int inX, int inY ) {
         // we're tracking decay for this cell
         *oldLookTime = curTime;
         }
-
-    dbLookTimePut( inX, inY, curTime );
 
     // apply any decay that should have happened by now
     return checkDecayObject( inX, inY, getMapObjectRaw( inX, inY ) );
@@ -4855,17 +5090,42 @@ void getEvePosition( char *inEmail, int *outX, int *outY ) {
         }
     else {
         // player has never been an Eve that survived to old age before
-    
-        // use global most-recent camp, but expand the radius greatly
-        // to put them in a random clear location
+        
 
-        currentEveRadius += 100;
+        // New method:
         
+        if( eveLocationUsage < maxEveLocationUsage ) {
+            eveLocationUsage++;
+            }
+        else {
+            // post-startup eve location has been used too many times
+            // jump away in random direction
+
+            int jump = SettingsManager::getIntSetting( "nextEveJump", 2000 );
+            
+            doublePair delta = { (double)jump, 0 };
+            delta = rotate( delta,
+                            randSource.getRandomBoundedDouble( 0, 2 * M_PI ) );
+            
+
+            eveLocation.x += lrint( delta.x );
+            eveLocation.y += lrint( delta.y );
+            File eveLocFile( NULL, "lastEveLocation.txt" );
+            char *locString = 
+                autoSprintf( "%d,%d", eveLocation.x, eveLocation.y );
+            eveLocFile.writeToFile( locString );
+            delete [] locString;
+            }
+
+        ave.x = eveLocation.x;
+        ave.y = eveLocation.y;
+
+        
+        
+
+        // put Eve in radius 50 around this location
         forceEveToBorder = true;
-        
-        int num;
-        
-        ave = computeRecentCampAve( &num );
+        currentEveRadius = 50;
         }
     
 

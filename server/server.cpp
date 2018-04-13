@@ -74,6 +74,20 @@ double minSayGapInSeconds = 1.0;
 
 int maxLineageTracked = 20;
 
+int apocalypsePossible = 0;
+char apocalypseTriggered = false;
+char apocalypseRemote = false;
+GridPos apocalypseLocation = { 0, 0 };
+int lastApocalypseNumber = 0;
+double apocalypseStartTime = 0;
+char apocalypseStarted = false;
+
+double remoteApocalypseCheckInterval = 30;
+double lastRemoteApocalypseCheckTime = 0;
+WebRequest *apocalypseRequest = NULL;
+
+
+
 
 static double minFoodDecrementSeconds = 5.0;
 static double maxFoodDecrementSeconds = 20;
@@ -93,6 +107,7 @@ static int requireClientPassword = 1;
 static int requireTicketServerCheck = 1;
 static char *clientPassword = NULL;
 static char *ticketServerURL = NULL;
+static char *reflectorURL = NULL;
 
 // larger of dataVersionNumber.txt or serverCodeVersionNumber.txt
 static int versionNumber = 1;
@@ -236,13 +251,24 @@ typedef struct LiveObject {
         int embeddedWeaponID;
         timeSec_t embeddedWeaponEtaDecay;
         
+        // and what original weapon killed them?
+        int murderSourceID;
+
+
         Socket *sock;
         SimpleVector<char> *sockBuffer;
 
         char isNew;
         char firstMessageSent;
+        
+        char dying;
+        // wall clock time when they will be dead
+        double dyingETA;
+
         char error;
         const char *errorCauseString;
+        
+        
 
         int customGraveID;
         
@@ -685,12 +711,22 @@ void quitCleanup() {
         ticketServerURL = NULL;
         }
 
+    if( reflectorURL != NULL ) {
+        delete [] reflectorURL;
+        reflectorURL = NULL;
+        }
+
     nameGivingPhrases.deallocateStringElements();
     familyNameGivingPhrases.deallocateStringElements();
     
     if( eveName != NULL ) {
         delete [] eveName;
         eveName = NULL;
+        }
+
+    if( apocalypseRequest != NULL ) {
+        delete apocalypseRequest;
+        apocalypseRequest = NULL;
         }
     }
 
@@ -770,6 +806,19 @@ char *getNextClientMessage( SimpleVector<char> *inBuffer ) {
         return NULL;
         }
     
+    if( index > 1 && 
+        inBuffer->getElementDirect( 0 ) == 'K' &&
+        inBuffer->getElementDirect( 1 ) == 'A' ) {
+        
+        // a KA (keep alive) message
+        // short-cicuit the processing here
+        
+        inBuffer->deleteStartElements( index + 1 );
+        return NULL;
+        }
+    
+        
+
     char *message = new char[ index + 1 ];
     
     // all but terminal character
@@ -3010,10 +3059,15 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.subContainedEtaDecays = NULL;
     newObject.embeddedWeaponID = 0;
     newObject.embeddedWeaponEtaDecay = 0;
+    newObject.murderSourceID = 0;
     newObject.sock = inSock;
     newObject.sockBuffer = inSockBuffer;
     newObject.isNew = true;
     newObject.firstMessageSent = false;
+    
+    newObject.dying = false;
+    newObject.dyingETA = 0;
+    
     newObject.error = false;
     newObject.errorCauseString = "";
     
@@ -3694,6 +3748,249 @@ int readIntFromFile( const char *inFileName, int inDefaultValue ) {
 
 
 
+void apocalypseStep() {
+    
+    double curTime = Time::getCurrentTime();
+
+    if( !apocalypseTriggered ) {
+        
+        if( apocalypseRequest == NULL &&
+            curTime - lastRemoteApocalypseCheckTime > 
+            remoteApocalypseCheckInterval ) {
+            printf( "Checking for remote apocalypse\n" );
+            
+            lastRemoteApocalypseCheckTime = curTime;
+            
+            char *url = autoSprintf( "%s?action=check_apocalypse", 
+                                     reflectorURL );
+        
+            apocalypseRequest =
+                new WebRequest( "GET", url, NULL );
+            
+            delete [] url;
+            }
+        else if( apocalypseRequest != NULL ) {
+            int result = apocalypseRequest->step();
+
+            if( result == -1 ) {
+                AppLog::info( 
+                    "Apocalypse check:  Request to reflector failed." );
+                }
+            else if( result == 1 ) {
+                // done, have result
+
+                char *webResult = 
+                    apocalypseRequest->getResult();
+                
+                if( strstr( webResult, "OK" ) == NULL ) {
+                    AppLog::infoF( 
+                        "Apocalypse check:  Bad response from reflector:  %s.",
+                        webResult );
+                    }
+                else {
+                    int newApocalypseNumber = lastApocalypseNumber;
+                    
+                    sscanf( webResult, "%d\n", &newApocalypseNumber );
+                
+                    if( newApocalypseNumber > lastApocalypseNumber ) {
+                        lastApocalypseNumber = newApocalypseNumber;
+                        apocalypseTriggered = true;
+                        apocalypseRemote = true;
+                        AppLog::infoF( 
+                            "Apocalypse check:  New remote apocalypse:  %d.",
+                            lastApocalypseNumber );
+                        SettingsManager::setSetting( "lastApocalypseNumber",
+                                                     lastApocalypseNumber );
+                        }
+                    }
+                    
+                delete [] webResult;
+                }
+            
+            if( result != 0 ) {
+                delete apocalypseRequest;
+                apocalypseRequest = NULL;
+                }
+            }
+        }
+        
+
+
+    if( apocalypseTriggered ) {
+
+        if( !apocalypseStarted ) {
+            apocalypsePossible = 
+                SettingsManager::getIntSetting( "apocalypsePossible", 0 );
+
+            if( !apocalypsePossible ) {
+                // settings change since we last looked at it
+                apocalypseTriggered = false;
+                return;
+                }
+
+            if( !apocalypseRemote && 
+                apocalypseRequest == NULL && reflectorURL != NULL ) {
+                
+                
+                char *reflectorSharedSecret = 
+                    SettingsManager::
+                    getStringSetting( "reflectorSharedSecret" );
+                
+                if( reflectorSharedSecret != NULL ) {
+                    lastApocalypseNumber++;
+
+                    AppLog::infoF( 
+                        "Apocalypse trigger:  New local apocalypse:  %d.",
+                        lastApocalypseNumber );
+
+                    SettingsManager::setSetting( "lastApocalypseNumber",
+                                                 lastApocalypseNumber );
+
+                    int closestPlayerIndex = -1;
+                    double closestDist = 999999999;
+                    
+                    for( int i=0; i<players.size(); i++ ) {
+                        LiveObject *nextPlayer = players.getElement( i );
+                        if( !nextPlayer->error ) {
+                            
+                            double dist = 
+                                abs( nextPlayer->xd - apocalypseLocation.x ) +
+                                abs( nextPlayer->yd - apocalypseLocation.y );
+                            if( dist < closestDist ) {
+                                closestPlayerIndex = i;
+                                closestDist = dist;
+                                }
+                            }
+                        
+                        }
+                    char *name = NULL;
+                    if( closestPlayerIndex != -1 ) {
+                        name = 
+                            players.getElement( closestPlayerIndex )->
+                            name;
+                        }
+                    
+                    if( name == NULL ) {
+                        name = stringDuplicate( "UNKNOWN" );
+                        }
+                    
+                    char *idString = autoSprintf( "%d", lastApocalypseNumber );
+                    
+                    char *hash = hmac_sha1( reflectorSharedSecret, idString );
+
+                    delete [] idString;
+
+                    char *url = autoSprintf( 
+                        "%s?action=trigger_apocalypse"
+                        "&id=%d&id_hash=%s&name=%s",
+                        reflectorURL, lastApocalypseNumber, hash, name );
+
+                    delete [] hash;
+                    delete [] name;
+                    
+                    printf( "Starting new web request for %s\n", url );
+                    
+                    apocalypseRequest =
+                        new WebRequest( "GET", url, NULL );
+                                
+                    delete [] url;
+                    delete [] reflectorSharedSecret;
+                    }
+                }
+
+
+            // send all players the AP message
+            const char *message = "AP\n#";
+            int messageLength = strlen( message );
+            
+            for( int i=0; i<players.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( i );
+                if( !nextPlayer->error ) {
+                    
+                    int numSent = 
+                        nextPlayer->sock->send( 
+                            (unsigned char*)message, 
+                            messageLength,
+                            false, false );
+                    
+                    if( numSent != messageLength ) {
+                        setDeathReason( nextPlayer, "disconnected" );
+                        
+                        nextPlayer->error = true;
+                        nextPlayer->errorCauseString =
+                            "Socket write failed";
+                        }
+                    }
+                }
+            
+            apocalypseStartTime = Time::getCurrentTime();
+            apocalypseStarted = true;
+            }
+
+        if( apocalypseRequest != NULL ) {
+            
+            int result = apocalypseRequest->step();
+                
+
+            if( result == -1 ) {
+                AppLog::info( 
+                    "Apocalypse trigger:  Request to reflector failed." );
+                }
+            else if( result == 1 ) {
+                // done, have result
+
+                char *webResult = 
+                    apocalypseRequest->getResult();
+                printf( "Apocalypse trigger:  "
+                        "Got web result:  '%s'\n", webResult );
+                
+                if( strstr( webResult, "OK" ) == NULL ) {
+                    AppLog::infoF( 
+                        "Apocalypse trigger:  "
+                        "Bad response from reflector:  %s.",
+                        webResult );
+                    }
+                delete [] webResult;
+                }
+            
+            if( result != 0 ) {
+                delete apocalypseRequest;
+                apocalypseRequest = NULL;
+                }
+            }
+
+        if( apocalypseRequest == NULL &&
+            Time::getCurrentTime() - apocalypseStartTime >= 7 ) {
+            
+            for( int i=0; i<players.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( i );
+                
+                if( ! nextPlayer->error ) {
+                    nextPlayer->error = true;
+                    setDeathReason( nextPlayer, "apocalypse" );
+                    }
+                }
+
+            if( players.size() == 0 ) {
+                // apocalypse over
+
+                // clear map
+                freeMap();
+                
+                wipeMapFiles();
+                
+                initMap();
+
+
+                lastRemoteApocalypseCheckTime = curTime;
+                apocalypseStarted = false;
+                apocalypseTriggered = false;
+                apocalypseRemote = false;
+                }
+            }
+        }
+    }
+
 
 
 
@@ -3772,6 +4069,15 @@ int main() {
     if( ticketServerURL == NULL ) {
         requireTicketServerCheck = 0;
         }
+
+    
+    reflectorURL = SettingsManager::getStringSetting( "reflectorURL" );
+
+    apocalypsePossible = 
+        SettingsManager::getIntSetting( "apocalypsePossible", 0 );
+
+    lastApocalypseNumber = 
+        SettingsManager::getIntSetting( "lastApocalypseNumber", 0 );
 
 
     childSameRaceLikelihood =
@@ -3868,6 +4174,9 @@ int main() {
 
     while( !quit ) {
         
+        
+        apocalypseStep();
+
         checkBackup();
 
         stepFoodLog();
@@ -4084,7 +4393,8 @@ int main() {
                 int currentPlayers = players.size() + newConnections.size();
                     
 
-                if( SettingsManager::getIntSetting( "shutdownMode", 0 ) ) {
+                if( apocalypseTriggered ||
+                    SettingsManager::getIntSetting( "shutdownMode", 0 ) ) {
                         
                     AppLog::info( "We are in shutdown mode, "
                                   "deflecting new connection" );         
@@ -4506,6 +4816,8 @@ int main() {
 
         SimpleVector<int> playerIndicesToSendNamesAbout;
 
+        SimpleVector<int> playerIndicesToSendDyingAbout;
+
         // accumulated text of update lines
         SimpleVector<char> newUpdates;
         SimpleVector<ChangePosition> newUpdatesPos;
@@ -4546,7 +4858,8 @@ int main() {
             int curOverID = getMapObject( curPos.x, curPos.y );
             
 
-            if( curOverID != 0 && 
+            if( ! nextPlayer->heldByOther &&
+                curOverID != 0 && 
                 ! isMapObjectInTransit( curPos.x, curPos.y ) ) {
                 
                 ObjectRecord *curOverObj = getObject( curOverID );
@@ -5305,12 +5618,29 @@ int main() {
                                     if( hitPlayer != NULL ) {
                                         someoneHit = true;
                                         // break the connection with 
-                                        // them
+                                        // them, eventually
+                                        // let them stagger a bit first
+
+                                        hitPlayer->murderSourceID =
+                                            nextPlayer->holdingID;
+                                        
                                         setDeathReason( hitPlayer, 
                                                         "killed",
                                                         nextPlayer->holdingID );
 
-                                        hitPlayer->error = true;
+                                        int staggerTime = 
+                                            SettingsManager::getIntSetting(
+                                                "deathStaggerTime", 20 );
+
+                                        hitPlayer->dying = true;
+                                        hitPlayer->dyingETA = 
+                                            Time::getCurrentTime() + 
+                                            staggerTime;
+                                        playerIndicesToSendDyingAbout.
+                                            push_back( 
+                                                getLiveObjectIndex( 
+                                                    hitPlayer->id ) );
+                                        
                                         hitPlayer->errorCauseString =
                                             "Player killed by other player";
                                         
@@ -5362,6 +5692,29 @@ int main() {
                                             hitPlayer->customGraveID = 
                                                 rHitNewTargetE;
                                             }
+
+                                        // last use on actor specifies
+                                        // what is left in victim's hand
+                                        TransRecord *woundHit = 
+                                            getTrans( nextPlayer->holdingID, 
+                                                      0, true, false );
+                                        
+                                        if( woundHit != NULL &&
+                                            woundHit->newTarget > 0 ) {
+                                            
+                                            if( hitPlayer->holdingID != 0 ) {
+                                                handleDrop( 
+                                                    m.x, m.y, 
+                                                    hitPlayer,
+                                             &playerIndicesToSendUpdatesAbout );
+                                                }
+                                            hitPlayer->holdingID = 
+                                                woundHit->newTarget;
+                                            playerIndicesToSendUpdatesAbout.
+                                                push_back( 
+                                                    getLiveObjectIndex( 
+                                                        hitPlayer->id ) );
+                                            }   
                                         }
                                     
 
@@ -6932,6 +7285,13 @@ int main() {
             
             double curTime = Time::getCurrentTime();
             
+            if( nextPlayer->dying && ! nextPlayer->error &&
+                curTime >= nextPlayer->dyingETA ) {
+                // finally died
+                nextPlayer->error = true;
+                }
+            
+
                 
             if( nextPlayer->isNew ) {
                 // their first position is an update
@@ -7259,14 +7619,66 @@ int main() {
                         }  
                     }
                 if( nextPlayer->holdingID != 0 ) {
-                                        
-                    // drop what they were holding
-                    // this will almost always involve a throw
-                    // (death marker, at least, will be in the way)
-                    handleDrop( 
-                        dropPos.x, dropPos.y, 
-                        nextPlayer,
-                        &playerIndicesToSendUpdatesAbout );
+
+                    char doNotDrop = false;
+                    
+                    if( nextPlayer->murderSourceID > 0 ) {
+                        
+                        TransRecord *woundHit = 
+                            getTrans( nextPlayer->murderSourceID, 
+                                      0, true, false );
+                        
+                        if( woundHit != NULL &&
+                            woundHit->newTarget > 0 ) {
+                            
+                            if( nextPlayer->holdingID == woundHit->newTarget ) {
+                                // they are simply holding their wound object
+                                // don't drop this on the ground
+                                doNotDrop = true;
+                                }
+                            }
+                        }
+                    
+                    if( ! doNotDrop ) {
+                        // drop what they were holding
+
+                        if( nextPlayer->holdingID > 0 &&
+                            getObject( nextPlayer->holdingID )->permanent ) {
+                            // what they are holding is stuck in their
+                            // hand
+
+                            // see if a use-on-bare-ground drop 
+                            // action applies (example:  dismounting
+                            // a horse)
+                            
+                            // note that if use on bare ground
+                            // also has a new actor, that will be lost
+                            // in this process.
+                            // (example:  holding a roped lamb when dying,
+                            //            lamb is dropped, rope is lost)
+
+                            TransRecord *bareTrans =
+                                getTrans( nextPlayer->holdingID, -1 );
+                            
+                            if( bareTrans != NULL &&
+                                bareTrans->newTarget > 0 ) {
+                                
+                                nextPlayer->holdingID = 
+                                    bareTrans->newTarget;
+                                }
+                            }
+
+                        // this will almost always involve a throw
+                        // (death marker, at least, will be in the way)
+                        handleDrop( 
+                            dropPos.x, dropPos.y, 
+                            nextPlayer,
+                            &playerIndicesToSendUpdatesAbout );
+                        }
+                    else {
+                        // just clear what they were holding
+                        nextPlayer->holdingID = 0;
+                        }
                     }
                 }
             else if( ! nextPlayer->error ) {
@@ -8430,6 +8842,53 @@ int main() {
                     }
                 }
             }
+
+
+
+        unsigned char *dyingMessage = NULL;
+        int dyingMessageLength = 0;
+        
+        if( playerIndicesToSendDyingAbout.size() > 0 ) {
+            SimpleVector<char> dyingWorking;
+            dyingWorking.appendElementString( "DY\n" );
+            
+            int numAdded = 0;
+            for( int i=0; i<playerIndicesToSendDyingAbout.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( 
+                    playerIndicesToSendDyingAbout.getElementDirect( i ) );
+
+                if( nextPlayer->error ) {
+                    continue;
+                    }
+
+                char *line = autoSprintf( "%d\n", nextPlayer->id );
+
+                numAdded++;
+                dyingWorking.appendElementString( line );
+                delete [] line;
+                }
+            
+            dyingWorking.push_back( '#' );
+            
+            if( numAdded > 0 ) {
+
+                char *dyingMessageText = dyingWorking.getElementString();
+                
+                dyingMessageLength = strlen( dyingMessageText );
+                
+                if( dyingMessageLength < maxUncompressedSize ) {
+                    dyingMessage = (unsigned char*)dyingMessageText;
+                    }
+                else {
+                    // compress for all players once here
+                    dyingMessage = makeCompressedMessage( 
+                        dyingMessageText, 
+                        dyingMessageLength, &dyingMessageLength );
+                    
+                    delete [] dyingMessageText;
+                    }
+                }
+            }
         
         
         // send moves and updates to clients
@@ -8592,6 +9051,43 @@ int main() {
                                          strlen( namesMessage ) );
                 
                     delete [] namesMessage;
+                    }
+
+
+
+
+                // send dying for everyone who is dying
+                
+                SimpleVector<char> dyingWorking;
+                dyingWorking.appendElementString( "DY\n" );
+
+                numAdded = 0;
+                
+                for( int i=0; i<numPlayers; i++ ) {
+                
+                    LiveObject *o = players.getElement( i );
+                
+                    if( o->error || ! o->dying ) {
+                        continue;
+                        }
+
+                    char *line = autoSprintf( "%d\n", o->id );
+                    dyingWorking.appendElementString( line );
+                    delete [] line;
+                    
+                    numAdded++;
+                    }
+                
+                dyingWorking.push_back( '#' );
+            
+                if( numAdded > 0 ) {
+                    char *dyingMessage = dyingWorking.getElementString();
+
+
+                    sendMessageToPlayer( nextPlayer, dyingMessage, 
+                                         strlen( dyingMessage ) );
+                
+                    delete [] dyingMessage;
                     }
 
                 
@@ -8769,6 +9265,28 @@ int main() {
                 // for players in the new chunk
                 
                 
+
+                // EVERYONE gets info about dying players
+
+                // do this first, so that PU messages about what they 
+                // are holding post-wound come later                
+                if( dyingMessage != NULL ) {
+                    int numSent = 
+                        nextPlayer->sock->send( 
+                            dyingMessage, 
+                            dyingMessageLength, 
+                            false, false );
+                    
+                    if( numSent != dyingMessageLength ) {
+                        setDeathReason( nextPlayer, "disconnected" );
+
+                        nextPlayer->error = true;
+                        nextPlayer->errorCauseString =
+                            "Socket write failed";
+                        }
+                    }
+
+
                 
 
                 double maxDist = 32;
@@ -8964,6 +9482,7 @@ int main() {
                             "Socket write failed";
                         }
                     }
+
                 
 
 
@@ -9032,6 +9551,9 @@ int main() {
             }
         if( namesMessage != NULL ) {
             delete [] namesMessage;
+            }
+        if( dyingMessage != NULL ) {
+            delete [] dyingMessage;
             }
 
         
