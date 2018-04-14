@@ -101,7 +101,15 @@ static char teaserVideo = false;
 
 
 // most recent home at end
-static SimpleVector<GridPos> homePosStack;
+
+typedef struct {
+        GridPos pos;
+        char ancient;
+    } HomePos;
+
+    
+
+static SimpleVector<HomePos> homePosStack;
 
 
 // returns pointer to record, NOT destroyed by caller, or NULL if 
@@ -109,7 +117,7 @@ static SimpleVector<GridPos> homePosStack;
 static  GridPos *getHomeLocation() {
     int num = homePosStack.size();
     if( num > 0 ) {
-        return homePosStack.getElement( num - 1 );
+        return &( homePosStack.getElement( num - 1 )->pos );
         }
     else {
         return NULL;
@@ -120,7 +128,7 @@ static  GridPos *getHomeLocation() {
 
 static void removeHomeLocation( int inX, int inY ) {
     for( int i=0; i<homePosStack.size(); i++ ) {
-        GridPos p = homePosStack.getElementDirect( i );
+        GridPos p = homePosStack.getElementDirect( i ).pos;
         
         if( p.x == inX && p.y == inY ) {
             homePosStack.deleteElement( i );
@@ -134,7 +142,32 @@ static void removeHomeLocation( int inX, int inY ) {
 static void addHomeLocation( int inX, int inY ) {
     removeHomeLocation( inX, inY );
     GridPos newPos = { inX, inY };
-    homePosStack.push_back( newPos );
+    HomePos p;
+    p.pos = newPos;
+    p.ancient = false;
+    
+    homePosStack.push_back( p );
+    }
+
+
+static void addAncientHomeLocation( int inX, int inY ) {
+    removeHomeLocation( inX, inY );
+
+    // remove all ancient pos
+    // there can be only one ancient
+    for( int i=0; i<homePosStack.size(); i++ ) {
+        if( homePosStack.getElementDirect( i ).ancient ) {
+            homePosStack.deleteElement( i );
+            i--;
+            }
+        }
+
+    GridPos newPos = { inX, inY };
+    HomePos p;
+    p.pos = newPos;
+    p.ancient = true;
+    
+    homePosStack.push_front( p );
     }
 
 
@@ -634,6 +667,7 @@ typedef enum messageType {
     NAMES,
     APOCALYPSE,
     DYING,
+    MONUMENT_CALL,
     COMPRESSED_MESSAGE,
     UNKNOWN
     } messageType;
@@ -701,6 +735,9 @@ messageType getMessageType( char *inMessage ) {
         }
     else if( strcmp( copy, "DY" ) == 0 ) {
         returnValue = DYING;
+        }
+    else if( strcmp( copy, "MN" ) == 0 ) {
+        returnValue = MONUMENT_CALL;
         }
     
     delete [] copy;
@@ -1429,6 +1466,9 @@ int numScreensWritten = 0;
 static int apocalypseInProgress = false;
 static double apocalypseDisplayProgress = 0;
 static double apocalypseDisplaySeconds = 6;
+
+static double remapPeakSeconds = 60;
+static double remapDelaySeconds = 30;
 
 
 static Image *expandToPowersOfTwoWhite( Image *inImage ) {
@@ -6983,6 +7023,32 @@ void LivingLifePage::step() {
         apocalypseDisplayProgress += stepSize;
         }
     
+    if( mRemapPeak > 0 ) {
+        if( mRemapDelay < 1 ) {
+            double stepSize = 
+                frameRateFactor / ( remapDelaySeconds * 60.0 );
+            mRemapDelay += stepSize;
+            }
+        else {
+
+            double stepSize = 
+                mRemapDirection * frameRateFactor / ( remapPeakSeconds * 60.0 );
+        
+            mCurrentRemapFraction += stepSize;
+            
+            if( stepSize > 0 && mCurrentRemapFraction >= mRemapPeak ) {
+                mCurrentRemapFraction = mRemapPeak;
+                mRemapDirection *= -1;
+                }
+            if( stepSize < 0 && mCurrentRemapFraction <= 0 ) {
+                mCurrentRemapFraction = 0;
+                mRemapPeak = 0;
+                }
+            setRemapFraction( mCurrentRemapFraction );
+            }
+        }
+    
+
     if( mouseDown ) {
         mouseDownFrames++;
         }
@@ -7709,6 +7775,45 @@ void LivingLifePage::step() {
         else if( type == APOCALYPSE ) {
             apocalypseDisplayProgress = 0;
             apocalypseInProgress = true;
+            }
+        else if( type == MONUMENT_CALL ) {
+            int posX, posY, monumentID;
+            
+            int numRead = sscanf( message, "MN\n%d %d %d",
+                                  &posX, &posY, &monumentID );
+            if( numRead == 3 ) {
+                applyReceiveOffset( &posX, &posY );
+
+                doublePair pos;
+                pos.x = posX;
+                pos.y = posY;
+                
+                LiveObject *ourLiveObject = getOurLiveObject();
+
+                if( ourLiveObject != NULL ) {
+                    double d = distance( pos, ourLiveObject->currentPos );
+                    
+                    if( d > 32 ) {
+                        addAncientHomeLocation( posX, posY );
+                        
+                        // play sound in distance
+                        ObjectRecord *monObj = getObject( monumentID );
+                        
+                        if( monObj != NULL && 
+                            monObj->creationSound.numSubSounds > 0 ) {    
+                             
+                            doublePair realVector = 
+                                getVectorFromCamera( lrint( posX ),
+                                                     lrint( posY ) );
+                            // position off camera in that direction
+                            // but fake distance
+                            realVector = mult( normalize( realVector ), 4 );
+                            
+                            playSound( monObj->creationSound, realVector );
+                            }
+                        }
+                    }
+                }            
             }
         else if( type == MAP_CHUNK ) {
             
@@ -9440,6 +9545,25 @@ void LivingLifePage::step() {
                                         existing->currentPos.x, 
                                         existing->currentPos.y ) );
                                 otherSoundPlayed = true;
+                                }
+                            if( strstr( ateObj->description, "remapStart" )
+                                != NULL ) {
+                                
+                                if( mRemapPeak == 0 ) {
+                                    // reseed
+                                    setRemapSeed( 
+                                        randSource.getRandomBoundedInt( 
+                                            0,
+                                            10000000 ) );
+                                    mRemapDelay = 0;
+                                    }
+                                        
+                                // closer to max peak
+                                // zeno's paradox style
+                                mRemapPeak += 0.5 * ( 1 - mRemapPeak );
+                                
+                                // back toward peak
+                                mRemapDirection = 1.0;
                                 }
                             }
                         
@@ -12673,6 +12797,11 @@ void LivingLifePage::makeActive( char inFresh ) {
     if( !inFresh ) {
         return;
         }
+
+    mRemapDelay = 0;
+    mRemapPeak = 0;
+    mRemapDirection = 1.0;
+    mCurrentRemapFraction = 0;
     
     apocalypseInProgress = false;
 

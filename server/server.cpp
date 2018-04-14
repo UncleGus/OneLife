@@ -88,6 +88,13 @@ WebRequest *apocalypseRequest = NULL;
 
 
 
+char monumentCallPending = false;
+int monumentCallX = 0;
+int monumentCallY = 0;
+int monumentCallID = 0;
+
+
+
 
 static double minFoodDecrementSeconds = 5.0;
 static double maxFoodDecrementSeconds = 20;
@@ -352,6 +359,15 @@ static LiveObject *getLiveObject( int inID ) {
             }
         }
     
+    return NULL;
+    }
+
+
+char *getPlayerName( int inID ) {
+    LiveObject *o = getLiveObject( inID );
+    if( o != NULL ) {
+        return o->name;
+        }
     return NULL;
     }
 
@@ -3994,6 +4010,43 @@ void apocalypseStep() {
 
 
 
+void monumentStep() {
+    if( monumentCallPending ) {
+        // send to all players
+        char *message = autoSprintf( "MN\n%d %d %d\n#", 
+                                     monumentCallX, monumentCallY,
+                                     monumentCallID );
+        int messageLength = strlen( message );
+            
+        for( int i=0; i<players.size(); i++ ) {
+            LiveObject *nextPlayer = players.getElement( i );
+            if( !nextPlayer->error ) {
+                
+                int numSent = 
+                    nextPlayer->sock->send( 
+                        (unsigned char*)message, 
+                        messageLength,
+                        false, false );
+                    
+                if( numSent != messageLength ) {
+                    setDeathReason( nextPlayer, "disconnected" );
+                    
+                    nextPlayer->error = true;
+                    nextPlayer->errorCauseString =
+                        "Socket write failed";
+                    }
+                }
+            }
+
+        delete [] message;
+
+        monumentCallPending = false;
+        }
+    }
+
+
+
+
 int main() {
 
     nextID = 
@@ -4176,7 +4229,8 @@ int main() {
         
         
         apocalypseStep();
-
+        monumentStep();
+        
         checkBackup();
 
         stepFoodLog();
