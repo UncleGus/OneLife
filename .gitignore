@@ -62,3 +62,4 @@ server/testMapStale.txt
 server/map.db.bak
 gameSource/UncleGusMod.zip
 server/bug*
+server/lastEveLocation.txt
