@@ -1587,6 +1587,18 @@ int DB_open_timeShrunk(
 
 
 
+int countNewlines( char *inString ) {
+    int len = strlen( inString );
+    int num = 0;
+    for( int i=0; i<len; i++ ) {
+        if( inString[i] == '\n' ) {
+            num++;
+            }
+        }
+    return num;
+    }
+
+
 
 
 void initMap() {
@@ -1638,8 +1650,87 @@ void initMap() {
         fscanf( eveLocFile, "%d,%d", &( eveLocation.x ), &( eveLocation.y ) );
 
         fclose( eveLocFile );
+
+        printf( "Loading lastEveLocation %d,%d\n", 
+                eveLocation.x, eveLocation.y );
         }
 
+    // override if shutdownLongLineagePos exists
+    FILE *lineagePosFile = fopen( "shutdownLongLineagePos.txt", "r" );
+    if( lineagePosFile != NULL ) {
+        
+        fscanf( lineagePosFile, "%d,%d", 
+                &( eveLocation.x ), &( eveLocation.y ) );
+
+        fclose( lineagePosFile );
+
+        printf( "Overriding eveLocation with shutdownLongLineagePos %d,%d\n", 
+                eveLocation.x, eveLocation.y );
+        }
+    else {
+        printf( "No shutdownLongLineagePos.txt file exists\n" );
+        
+        // look for longest monument log file
+        // that has been touched in last 24 hours
+        // (ignore spots that may have been culled)
+        File f( NULL, "monumentLogs" );
+        if( f.exists() && f.isDirectory() ) {
+            int numChildFiles;
+            File **childFiles = f.getChildFiles( &numChildFiles );
+            
+            timeSec_t longTime = 0;
+            int longLen = 0;
+            int longX = 0;
+            int longY = 0;
+            
+            timeSec_t curTime = Time::timeSec();
+
+            int secInDay = 3600 * 24 * 1000;
+            
+            for( int i=0; i<numChildFiles; i++ ) {
+                timeSec_t modTime = childFiles[i]->getModificationTime();
+                
+                if( curTime - modTime < secInDay ) {
+                    char *cont = childFiles[i]->readFileContents();
+                    
+                    int numNewlines = countNewlines( cont );
+                    
+                    delete [] cont;
+                    
+                    if( numNewlines > longLen ||
+                        ( numNewlines == longLen && modTime > longTime ) ) {
+                        
+                        char *name = childFiles[i]->getFileName();
+                        
+                        int x, y;
+                        int numRead = sscanf( name, "%d_%d_",
+                                              &x, &y );
+
+                        delete [] name;
+                        
+                        if( numRead == 2 ) {
+                            longTime = modTime;
+                            longLen = numNewlines;
+                            longX = x;
+                            longY = y;
+                            }
+                        }
+                    }
+                delete childFiles[i];
+                }
+            delete [] childFiles;
+
+            if( longLen > 0 ) {
+                eveLocation.x = longX;
+                eveLocation.y = longY;
+                
+                printf( "Overriding eveLocation with "
+                        "tallest recent monument location %d,%d\n", 
+                        eveLocation.x, eveLocation.y );
+                }
+            }
+        }
+    
 
 
 
@@ -3161,6 +3252,9 @@ int checkDecayObject( int inX, int inY, int inID ) {
                 
                 int desiredMoveDist = t->desiredMoveDist;
 
+                char stayInBiome = false;
+                
+
                 if( t->move < 3 ) {
                     
                     GridPos p = getClosestPlayerPos( inX, inY );
@@ -3196,6 +3290,7 @@ int checkDecayObject( int inX, int inY, int inID ) {
                         }
                     if( t->move == 2 ) {
                         // flee
+                        stayInBiome = true;
                         dir = mult( dir, -1 );
                         }
                     }
@@ -3227,6 +3322,8 @@ int checkDecayObject( int inX, int inY, int inID ) {
 
                 if( dir.x == 0 && dir.y == 0 ) {
                     // random instead
+                    
+                    stayInBiome = true;
                     
                     dir.x = 1;
                     dir.y = 0;
@@ -3322,6 +3419,23 @@ int checkDecayObject( int inX, int inY, int inID ) {
                     tryRadius = 1;
                     }
                 
+                
+                int curBiome = -1;
+                if( stayInBiome ) {
+                    curBiome = getMapBiome( inX, inY );
+                    
+                    if( newX != inX || newY != inY ) {
+                        int newBiome = getMapBiome( newX, newY );
+                        
+                        if( newBiome != curBiome ) {
+                            // block move
+                            newX = inX;
+                            newY = inY;
+                            }
+                        }
+                    }
+                
+
 
                 if( newX == inX && newY == inY &&
                     t->move <= 3 ) {
@@ -3370,6 +3484,14 @@ int checkDecayObject( int inX, int inY, int inID ) {
                     
                                 if( i >= tryDist && oID == 0 ) {
                                     // found a spot for it to move
+                                    
+                                    if( stayInBiome &&
+                                        curBiome !=
+                                        getMapBiome( testX, testY ) ) {
+                                        
+                                        continue;
+                                        }
+
                                     possibleX[ numPossibleDirs ] = testX;
                                     possibleY[ numPossibleDirs ] = testY;
                                     numPossibleDirs++;
@@ -4579,7 +4701,7 @@ void shrinkContainer( int inX, int inY, int inNumNewSlots, int inSubCont ) {
         // first, scatter extra contents into empty nearby spots.
         for( int i=inNumNewSlots; i<oldNum; i++ ) {
             
-            int contID = getContained( inX, inY, i );
+            int contID = getContained( inX, inY, i, inSubCont );
 
             char subCont = false;
             
@@ -5108,9 +5230,11 @@ void getEvePosition( char *inEmail, int *outX, int *outY ) {
         
 
         // New method:
+        GridPos eveLocToUse = eveLocation;
         
         if( eveLocationUsage < maxEveLocationUsage ) {
             eveLocationUsage++;
+            // keep using same location
             }
         else {
             // post-startup eve location has been used too many times
@@ -5122,18 +5246,22 @@ void getEvePosition( char *inEmail, int *outX, int *outY ) {
             delta = rotate( delta,
                             randSource.getRandomBoundedDouble( 0, 2 * M_PI ) );
             
-
-            eveLocation.x += lrint( delta.x );
-            eveLocation.y += lrint( delta.y );
+            // but don't update the post-startup location
+            // keep jumping away from startup-location as center of
+            // a circle
+            eveLocToUse.x += lrint( delta.x );
+            eveLocToUse.y += lrint( delta.y );
+            
+            // but do save it as a possible post-startup location for next time
             File eveLocFile( NULL, "lastEveLocation.txt" );
             char *locString = 
-                autoSprintf( "%d,%d", eveLocation.x, eveLocation.y );
+                autoSprintf( "%d,%d", eveLocToUse.x, eveLocToUse.y );
             eveLocFile.writeToFile( locString );
             delete [] locString;
             }
 
-        ave.x = eveLocation.x;
-        ave.y = eveLocation.y;
+        ave.x = eveLocToUse.x;
+        ave.y = eveLocToUse.y;
 
         
         

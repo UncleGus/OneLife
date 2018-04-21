@@ -1,5 +1,5 @@
-int versionNumber = 74;
-
+int versionNumber = 77;
+int dataVersionNumber = 0;
 
 // NOTE that OneLife doesn't use account hmacs
 
@@ -313,14 +313,12 @@ static void updateDataVersionNumber() {
         char *contents = file.readFileContents();
         
         if( contents != NULL ) {
-            int v = 0;
-            
-            sscanf( contents, "%d", &v );
+            sscanf( contents, "%d", &dataVersionNumber );
         
             delete [] contents;
 
-            if( v > versionNumber ) {
-                versionNumber = v;
+            if( dataVersionNumber > versionNumber ) {
+                versionNumber = dataVersionNumber;
                 }
             }
         }
@@ -1695,6 +1693,11 @@ void drawFrame( char inUpdate ) {
                                              versionNumber,
                                              livingLifePage->
                                              getRequiredVersion() );
+
+                if( SettingsManager::getIntSetting( "useCustomServer", 0 ) ) {
+                    existingAccountPage->showDisableCustomServerButton( true );
+                    }
+                
 
                 existingAccountPage->setStatusDirect( message, true );
                 

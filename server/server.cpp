@@ -260,7 +260,8 @@ typedef struct LiveObject {
         
         // and what original weapon killed them?
         int murderSourceID;
-
+        char holdingWound;
+        
 
         Socket *sock;
         SimpleVector<char> *sockBuffer;
@@ -1211,6 +1212,23 @@ static void setDeathReason( LiveObject *inPlayer, const char *inTag,
 
 
 
+int longestShutdownLine = -1;
+
+void handleShutdownDeath( LiveObject *inPlayer,
+                          int inX, int inY ) {
+    if( inPlayer->parentChainLength > longestShutdownLine ) {
+        longestShutdownLine = inPlayer->parentChainLength;
+        
+        FILE *f = fopen( "shutdownLongLineagePos.txt", "w" );
+        if( f != NULL ) {
+            fprintf( f, "%d,%d", inX, inY );
+            fclose( f );
+            }
+        }
+    }
+
+
+
 double computeAge( LiveObject *inPlayer ) {
     double deltaSeconds = 
         Time::getCurrentTime() - inPlayer->lifeStartTimeSeconds;
@@ -2023,6 +2041,138 @@ void handleMapChangeToPaths(
 
 
 
+// returns true if found
+char findDropSpot( int inX, int inY, int inSourceX, int inSourceY, 
+                   GridPos *outSpot ) {
+    char found = false;
+    int foundX = inX;
+    int foundY = inY;
+    
+    // change direction of throw
+    // to match direction of 
+    // drop action
+    int xDir = inX - inSourceX;
+    int yDir = inY - inSourceY;
+                                    
+        
+    if( xDir == 0 && yDir == 0 ) {
+        xDir = 1;
+        }
+    
+    // cap to magnitude
+    // death drops can be non-adjacent
+    if( xDir > 1 ) {
+        xDir = 1;
+        }
+    if( xDir < -1 ) {
+        xDir = -1;
+        }
+    
+    if( yDir > 1 ) {
+        yDir = 1;
+        }
+    if( yDir < -1 ) {
+        yDir = -1;
+        }
+        
+
+    // check in y dir first at each
+    // expanded radius?
+    char yFirst = false;
+        
+    if( yDir != 0 ) {
+        yFirst = true;
+        }
+        
+    for( int d=1; d<10 && !found; d++ ) {
+            
+        char doneY0 = false;
+            
+        for( int yD = -d; yD<=d && !found; 
+             yD++ ) {
+                
+            if( ! doneY0 ) {
+                yD = 0;
+                }
+                
+            if( yDir != 0 ) {
+                yD *= yDir;
+                }
+                
+            char doneX0 = false;
+                
+            for( int xD = -d; 
+                 xD<=d && !found; 
+                 xD++ ) {
+                    
+                if( ! doneX0 ) {
+                    xD = 0;
+                    }
+                    
+                if( xDir != 0 ) {
+                    xD *= xDir;
+                    }
+                    
+                    
+                if( yD == 0 && xD == 0 ) {
+                    if( ! doneX0 ) {
+                        doneX0 = true;
+                            
+                        // back up in loop
+                        xD = -d - 1;
+                        }
+                    continue;
+                    }
+                                                
+                int x = 
+                    inSourceX + xD;
+                int y = 
+                    inSourceY + yD;
+                                                
+                if( yFirst ) {
+                    // swap them
+                    // to reverse order
+                    // of expansion
+                    x = 
+                        inSourceX + yD;
+                    y =
+                        inSourceY + xD;
+                    }
+                                                
+
+
+                if( 
+                    isMapSpotEmpty( x, y ) ) {
+                                                    
+                    found = true;
+                    foundX = x;
+                    foundY = y;
+                    }
+                                                    
+                if( ! doneX0 ) {
+                    doneX0 = true;
+                                                        
+                    // back up in loop
+                    xD = -d - 1;
+                    }
+                }
+                                                
+            if( ! doneY0 ) {
+                doneY0 = true;
+                                                
+                // back up in loop
+                yD = -d - 1;
+                }
+            }
+        }
+
+    outSpot->x = foundX;
+    outSpot->y = foundY;
+    return found;
+    }
+
+
+
 // drops an object held by a player at target x,y location
 // doesn't check for adjacency (so works for thrown drops too)
 // if target spot blocked, will search for empty spot to throw object into
@@ -2031,6 +2181,37 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
     
     int oldHoldingID = inDroppingPlayer->holdingID;
     
+
+    if( oldHoldingID > 0 &&
+        getObject( oldHoldingID )->permanent ) {
+        // what they are holding is stuck in their
+        // hand
+
+        // see if a use-on-bare-ground drop 
+        // action applies (example:  dismounting
+        // a horse)
+                            
+        // note that if use on bare ground
+        // also has a new actor, that will be lost
+        // in this process.
+        // (example:  holding a roped lamb when dying,
+        //            lamb is dropped, rope is lost)
+
+        TransRecord *bareTrans =
+            getTrans( oldHoldingID, -1 );
+                            
+        if( bareTrans != NULL &&
+            bareTrans->newTarget > 0 ) {
+                            
+            oldHoldingID = bareTrans->newTarget;
+            
+            inDroppingPlayer->holdingID = 
+                bareTrans->newTarget;
+
+            setFreshEtaDecayForHeld( inDroppingPlayer );
+            }
+        }
+
     int targetX = inX;
     int targetY = inY;
 
@@ -2049,122 +2230,17 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
         // search for another
         // throw held into nearest empty spot
                                     
-        char found = false;
-        int foundX, foundY;
         
-        // change direction of throw
-        // to match direction of 
-        // drop action
-        int xDir = inX - inDroppingPlayer->xd;
-        int yDir = inY - inDroppingPlayer->yd;
-                                    
+        GridPos spot;
         
-        // cap to magnitude
-        // death drops can be non-adjacent
-        if( xDir > 1 ) {
-            xDir = 1;
-            }
-        if( xDir < -1 ) {
-            xDir = -1;
-            }
-
-        if( yDir > 1 ) {
-            yDir = 1;
-            }
-        if( yDir < -1 ) {
-            yDir = -1;
-            }
+        char found = findDropSpot( inX, inY, 
+                                   inDroppingPlayer->xd, inDroppingPlayer->yd,
+                                   &spot );
         
-
-        // check in y dir first at each
-        // expanded radius?
-        char yFirst = false;
-        
-        if( yDir != 0 ) {
-            yFirst = true;
-            }
-        
-        for( int d=1; d<10 && !found; d++ ) {
-            
-            char doneY0 = false;
-            
-            for( int yD = -d; yD<=d && !found; 
-                 yD++ ) {
-                
-                if( ! doneY0 ) {
-                    yD = 0;
-                    }
-                
-                if( yDir != 0 ) {
-                    yD *= yDir;
-                    }
-                
-                char doneX0 = false;
-                
-                for( int xD = -d; 
-                     xD<=d && !found; 
-                     xD++ ) {
-                    
-                    if( ! doneX0 ) {
-                        xD = 0;
-                        }
-                    
-                    if( xDir != 0 ) {
-                        xD *= xDir;
-                        }
-                    
-                    
-                    if( yD == 0 && xD == 0 ) {
-                        if( ! doneX0 ) {
-                            doneX0 = true;
-                            
-                            // back up in loop
-                            xD = -d - 1;
-                            }
-                        continue;
-                        }
-                                                
-                    int x = 
-                        inDroppingPlayer->xd + xD;
-                    int y = 
-                        inDroppingPlayer->yd + yD;
-                                                
-                    if( yFirst ) {
-                        // swap them
-                        // to reverse order
-                        // of expansion
-                        x = 
-                            inDroppingPlayer->xd + yD;
-                        y =
-                            inDroppingPlayer->yd + xD;
-                        }
-                                                
+        int foundX = spot.x;
+        int foundY = spot.y;
 
 
-                    if( 
-                        isMapSpotEmpty( x, y ) ) {
-                                                    
-                        found = true;
-                        foundX = x;
-                        foundY = y;
-                        }
-                                                    
-                    if( ! doneX0 ) {
-                        doneX0 = true;
-                                                        
-                        // back up in loop
-                        xD = -d - 1;
-                        }
-                    }
-                                                
-                if( ! doneY0 ) {
-                    doneY0 = true;
-                                                
-                    // back up in loop
-                    yD = -d - 1;
-                    }
-                }
-            }
 
         if( found ) {
             targetX = foundX;
@@ -2542,7 +2618,8 @@ static char *getUpdateLine( LiveObject *inPlayer, char inDelete,
 
 
 
-static LiveObject *getHitPlayer( int inX, int inY, 
+static LiveObject *getHitPlayer( int inX, int inY,
+                                 char inCountMidPath = false,
                                  int inMaxAge = -1,
                                  int inMinAge = -1,
                                  int *outHitIndex = NULL ) {
@@ -2603,6 +2680,31 @@ static LiveObject *getHitPlayer( int inX, int inY,
                     *outHitIndex = j;
                     }
                 break;
+                }
+            else if( inCountMidPath ) {
+                
+                int c = computePartialMovePathStep( otherPlayer );
+
+                // consider path step before and after current location
+                for( int i=-1; i<=1; i++ ) {
+                    int testC = c + i;
+                    
+                    if( testC >= 0 && testC < otherPlayer->pathLength ) {
+                        cPos = otherPlayer->pathToDest[testC];
+                 
+                        if( equal( cPos, targetPos ) ) {
+                            // hit
+                            hitPlayer = otherPlayer;
+                            if( outHitIndex != NULL ) {
+                                *outHitIndex = j;
+                                }
+                            break;
+                            }
+                        }
+                    }
+                if( hitPlayer != NULL ) {
+                    break;
+                    }
                 }
             }
         }
@@ -2681,6 +2783,10 @@ void processLoggedInPlayer( Socket *inSock,
     if( badMotherLimit > 10 ) {
         badMotherLimit = 10;
         }
+    
+    // with new birth cooldowns, we don't need bad mother limit anymore
+    // try making it a non-factor
+    badMotherLimit = 9999999;
     
     
 
@@ -2840,28 +2946,32 @@ void processLoggedInPlayer( Socket *inSock,
             // baby
             
             // pick random mother from a weighted distribution based on 
-            // each mother's food supply
+            // each mother's temperature
             
-            int totalFoodStore = 0;
+            
+            // 0.5 temp is worth .5 weight
+            // 1.0 temp and 0 are worth 0 weight
+            
+            double totalTemp = 0;
             
             for( int i=0; i<parentChoices.size(); i++ ) {
                 LiveObject *p = parentChoices.getElementDirect( i );
 
-                totalFoodStore += p->foodStore;
+                totalTemp += 0.5 - abs( p->heat - 0.5 );
                 }
 
             double choice = 
-                randSource.getRandomBoundedDouble( 0, totalFoodStore );
+                randSource.getRandomBoundedDouble( 0, totalTemp );
             
             
-            totalFoodStore = 0;
+            totalTemp = 0;
             
             for( int i=0; i<parentChoices.size(); i++ ) {
                 LiveObject *p = parentChoices.getElementDirect( i );
 
-                totalFoodStore += p->foodStore;
+                totalTemp += 0.5 - abs( p->heat - 0.5 );
                 
-                if( totalFoodStore >= choice ) {
+                if( totalTemp >= choice ) {
                     parent = p;
                     break;
                     }                
@@ -3076,6 +3186,8 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.embeddedWeaponID = 0;
     newObject.embeddedWeaponEtaDecay = 0;
     newObject.murderSourceID = 0;
+    newObject.holdingWound = false;
+    
     newObject.sock = inSock;
     newObject.sockBuffer = inSockBuffer;
     newObject.isNew = true;
@@ -4227,6 +4339,8 @@ int main() {
 
     while( !quit ) {
         
+        int shutdownMode = SettingsManager::getIntSetting( "shutdownMode", 0 );
+        
         
         apocalypseStep();
         monumentStep();
@@ -4447,8 +4561,7 @@ int main() {
                 int currentPlayers = players.size() + newConnections.size();
                     
 
-                if( apocalypseTriggered ||
-                    SettingsManager::getIntSetting( "shutdownMode", 0 ) ) {
+                if( apocalypseTriggered || shutdownMode ) {
                         
                     AppLog::info( "We are in shutdown mode, "
                                   "deflecting new connection" );         
@@ -4875,6 +4988,7 @@ int main() {
         // accumulated text of update lines
         SimpleVector<char> newUpdates;
         SimpleVector<ChangePosition> newUpdatesPos;
+        SimpleVector<int> newUpdatePlayerIDs;
 
 
         // separate accumulated text of updates for player deletes
@@ -5665,7 +5779,7 @@ int main() {
                                     
                                     // is anyone there?
                                     LiveObject *hitPlayer = 
-                                        getHitPlayer( m.x, m.y );
+                                        getHitPlayer( m.x, m.y, true );
                                     
                                     char someoneHit = false;
 
@@ -5682,35 +5796,44 @@ int main() {
                                                         "killed",
                                                         nextPlayer->holdingID );
 
-                                        int staggerTime = 
-                                            SettingsManager::getIntSetting(
-                                                "deathStaggerTime", 20 );
+                                        // if not already dying
+                                        if( ! hitPlayer->dying ) {
+                                            int staggerTime = 
+                                                SettingsManager::getIntSetting(
+                                                    "deathStaggerTime", 20 );
 
-                                        hitPlayer->dying = true;
-                                        hitPlayer->dyingETA = 
-                                            Time::getCurrentTime() + 
-                                            staggerTime;
-                                        playerIndicesToSendDyingAbout.
-                                            push_back( 
-                                                getLiveObjectIndex( 
-                                                    hitPlayer->id ) );
+                                            hitPlayer->dying = true;
+                                            hitPlayer->dyingETA = 
+                                                Time::getCurrentTime() + 
+                                                staggerTime;
+                                            playerIndicesToSendDyingAbout.
+                                                push_back( 
+                                                    getLiveObjectIndex( 
+                                                        hitPlayer->id ) );
                                         
-                                        hitPlayer->errorCauseString =
-                                            "Player killed by other player";
+                                            hitPlayer->errorCauseString =
+                                                "Player killed by other player";
                                         
-                                        logDeath( hitPlayer->id,
-                                                  hitPlayer->email,
-                                                  hitPlayer->isEve,
-                                                  computeAge( hitPlayer ),
-                                                  getSecondsPlayed( hitPlayer ),
-                                                  ! getFemale( hitPlayer ),
-                                                  m.x, m.y,
-                                                  players.size() - 1,
-                                                  false,
-                                                  nextPlayer->id,
-                                                  nextPlayer->email );
-                                        
-                                        hitPlayer->deathLogged = true;
+                                            logDeath( hitPlayer->id,
+                                                      hitPlayer->email,
+                                                      hitPlayer->isEve,
+                                                      computeAge( hitPlayer ),
+                                                      getSecondsPlayed( 
+                                                          hitPlayer ),
+                                                      ! getFemale( hitPlayer ),
+                                                      m.x, m.y,
+                                                      players.size() - 1,
+                                                      false,
+                                                      nextPlayer->id,
+                                                      nextPlayer->email );
+                                            
+                                            if( shutdownMode ) {
+                                                handleShutdownDeath( 
+                                                    hitPlayer, m.x, m.y );
+                                                }
+
+                                            hitPlayer->deathLogged = true;
+                                            }
                                         }
                                     
                                     
@@ -5756,7 +5879,9 @@ int main() {
                                         if( woundHit != NULL &&
                                             woundHit->newTarget > 0 ) {
                                             
-                                            if( hitPlayer->holdingID != 0 ) {
+                                            // don't drop their wound
+                                            if( hitPlayer->holdingID != 0 &&
+                                                ! hitPlayer->holdingWound ) {
                                                 handleDrop( 
                                                     m.x, m.y, 
                                                     hitPlayer,
@@ -5764,6 +5889,8 @@ int main() {
                                                 }
                                             hitPlayer->holdingID = 
                                                 woundHit->newTarget;
+                                            hitPlayer->holdingWound = true;
+                                            
                                             playerIndicesToSendUpdatesAbout.
                                                 push_back( 
                                                     getLiveObjectIndex( 
@@ -6532,7 +6659,7 @@ int main() {
 
                                 // is anyone there?
                                 LiveObject *hitPlayer = 
-                                    getHitPlayer( m.x, m.y, 5 );
+                                    getHitPlayer( m.x, m.y, false, 5 );
                                 
                                 if( hitPlayer != NULL &&
                                     !hitPlayer->heldByOther &&
@@ -6551,9 +6678,41 @@ int main() {
                                     // holding
 
                                     if( hitPlayer->holdingID != 0 ) {
-                                        handleDrop( 
-                                            m.x, m.y, hitPlayer,
-                                            &playerIndicesToSendUpdatesAbout );
+
+                                        if( hitPlayer->holdingWound &&
+                                            hitPlayer->embeddedWeaponID > 0 ) {
+                                            
+                                            // switch from wound to
+                                            // holding embedded weapon
+                                            // have them drop it when
+                                            // picked up
+                                            hitPlayer->holdingID = 
+                                                hitPlayer->
+                                                embeddedWeaponID;
+                                            hitPlayer->holdingEtaDecay =
+                                                hitPlayer->
+                                                embeddedWeaponEtaDecay;
+                                            
+                                            hitPlayer->embeddedWeaponID = 0;
+                                            hitPlayer->embeddedWeaponEtaDecay
+                                                = 0;
+                                            hitPlayer->holdingWound = false;
+                                            }
+                                        else if( hitPlayer->holdingWound &&
+                                                 hitPlayer->embeddedWeaponID 
+                                                 == 0 ) {
+                                            // holding wound only
+                                            // disappears
+                                            hitPlayer->holdingID = 0;
+                                            hitPlayer->holdingEtaDecay = 0;
+                                            }
+                                        
+
+                                        if( hitPlayer->holdingID > 0 ) {
+                                            handleDrop( 
+                                                m.x, m.y, hitPlayer,
+                                             &playerIndicesToSendUpdatesAbout );
+                                            }
                                         }
                                     
                                     if( hitPlayer->xd != hitPlayer->xs
@@ -6620,6 +6779,7 @@ int main() {
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
                         char holdingFood = false;
+                        char holdingDrugs = false;
                         
                         if( nextPlayer->holdingID > 0 ) {
                             ObjectRecord *obj = 
@@ -6627,6 +6787,14 @@ int main() {
                             
                             if( obj->foodValue > 0 ) {
                                 holdingFood = true;
+
+                                if( strstr( obj->description, "remapStart" )
+                                    != NULL ) {
+                                    // don't count drugs as food to 
+                                    // feed other people
+                                    holdingFood = false;
+                                    holdingDrugs = true;
+                                    }
                                 }
                             }
                         
@@ -6664,13 +6832,20 @@ int main() {
                                 // try click on baby
                                 int hitIndex;
                                 LiveObject *hitPlayer = 
-                                    getHitPlayer( m.x, m.y, 5, -1, &hitIndex );
+                                    getHitPlayer( m.x, m.y, 
+                                                  false, 5, -1, &hitIndex );
                                 
+                                if( hitPlayer != NULL && holdingDrugs ) {
+                                    // can't even feed baby drugs
+                                    // too confusing
+                                    hitPlayer = NULL;
+                                    }
+
                                 if( hitPlayer == NULL ||
                                     hitPlayer == nextPlayer ) {
                                     // try click on elderly
                                     hitPlayer = 
-                                        getHitPlayer( m.x, m.y, -1, 
+                                        getHitPlayer( m.x, m.y, false, -1, 
                                                       55, &hitIndex );
                                     }
                                 
@@ -6682,7 +6857,7 @@ int main() {
                                     // feeding action 
                                     // try click on everyone
                                     hitPlayer = 
-                                        getHitPlayer( m.x, m.y, -1, -1, 
+                                        getHitPlayer( m.x, m.y, false, -1, -1, 
                                                       &hitIndex );
                                     }
                                 
@@ -7442,7 +7617,11 @@ int main() {
                               dropPos.x, dropPos.y,
                               players.size() - 1,
                               disconnect );
-                                        
+                    
+                    if( shutdownMode ) {
+                        handleShutdownDeath( nextPlayer, dropPos.x, dropPos.y );
+                        }
+                    
                     nextPlayer->deathLogged = true;
                     }
                 
@@ -7542,7 +7721,7 @@ int main() {
                         int roomLeft = deathObject->numSlots;
                         
                         if( roomLeft >= 1 ) {
-                            // room for weapon remant
+                            // room for weapon remnant
                             if( nextPlayer->embeddedWeaponID != 0 ) {
                                 addContained( 
                                     dropPos.x, dropPos.y,
@@ -7696,32 +7875,6 @@ int main() {
                     if( ! doNotDrop ) {
                         // drop what they were holding
 
-                        if( nextPlayer->holdingID > 0 &&
-                            getObject( nextPlayer->holdingID )->permanent ) {
-                            // what they are holding is stuck in their
-                            // hand
-
-                            // see if a use-on-bare-ground drop 
-                            // action applies (example:  dismounting
-                            // a horse)
-                            
-                            // note that if use on bare ground
-                            // also has a new actor, that will be lost
-                            // in this process.
-                            // (example:  holding a roped lamb when dying,
-                            //            lamb is dropped, rope is lost)
-
-                            TransRecord *bareTrans =
-                                getTrans( nextPlayer->holdingID, -1 );
-                            
-                            if( bareTrans != NULL &&
-                                bareTrans->newTarget > 0 ) {
-                                
-                                nextPlayer->holdingID = 
-                                    bareTrans->newTarget;
-                                }
-                            }
-
                         // this will almost always involve a throw
                         // (death marker, at least, will be in the way)
                         handleDrop( 
@@ -7762,6 +7915,57 @@ int main() {
                         if( newSlots < oldSlots ) {
                             // new container can hold less
                             // truncate
+                            
+                            GridPos dropPos = 
+                                computePartialMoveSpot( nextPlayer );
+                            
+                            // offset to counter-act offsets built into
+                            // drop code
+                            dropPos.x += 1;
+                            dropPos.y += 1;
+
+                            char found = false;
+                            GridPos spot;
+                            
+                            if( getMapObject( dropPos.x, dropPos.y ) == 0 ) {
+                                spot = dropPos;
+                                found = true;
+                                }
+                            else {
+                                found = findDropSpot( 
+                                    dropPos.x, dropPos.y,
+                                    dropPos.x, dropPos.y,
+                                    &spot );
+                                }
+                            
+                            
+                            if( found ) {
+                                
+                                // throw it on map temporarily
+                                handleDrop( 
+                                    spot.x, spot.y, 
+                                    nextPlayer,
+                                    &playerIndicesToSendUpdatesAbout );
+                                
+                                
+                                // shrink contianer on map
+                                shrinkContainer( spot.x, spot.y, 
+                                                 newSlots );
+
+                                // pick it back up
+                                nextPlayer->holdingEtaDecay = 
+                                    getEtaDecay( spot.x, spot.y );
+                                    
+                                FullMapContained f =
+                                    getFullMapContained( spot.x, spot.y );
+
+                                nextPlayer->holdingID = newID;
+                                setContained( nextPlayer, f );
+                                
+                                clearAllContained( spot.x, spot.y );
+                                setMapObject( spot.x, spot.y, 0 );
+                                }
+                            
                             nextPlayer->numContained = newSlots;
                             }
                     
@@ -7774,6 +7978,24 @@ int main() {
                             }
                     
                         
+                        ObjectRecord *newObj = getObject( newID );
+                        ObjectRecord *oldObj = getObject( oldID );
+                        
+                        
+                        if( newObj != NULL && newObj->permanent &&
+                            oldObj != NULL && ! oldObj->permanent ) {
+                            // object decayed into a permanent
+                            // force drop
+                             GridPos dropPos = 
+                                computePartialMoveSpot( nextPlayer );
+                            
+                             handleDrop( 
+                                    dropPos.x, dropPos.y, 
+                                    nextPlayer,
+                                    &playerIndicesToSendUpdatesAbout );
+                            }
+                        
+
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         }
                     else {
@@ -8242,7 +8464,12 @@ int main() {
                                   deathPos.x, deathPos.y,
                                   players.size() - 1,
                                   false );
-                                        
+                        
+                        if( shutdownMode ) {
+                            handleShutdownDeath( decrementedPlayer,
+                                                 deathPos.x, deathPos.y );
+                            }
+                                            
                         decrementedPlayer->deathLogged = true;
                                         
 
@@ -8646,6 +8873,8 @@ int main() {
             nextPlayer->posForced = false;
 
             newUpdates.appendElementString( updateLine );
+            newUpdatePlayerIDs.push_back( nextPlayer->id );
+            
             ChangePosition p = { nextPlayer->xs, nextPlayer->ys, false };
             newUpdatesPos.push_back( p );
 
@@ -8705,6 +8934,44 @@ int main() {
             }
 
 
+
+
+        unsigned char *outOfRangeMessage = NULL;
+        int outOfRangeMessageLength = 0;
+        
+        if( newUpdatePlayerIDs.size() > 0 ) {
+            SimpleVector<char> messageChars;
+            
+            messageChars.appendElementString( "PO\n" );
+            
+            for( int i=0; i<newUpdatePlayerIDs.size(); i++ ) {
+                char buffer[20];
+                sprintf( buffer, "%d\n",
+                         newUpdatePlayerIDs.getElementDirect( i ) );
+                
+                messageChars.appendElementString( buffer );
+                }
+            messageChars.push_back( '#' );
+
+            char *outOfRangeMessageText = messageChars.getElementString();
+
+            outOfRangeMessageLength = strlen( outOfRangeMessageText );
+
+            if( outOfRangeMessageLength < maxUncompressedSize ) {
+                outOfRangeMessage = (unsigned char*)outOfRangeMessageText;
+                }
+            else {
+                // compress for all players once here
+                outOfRangeMessage = makeCompressedMessage( 
+                    outOfRangeMessageText, 
+                    outOfRangeMessageLength, &outOfRangeMessageLength );
+                
+                delete [] outOfRangeMessageText;
+                }
+            }
+        
+
+        
 
         unsigned char *deleteUpdateMessage = NULL;
         int deleteUpdateMessageLength = 0;
@@ -9384,7 +9651,23 @@ int main() {
                                 "Socket write failed";
                             }
                         }
-                    
+                    else if( outOfRangeMessage != NULL ) {
+                        // everyone in the PU is out of range
+                        // send short PO instead
+                        int numSent = 
+                            nextPlayer->sock->send( 
+                                outOfRangeMessage, 
+                                outOfRangeMessageLength, 
+                                false, false );
+
+                        if( numSent != outOfRangeMessageLength ) {
+                            setDeathReason( nextPlayer, "disconnected" );
+
+                            nextPlayer->error = true;
+                            nextPlayer->errorCauseString =
+                                "Socket write failed";
+                            }
+                        }
                     }
                 if( moveMessage != NULL ) {
                     
@@ -9400,6 +9683,9 @@ int main() {
                     
                         if( d < minUpdateDist ) {
                             minUpdateDist = d;
+                            if( minUpdateDist <= maxDist ) {
+                                break;
+                                }
                             }
                         }
 
@@ -9591,6 +9877,9 @@ int main() {
         if( updateMessage != NULL ) {
             delete [] updateMessage;
             }
+        if( outOfRangeMessage != NULL ) {
+            delete [] outOfRangeMessage;
+            }
         if( mapChangeMessage != NULL ) {
             delete [] mapChangeMessage;
             }
@@ -9671,7 +9960,7 @@ int main() {
 
 
         if( players.size() == 0 && newConnections.size() == 0 ) {
-            if( SettingsManager::getIntSetting( "shutdownMode", 0 ) ) {
+            if( shutdownMode ) {
                 AppLog::info( "No live players or connections in shutdown " 
                               " mode, auto-quitting." );
                 quit = true;

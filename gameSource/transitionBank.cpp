@@ -508,8 +508,12 @@ void initTransBankFinish() {
                 
         int numGenerated = 0;
         int numRemoved = 0;
+        
 
-
+        SimpleVector<TransRecord*> transToDelete;
+        SimpleVector<TransRecord> transToAdd;
+        
+        
         int numObjects;
         
         ObjectRecord **objects = getAllObjects( &numObjects );
@@ -530,8 +534,7 @@ void initTransBankFinish() {
                     numTrans = objTransOrig->size();
                     }
                 
-                SimpleVector<TransRecord*> transToDelete;
-                SimpleVector<TransRecord> transToAdd;
+                
                 
                 // can't rely on indexing in Orig, because it
                 // will change as we add trans
@@ -642,19 +645,14 @@ void initTransBankFinish() {
                                 
                                 if( tr->reverseUseTarget ) {
 
-                                    if( tr->autoDecaySeconds != 0 ) {
-                                        // this use dummy auto-decays
-                                        // back to previous use dummy
-                                        newTransD.target = o->useDummyIDs[ u ];
+                                    // this use dummy auto-decays
+                                    // back to previous use dummy
 
-                                        newTransD.newTarget = 
-                                            o->useDummyIDs[ u + 1 ];
-                                        }
-                                    else {
-                                        newTransD.target = o->useDummyIDs[ u ];
-                                        newTransD.newTarget = 
-                                            o->useDummyIDs[ u + 1 ];
-                                        }
+                                    // OR it is getting reverse-used
+                                    // back to the previous use dummy 
+                                    newTransD.target = o->useDummyIDs[ u ];
+                                    newTransD.newTarget =
+                                        o->useDummyIDs[ u + 1 ];
                                     }
                                 else {
                                     newTransD.target = o->useDummyIDs[ u + 1 ];
@@ -710,15 +708,95 @@ void initTransBankFinish() {
                                     newActorObj->numUses > 1 ) {
                                     
                                     // propagate used status to new actor
-                                    
                                     int usesLeft = 
-                                        (int)( useFraction * 
+                                        lrint( useFraction * 
                                                newActorObj->numUses );
+
+                                    // if num uses in actor and new actor align
+                                    // AND newActor has a last-use trans
+                                    // defined, then count this as a use
+                                    // Checking that newActor has a last
+                                    // use prevents double-decrement
+                                    // (example:  shovel picks up dung,
+                                    //  no use decrement, but then shovel
+                                    //  drops dung triggering one use decrement)
+                                    if( newActorObj->numUses == o->numUses &&
+                                        getTrans( tr->newActor, -1, true ) !=
+                                        NULL ) {
+                                        
+                                        // decrement (count as a use)
+
+                                        usesLeft--;
+                                        
+                                        if( usesLeft < 0 ) {
+                                            // substitute last-use
+                                            // transition in place
+                                            TransRecord *lastUseTR =
+                                                getTrans( tr->newActor,
+                                                          -1, true );
+
+                                            if( lastUseTR != NULL ) {
+                                                newTrans.newActor =
+                                                    lastUseTR->newActor;
+                                                }
+                                            else {
+                                                usesLeft = 0;
+                                                }
+                                            }
+
+                                        if( u == o->numUses - 2 ) {
+                                            // do this once in here
+                                            // so we don't need to 
+                                            // replicate all the 
+                                            // case-detection logic
+                                            // outside the loop
+
+                                            // we need to enter into
+                                            // the use dummies of
+                                            // newActor
+                                                
+                                            TransRecord startRecord =
+                                                *tr;
+                                            startRecord.newActor =
+                                                newActorObj->useDummyIDs[ 
+                                                    o->numUses - 2 ];
+                                                
+                                            transToDelete.push_back( tr );
+                                            transToAdd.push_back( 
+                                                startRecord );
+                                            }
+                                        }
                                     
-                                    newTrans.newActor =
-                                        newActorObj->useDummyIDs[ usesLeft ];
+                                    if( usesLeft >= 0 ) {
+                                        newTrans.newActor =
+                                            newActorObj->useDummyIDs[ 
+                                                usesLeft ];
+                                        }
                                     }
-                                
+                                else if( tr->newTarget > 0 &&
+                                         tr->target > 0 &&
+                                         tr->target != tr->newTarget ) {
+                                    
+                                    ObjectRecord *targetObj =
+                                        getObject( tr->target );
+                                    ObjectRecord *newTargetObj =
+                                        getObject( tr->newTarget );
+                                    
+                                    if( ! targetObj->isUseDummy &&
+                                        ! newTargetObj->isUseDummy &&
+                                        targetObj->numUses == 1 &&
+                                        newTargetObj->numUses == o->numUses ) {
+                                        // propagate used status to new target
+                                    
+                                        int usesLeft = 
+                                            lrint( useFraction * 
+                                                   newTargetObj->numUses );
+                                    
+                                        newTrans.newTarget =
+                                            newTargetObj->useDummyIDs[ 
+                                                usesLeft ];
+                                        }
+                                    }
                                 
                                 transToAdd.push_back( newTrans );
                                 }
@@ -748,11 +826,86 @@ void initTransBankFinish() {
                                     // propagate used status to new target
                                     
                                     int usesLeft = 
-                                        (int)( useFraction * 
+                                        lrint( useFraction * 
                                                newTargetObj->numUses );
                                     
                                     newTrans.newTarget =
                                         newTargetObj->useDummyIDs[ usesLeft ];
+                                    }
+                                else if( tr->actor >= 0 && 
+                                         tr->newActor > 0 ) {
+                                    
+                                    char actorUseDummy = false;
+                                    int actorNumUses = 1;
+                                    if( tr->actor > 0 ) {
+                                        ObjectRecord *actorObj =
+                                            getObject( tr->actor );
+                                        
+                                        actorUseDummy = actorObj->isUseDummy;
+                                        actorNumUses = actorObj->numUses;
+                                        }
+                                    
+                                    ObjectRecord *newActorObj =
+                                        getObject( tr->newActor );
+                                    
+                                    if( ! actorUseDummy &&
+                                        ! newActorObj->isUseDummy &&
+                                        actorNumUses == 1 &&
+                                        newActorObj->numUses == o->numUses ) {
+                                        // propagate used status to new actor
+                                    
+                                        int usesLeft = 
+                                            lrint( useFraction * 
+                                                   newActorObj->numUses );
+                                        
+                                        // decrement (count as a use)
+
+                                        usesLeft--;
+                                        
+                                        if( usesLeft < 0 ) {
+                                            // substitute last-use
+                                            // transition in place
+                                            TransRecord *lastUseTR =
+                                                getTrans( tr->newActor,
+                                                          -1, true );
+
+                                            if( lastUseTR != NULL ) {
+                                                newTrans.newActor =
+                                                    lastUseTR->newActor;
+                                                }
+                                            else {
+                                                usesLeft = 0;
+                                                }
+                                            }
+
+                                        if( usesLeft >= 0 ) {
+                                            newTrans.newActor =
+                                                newActorObj->useDummyIDs[ 
+                                                    usesLeft ];
+
+                                            if( u == o->numUses - 2 ) {
+                                                // do this once in here
+                                                // so we don't need to 
+                                                // replicate all the 
+                                                // case-detection logic
+                                                // outside the loop
+
+                                                // we need to enter into
+                                                // the use dummies of
+                                                // newActor
+                                                
+                                                TransRecord startRecord =
+                                                    *tr;
+                                                startRecord.newActor =
+                                                    newActorObj->useDummyIDs[ 
+                                                        o->numUses - 2 ];
+                                                
+                                                transToDelete.push_back( tr );
+                                                transToAdd.push_back( 
+                                                    startRecord );
+                                                }
+                                            }
+                                        }
                                     }
                                 
                                 transToAdd.push_back( newTrans );
@@ -800,45 +953,45 @@ void initTransBankFinish() {
                         transToAdd.push_back( newTrans );
                         }
                     }
-
+                }
+            }
+        
                 
-
-                for( int t=0; t<transToDelete.size(); t++ ) {
-                    TransRecord *tr = transToDelete.getElementDirect( t );
-                    
-                    deleteTransFromBank( tr->actor, tr->target,
-                                         tr->lastUseActor,
-                                         tr->lastUseTarget,
-                                         true );
-                    numRemoved++;
-                    }
                 
-                for( int t=0; t<transToAdd.size(); t++ ) {
-                    TransRecord *newTrans = transToAdd.getElement( t );
+        for( int t=0; t<transToDelete.size(); t++ ) {
+            TransRecord *tr = transToDelete.getElementDirect( t );
                     
-                    addTrans( newTrans->actor,
-                              newTrans->target,
-                              newTrans->newActor,
-                              newTrans->newTarget,
-                              newTrans->lastUseActor,
-                              newTrans->lastUseTarget,
-                              newTrans->reverseUseActor,
-                              newTrans->reverseUseTarget,
-                              newTrans->autoDecaySeconds,
-                              newTrans->actorMinUseFraction,
-                              newTrans->targetMinUseFraction,
-                              newTrans->move,
-                              newTrans->desiredMoveDist,
+            deleteTransFromBank( tr->actor, tr->target,
+                                 tr->lastUseActor,
+                                 tr->lastUseTarget,
+                                 true );
+            numRemoved++;
+            }
+                
+        for( int t=0; t<transToAdd.size(); t++ ) {
+            TransRecord *newTrans = transToAdd.getElement( t );
+                    
+            addTrans( newTrans->actor,
+                      newTrans->target,
+                      newTrans->newActor,
+                      newTrans->newTarget,
+                      newTrans->lastUseActor,
+                      newTrans->lastUseTarget,
+                      newTrans->reverseUseActor,
+                      newTrans->reverseUseTarget,
+                      newTrans->autoDecaySeconds,
+                      newTrans->actorMinUseFraction,
+                      newTrans->targetMinUseFraction,
+                      newTrans->move,
+                      newTrans->desiredMoveDist,
                               newTrans->actorBreakChance,
                               newTrans->brokenActor,
                               newTrans->targetBreakChance,
                               newTrans->brokenTarget,
-                              true );
-                    numGenerated++;
-                    }
-                
-                }
+                      true );
+            numGenerated++;
             }
+        
         
         delete [] objects;
 
