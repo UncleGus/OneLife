@@ -8784,9 +8784,9 @@ void LivingLifePage::step() {
                                         // don't play using sound
                                         // if they are both use dummies
                                         
-                                        if( !bothSameUseParent( old, newID )
-                                            &&
-                                        // if(
+                                        // if( !bothSameUseParent( old, newID )
+                                        //     &&
+                                        if(
                                             obj->usingSound.numSubSounds 
                                             > 0 ) {    
                                             
