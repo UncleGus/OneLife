@@ -1587,6 +1587,228 @@ int DB_open_timeShrunk(
 
 
 
+int countNewlines( char *inString ) {
+    int len = strlen( inString );
+    int num = 0;
+    for( int i=0; i<len; i++ ) {
+        if( inString[i] == '\n' ) {
+            num++;
+            }
+        }
+    return num;
+    }
+
+
+
+
+
+
+// returns num set after
+int cleanMap() {
+    AppLog::info( "\nCleaning map of objects that have been removed and "
+                  "variable objects..." );
+
+    DB_Iterator dbi;
+    
+    
+    DB_Iterator_init( &db, &dbi );
+    
+    unsigned char key[16];
+    
+    unsigned char value[4];
+
+
+    // keep list of x,y coordinates in map that need clearing
+    SimpleVector<int> xToClear;
+    SimpleVector<int> yToClear;
+
+    // container slots that need clearing
+    SimpleVector<int> xContToCheck;
+    SimpleVector<int> yContToCheck;
+    
+    
+    int totalSetCount = 0;
+    int numClearedCount = 0;
+    int totalNumContained = 0;
+    int numContainedCleared = 0;
+    
+    while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
+        
+        int s = valueToInt( &( key[8] ) );
+        int b = valueToInt( &( key[12] ) );
+       
+        if( s == 0 ) {
+            int id = valueToInt( value );
+            
+            if( id > 0 ) {
+                totalSetCount++;
+                
+                ObjectRecord *o = getObject( id );
+                
+                if( o == NULL || o->isVariableDummy ) {
+                    // id doesn't exist anymore or is variable dummy
+                    
+                    numClearedCount++;
+                    
+                    int x = valueToInt( key );
+                    int y = valueToInt( &( key[4] ) );
+                    
+                    xToClear.push_back( x );
+                    yToClear.push_back( y );
+                    }
+                }
+            }
+        if( s == 2 && b == 0 ) {
+            int numSlots = valueToInt( value );
+            if( numSlots > 0 ) {
+                totalNumContained += numSlots;
+                
+                int x = valueToInt( key );
+                int y = valueToInt( &( key[4] ) );
+                xContToCheck.push_back( x );
+                yContToCheck.push_back( y );
+                }
+            }
+        }
+    
+
+    for( int i=0; i<xToClear.size(); i++ ) {
+        int x = xToClear.getElementDirect( i );
+        int y = yToClear.getElementDirect( i );
+        
+        clearAllContained( x, y );
+        setMapObject( x, y, 0 );
+        }
+
+    for( int i=0; i<xContToCheck.size(); i++ ) {
+        int x = xContToCheck.getElementDirect( i );
+        int y = yContToCheck.getElementDirect( i );
+        
+        if( getMapObjectRaw( x, y ) != 0 ) {
+            int numCont;
+            int *cont = getContainedRaw( x, y, &numCont );
+            timeSec_t *decay = getContainedEtaDecay( x, y, &numCont );
+            
+            SimpleVector<int> newCont;
+            SimpleVector<timeSec_t> newDecay;
+
+            SimpleVector< SimpleVector<int> > newSubCont;
+            SimpleVector< SimpleVector<timeSec_t> > newSubContDecay;
+            
+            for( int c=0; c<numCont; c++ ) {
+                
+                SimpleVector<int> subCont;
+                SimpleVector<timeSec_t> subContDecay;
+                
+
+                char thisKept = false;
+                
+                if( cont[c] < 0 ) {
+                    
+                    ObjectRecord *o = getObject( - cont[c] );
+                    
+                    if( o != NULL && ! o->isVariableDummy ) {
+                        
+                        thisKept = true;
+                        
+                        newCont.push_back( cont[c] );
+                        newDecay.push_back( decay[c] );
+                        
+                        int numSub;
+                        
+                        int *contSub = 
+                            getContainedRaw( x, y, &numSub, c + 1 );
+                        timeSec_t *decaySub = 
+                            getContainedEtaDecay( x, y, &numSub, c + 1 );
+
+                        for( int s=0; s<numSub; s++ ) {
+                            
+                            if( getObject( contSub[s] ) != NULL ) {
+                                subCont.push_back( contSub[s] );
+                                subContDecay.push_back( decaySub[s] );
+                                }
+                            }
+                        
+                        if( contSub != NULL ) {
+                            delete [] contSub;
+                            }
+                        if( decaySub != NULL ) {
+                            delete [] decaySub;
+                            }
+                        numContainedCleared += numSub - subCont.size();
+                        }
+                    }
+                else {
+                    ObjectRecord *o = getObject( cont[c] );
+                    if( o != NULL && ! o->isVariableDummy ) {
+                        
+                        thisKept = true;
+                        newCont.push_back( cont[c] );
+                        newDecay.push_back( decay[c] );
+                        }
+                    }
+
+                if( thisKept ) {        
+                    newSubCont.push_back( subCont );
+                    newSubContDecay.push_back( subContDecay );
+                    }
+                }
+            
+
+
+            delete [] cont;
+            delete [] decay;
+            
+            numContainedCleared +=
+                ( numCont - newCont.size() );
+
+            int *newContArray = newCont.getElementArray();
+            timeSec_t *newDecayArray = newDecay.getElementArray();
+            
+            setContained( x, y, newCont.size(), newContArray );
+            setContainedEtaDecay( x, y, newDecay.size(), newDecayArray );
+            
+            for( int c=0; c<newCont.size(); c++ ) {
+                int numSub =
+                    newSubCont.getElementDirect( c ).size();
+                
+                if( numSub > 0 ) {
+                    int *newSubArray = 
+                        newSubCont.getElementDirect( c ).getElementArray();
+                    timeSec_t *newSubDecayArray = 
+                        newSubContDecay.getElementDirect( c ).getElementArray();
+                    
+                    setContained( x, y, numSub, newSubArray, c + 1 );
+
+                    setContainedEtaDecay( x, y, numSub, newSubDecayArray,
+                                          c + 1 );
+                    
+                    delete [] newSubArray;
+                    delete [] newSubDecayArray;
+                    }
+                else {
+                    clearAllContained( x, y, c + 1 );
+                    }
+                }
+            
+
+            delete [] newContArray;
+            delete [] newDecayArray;
+            }
+        }
+    
+
+    AppLog::infoF( "...%d map cells were set, and %d needed to be cleared.",
+                   totalSetCount, numClearedCount );
+    AppLog::infoF( 
+        "...%d contained objects present, and %d needed to be cleared.",
+        totalNumContained, numContainedCleared );
+
+    printf( "\n" );
+    return totalSetCount;
+    }
+
+
 
 
 void initMap() {
@@ -1638,8 +1860,87 @@ void initMap() {
         fscanf( eveLocFile, "%d,%d", &( eveLocation.x ), &( eveLocation.y ) );
 
         fclose( eveLocFile );
+
+        printf( "Loading lastEveLocation %d,%d\n", 
+                eveLocation.x, eveLocation.y );
         }
 
+    // override if shutdownLongLineagePos exists
+    FILE *lineagePosFile = fopen( "shutdownLongLineagePos.txt", "r" );
+    if( lineagePosFile != NULL ) {
+        
+        fscanf( lineagePosFile, "%d,%d", 
+                &( eveLocation.x ), &( eveLocation.y ) );
+
+        fclose( lineagePosFile );
+
+        printf( "Overriding eveLocation with shutdownLongLineagePos %d,%d\n", 
+                eveLocation.x, eveLocation.y );
+        }
+    else {
+        printf( "No shutdownLongLineagePos.txt file exists\n" );
+        
+        // look for longest monument log file
+        // that has been touched in last 24 hours
+        // (ignore spots that may have been culled)
+        File f( NULL, "monumentLogs" );
+        if( f.exists() && f.isDirectory() ) {
+            int numChildFiles;
+            File **childFiles = f.getChildFiles( &numChildFiles );
+            
+            timeSec_t longTime = 0;
+            int longLen = 0;
+            int longX = 0;
+            int longY = 0;
+            
+            timeSec_t curTime = Time::timeSec();
+
+            int secInDay = 3600 * 24 * 1000;
+            
+            for( int i=0; i<numChildFiles; i++ ) {
+                timeSec_t modTime = childFiles[i]->getModificationTime();
+                
+                if( curTime - modTime < secInDay ) {
+                    char *cont = childFiles[i]->readFileContents();
+                    
+                    int numNewlines = countNewlines( cont );
+                    
+                    delete [] cont;
+                    
+                    if( numNewlines > longLen ||
+                        ( numNewlines == longLen && modTime > longTime ) ) {
+                        
+                        char *name = childFiles[i]->getFileName();
+                        
+                        int x, y;
+                        int numRead = sscanf( name, "%d_%d_",
+                                              &x, &y );
+
+                        delete [] name;
+                        
+                        if( numRead == 2 ) {
+                            longTime = modTime;
+                            longLen = numNewlines;
+                            longX = x;
+                            longY = y;
+                            }
+                        }
+                    }
+                delete childFiles[i];
+                }
+            delete [] childFiles;
+
+            if( longLen > 0 ) {
+                eveLocation.x = longX;
+                eveLocation.y = longY;
+                
+                printf( "Overriding eveLocation with "
+                        "tallest recent monument location %d,%d\n", 
+                        eveLocation.x, eveLocation.y );
+                }
+            }
+        }
+    
 
 
 
@@ -2036,202 +2337,9 @@ void initMap() {
         }
     
     delete [] allObjects;
-    
 
 
-    AppLog::info( "\nCleaning map of objects that have been removed..." );
-    
-
-    DB_Iterator dbi;
-    
-    
-    DB_Iterator_init( &db, &dbi );
-    
-    unsigned char key[16];
-    
-    unsigned char value[4];
-
-
-    // keep list of x,y coordinates in map that need clearing
-    SimpleVector<int> xToClear;
-    SimpleVector<int> yToClear;
-
-    // container slots that need clearing
-    SimpleVector<int> xContToCheck;
-    SimpleVector<int> yContToCheck;
-    
-    
-    int totalSetCount = 0;
-    int numClearedCount = 0;
-    int totalNumContained = 0;
-    int numContainedCleared = 0;
-    
-    while( DB_Iterator_next( &dbi, key, value ) > 0 ) {
-        
-        int s = valueToInt( &( key[8] ) );
-        int b = valueToInt( &( key[12] ) );
-       
-        if( s == 0 ) {
-            int id = valueToInt( value );
-            
-            if( id > 0 ) {
-                totalSetCount++;
-                
-                if( getObject( id ) == NULL ) {
-                    // id doesn't exist anymore
-                    
-                    numClearedCount++;
-                    
-                    int x = valueToInt( key );
-                    int y = valueToInt( &( key[4] ) );
-                    
-                    xToClear.push_back( x );
-                    yToClear.push_back( y );
-                    }
-                }
-            }
-        if( s == 2 && b == 0 ) {
-            int numSlots = valueToInt( value );
-            if( numSlots > 0 ) {
-                totalNumContained += numSlots;
-                
-                int x = valueToInt( key );
-                int y = valueToInt( &( key[4] ) );
-                xContToCheck.push_back( x );
-                yContToCheck.push_back( y );
-                }
-            }
-        }
-    
-
-    for( int i=0; i<xToClear.size(); i++ ) {
-        int x = xToClear.getElementDirect( i );
-        int y = yToClear.getElementDirect( i );
-        
-        clearAllContained( x, y );
-        setMapObject( x, y, 0 );
-        }
-
-    for( int i=0; i<xContToCheck.size(); i++ ) {
-        int x = xContToCheck.getElementDirect( i );
-        int y = yContToCheck.getElementDirect( i );
-        
-        if( getMapObjectRaw( x, y ) != 0 ) {
-            int numCont;
-            int *cont = getContainedRaw( x, y, &numCont );
-            timeSec_t *decay = getContainedEtaDecay( x, y, &numCont );
-            
-            SimpleVector<int> newCont;
-            SimpleVector<timeSec_t> newDecay;
-
-            SimpleVector< SimpleVector<int> > newSubCont;
-            SimpleVector< SimpleVector<timeSec_t> > newSubContDecay;
-            
-            for( int c=0; c<numCont; c++ ) {
-                
-                SimpleVector<int> subCont;
-                SimpleVector<timeSec_t> subContDecay;
-                
-
-                char thisKept = false;
-                
-                if( cont[c] < 0 ) {
-
-                    if( getObject( -  cont[c] ) != NULL ) {
-                        thisKept = true;
-                        
-                        newCont.push_back( cont[c] );
-                        newDecay.push_back( decay[c] );
-                        
-                        int numSub;
-                        
-                        int *contSub = 
-                            getContainedRaw( x, y, &numSub, c + 1 );
-                        timeSec_t *decaySub = 
-                            getContainedEtaDecay( x, y, &numSub, c + 1 );
-
-                        for( int s=0; s<numSub; s++ ) {
-                            
-                            if( getObject( contSub[s] ) != NULL ) {
-                                subCont.push_back( contSub[s] );
-                                subContDecay.push_back( decaySub[s] );
-                                }
-                            }
-                        
-                        if( contSub != NULL ) {
-                            delete [] contSub;
-                            }
-                        if( decaySub != NULL ) {
-                            delete [] decaySub;
-                            }
-                        numContainedCleared += numSub - subCont.size();
-                        }
-                    }
-                else {
-                    if( getObject( cont[c] ) != NULL ) {
-                        thisKept = true;
-                        newCont.push_back( cont[c] );
-                        newDecay.push_back( decay[c] );
-                        }
-                    }
-
-                if( thisKept ) {        
-                    newSubCont.push_back( subCont );
-                    newSubContDecay.push_back( subContDecay );
-                    }
-                }
-            
-
-
-            delete [] cont;
-            delete [] decay;
-            
-            numContainedCleared +=
-                ( numCont - newCont.size() );
-
-            int *newContArray = newCont.getElementArray();
-            timeSec_t *newDecayArray = newDecay.getElementArray();
-            
-            setContained( x, y, newCont.size(), newContArray );
-            setContainedEtaDecay( x, y, newDecay.size(), newDecayArray );
-            
-            for( int c=0; c<newCont.size(); c++ ) {
-                int numSub =
-                    newSubCont.getElementDirect( c ).size();
-                
-                if( numSub > 0 ) {
-                    int *newSubArray = 
-                        newSubCont.getElementDirect( c ).getElementArray();
-                    timeSec_t *newSubDecayArray = 
-                        newSubContDecay.getElementDirect( c ).getElementArray();
-                    
-                    setContained( x, y, numSub, newSubArray, c + 1 );
-
-                    setContainedEtaDecay( x, y, numSub, newSubDecayArray,
-                                          c + 1 );
-                    
-                    delete [] newSubArray;
-                    delete [] newSubDecayArray;
-                    }
-                else {
-                    clearAllContained( x, y, c + 1 );
-                    }
-                }
-            
-
-            delete [] newContArray;
-            delete [] newDecayArray;
-            }
-        }
-    
-
-    AppLog::infoF( "...%d map cells were set, and %d needed to be cleared.",
-                   totalSetCount, numClearedCount );
-    AppLog::infoF( 
-        "...%d contained objects present, and %d needed to be cleared.",
-        totalNumContained, numContainedCleared );
-
-    printf( "\n" );
+    int totalSetCount = cleanMap();
     
     
     if( totalSetCount == 0 ) {
@@ -2522,6 +2630,10 @@ void freeMap() {
             numContChanged );
 
         printf( "\n" );
+
+        AppLog::info( "Now running normal map clean..." );
+        cleanMap();
+
         
         DB_close( &db );
         }
@@ -3161,6 +3273,9 @@ int checkDecayObject( int inX, int inY, int inID ) {
                 
                 int desiredMoveDist = t->desiredMoveDist;
 
+                char stayInBiome = false;
+                
+
                 if( t->move < 3 ) {
                     
                     GridPos p = getClosestPlayerPos( inX, inY );
@@ -3196,6 +3311,7 @@ int checkDecayObject( int inX, int inY, int inID ) {
                         }
                     if( t->move == 2 ) {
                         // flee
+                        stayInBiome = true;
                         dir = mult( dir, -1 );
                         }
                     }
@@ -3227,6 +3343,8 @@ int checkDecayObject( int inX, int inY, int inID ) {
 
                 if( dir.x == 0 && dir.y == 0 ) {
                     // random instead
+                    
+                    stayInBiome = true;
                     
                     dir.x = 1;
                     dir.y = 0;
@@ -3322,6 +3440,23 @@ int checkDecayObject( int inX, int inY, int inID ) {
                     tryRadius = 1;
                     }
                 
+                
+                int curBiome = -1;
+                if( stayInBiome ) {
+                    curBiome = getMapBiome( inX, inY );
+                    
+                    if( newX != inX || newY != inY ) {
+                        int newBiome = getMapBiome( newX, newY );
+                        
+                        if( newBiome != curBiome ) {
+                            // block move
+                            newX = inX;
+                            newY = inY;
+                            }
+                        }
+                    }
+                
+
 
                 if( newX == inX && newY == inY &&
                     t->move <= 3 ) {
@@ -3370,6 +3505,14 @@ int checkDecayObject( int inX, int inY, int inID ) {
                     
                                 if( i >= tryDist && oID == 0 ) {
                                     // found a spot for it to move
+                                    
+                                    if( stayInBiome &&
+                                        curBiome !=
+                                        getMapBiome( testX, testY ) ) {
+                                        
+                                        continue;
+                                        }
+
                                     possibleX[ numPossibleDirs ] = testX;
                                     possibleY[ numPossibleDirs ] = testY;
                                     numPossibleDirs++;
@@ -4579,7 +4722,7 @@ void shrinkContainer( int inX, int inY, int inNumNewSlots, int inSubCont ) {
         // first, scatter extra contents into empty nearby spots.
         for( int i=inNumNewSlots; i<oldNum; i++ ) {
             
-            int contID = getContained( inX, inY, i );
+            int contID = getContained( inX, inY, i, inSubCont );
 
             char subCont = false;
             
@@ -5108,9 +5251,11 @@ void getEvePosition( char *inEmail, int *outX, int *outY ) {
         
 
         // New method:
+        GridPos eveLocToUse = eveLocation;
         
         if( eveLocationUsage < maxEveLocationUsage ) {
             eveLocationUsage++;
+            // keep using same location
             }
         else {
             // post-startup eve location has been used too many times
@@ -5122,18 +5267,22 @@ void getEvePosition( char *inEmail, int *outX, int *outY ) {
             delta = rotate( delta,
                             randSource.getRandomBoundedDouble( 0, 2 * M_PI ) );
             
-
-            eveLocation.x += lrint( delta.x );
-            eveLocation.y += lrint( delta.y );
+            // but don't update the post-startup location
+            // keep jumping away from startup-location as center of
+            // a circle
+            eveLocToUse.x += lrint( delta.x );
+            eveLocToUse.y += lrint( delta.y );
+            
+            // but do save it as a possible post-startup location for next time
             File eveLocFile( NULL, "lastEveLocation.txt" );
             char *locString = 
-                autoSprintf( "%d,%d", eveLocation.x, eveLocation.y );
+                autoSprintf( "%d,%d", eveLocToUse.x, eveLocToUse.y );
             eveLocFile.writeToFile( locString );
             delete [] locString;
             }
 
-        ave.x = eveLocation.x;
-        ave.y = eveLocation.y;
+        ave.x = eveLocToUse.x;
+        ave.y = eveLocToUse.y;
 
         
         
