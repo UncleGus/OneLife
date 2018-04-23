@@ -10098,21 +10098,10 @@ void LivingLifePage::step() {
                             }
                         
 
-                        printf("existing->holdingID >= 0 : %d\n", existing->holdingID >= 0);
-                        printf("oldHeld >= 0 : %d\n", oldHeld >= 0);
-                        printf("oldHeld != existing->holdingID : %d\n", oldHeld != existing->holdingID);
-                        printf("! heldOriginValid : %d\n", ! heldOriginValid);
-                        printf("heldTransitionSourceID > 0 : %d\n", heldTransitionSourceID > 0);
-                        printf("! creationSoundPlayed : %d\n", ! creationSoundPlayed);
-                        printf("! clothingSoundPlayed : %d\n", ! clothingSoundPlayed);
-                        printf("! otherSoundPlayed : %d\n", ! otherSoundPlayed);
-                        printf("oldHeld : %d\n", oldHeld);
-                        printf("existing->holdingID : %d\n", existing->holdingID);
-                        printf("oldHeld = %d and existing->holdingID = %d\n", oldHeld, existing->holdingID);
                         
                         if( existing->holdingID >= 0 &&
                             oldHeld >= 0 &&
-                            (oldHeld != existing->holdingID || getObject( oldHeld )->usingSound.numSubSounds == 0) &&
+                            oldHeld != existing->holdingID &&
                             ! heldOriginValid &&
                             heldTransitionSourceID > 0 &&
                             ! creationSoundPlayed &&
@@ -10162,8 +10151,6 @@ void LivingLifePage::step() {
                                     creationWillPlay = true;
                                     }
                                 
-                                printf("creationWillPlay is %d\n", creationWillPlay);
-
                                 if( !creationWillPlay ) {
                                     
                                     ObjectRecord *targetObject = 
