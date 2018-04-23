@@ -3702,7 +3702,28 @@ static void handleHoldingChange( LiveObject *inPlayer, int inNewHeldID ) {
     nextPlayer->holdingID = inNewHeldID;
     
     if( oldHolding != nextPlayer->holdingID ) {
-        setFreshEtaDecayForHeld( nextPlayer );
+        
+        char kept = false;
+
+        // keep old decay timeer going...
+        // if they both decay to the same thing in the same time
+        if( oldHolding > 0 && nextPlayer->holdingID > 0 ) {
+            
+            TransRecord *oldDecayT = getTrans( -1, oldHolding );
+            TransRecord *newDecayT = getTrans( -1, inPlayer->holdingID );
+            
+            if( oldDecayT != NULL && newDecayT != NULL ) {
+                if( oldDecayT->autoDecaySeconds == newDecayT->autoDecaySeconds
+                    && 
+                    oldDecayT->newTarget == newDecayT->newTarget ) {
+                    
+                    kept = true;
+                    }
+                }
+            }
+        if( !kept ) {
+            setFreshEtaDecayForHeld( nextPlayer );
+            }
         }
     
     nextPlayer->heldOriginValid = 0;
@@ -4285,7 +4306,7 @@ int main() {
     initAnimationBankFinish();
 
 
-    initObjectBankStart( &rebuilding, true );
+    initObjectBankStart( &rebuilding, true, true );
     while( initObjectBankStep() < 1.0 );
     initObjectBankFinish();
 
@@ -4296,7 +4317,7 @@ int main() {
 
 
     // auto-generate category-based transitions
-    initTransBankStart( &rebuilding, true, true, true );
+    initTransBankStart( &rebuilding, true, true, true, true );
     while( initTransBankStep() < 1.0 );
     initTransBankFinish();
     
@@ -7907,9 +7928,8 @@ int main() {
                         nextPlayer->holdingID = newID;
                         nextPlayer->heldTransitionSourceID = -1;
                     
-                        int oldSlots = 
-                            getNumContainerSlots( oldID );
-
+                        int oldSlots = nextPlayer->numContained;
+                        
                         int newSlots = getNumContainerSlots( newID );
                     
                         if( newSlots < oldSlots ) {
@@ -7965,8 +7985,14 @@ int main() {
                                 clearAllContained( spot.x, spot.y );
                                 setMapObject( spot.x, spot.y, 0 );
                                 }
-                            
-                            nextPlayer->numContained = newSlots;
+                            else {
+                                // no spot to throw it
+                                // cannot leverage map's container-shrinking
+                                // just truncate held container directly
+                                
+                                // truncated contained items will be lost
+                                nextPlayer->numContained = newSlots;
+                                }
                             }
                     
                         setFreshEtaDecayForHeld( nextPlayer );
@@ -8068,14 +8094,17 @@ int main() {
                         SimpleVector<timeSec_t> dVec;
 
                         if( newID != 0 ) {
+                            int oldSlots = subCont.size();
                             
                             int newSlots = getObject( newID )->numSlots;
                             
                             if( newID != oldID
                                 &&
-                                newSlots < getObject( oldID )->numSlots ) {
+                                newSlots < oldSlots ) {
                                 
                                 // shrink sub-contained
+                                // this involves items getting lost
+                                // but that's okay for now.
                                 subCont.shrink( newSlots );
                                 subContDecay.shrink( newSlots );
                                 }
@@ -8156,16 +8185,24 @@ int main() {
                         delete [] nextPlayer->subContainedEtaDecays;
                         
                         nextPlayer->numContained = newContained.size();
+
+                        if( nextPlayer->numContained == 0 ) {
+                            nextPlayer->containedIDs = NULL;
+                            nextPlayer->containedEtaDecays = NULL;
+                            nextPlayer->subContainedIDs = NULL;
+                            nextPlayer->subContainedEtaDecays = NULL;
+                            }
+                        else {
+                            nextPlayer->containedIDs = 
+                                newContained.getElementArray();
+                            nextPlayer->containedEtaDecays = 
+                                newContainedETA.getElementArray();
                         
-                        nextPlayer->containedIDs = 
-                            newContained.getElementArray();
-                        nextPlayer->containedEtaDecays = 
-                            newContainedETA.getElementArray();
-                        
-                        nextPlayer->subContainedIDs =
-                            newSubContained.getElementArray();
-                        nextPlayer->subContainedEtaDecays =
-                            newSubContainedETA.getElementArray();
+                            nextPlayer->subContainedIDs =
+                                newSubContained.getElementArray();
+                            nextPlayer->subContainedEtaDecays =
+                                newSubContainedETA.getElementArray();
+                            }
                         }
                     }
                 
@@ -8215,7 +8252,7 @@ int main() {
                                                 c, newCObj );
                             
                             int oldSlots = 
-                                getNumContainerSlots( oldID );
+                                nextPlayer->clothingContained[c].size();
 
                             int newSlots = getNumContainerSlots( newID );
                     
@@ -8233,8 +8270,14 @@ int main() {
                             
                             float oldStretch = 
                                 cObj->slotTimeStretch;
-                            float newStretch = 
-                                newCObj->slotTimeStretch;
+                            float newStretch;
+                            
+                            if( newCObj != NULL ) {
+                                newStretch = newCObj->slotTimeStretch;
+                                }
+                            else {
+                                newStretch = oldStretch;
+                                }
                             
                             if( oldStretch != newStretch ) {
                                 timeSec_t curTime = Time::timeSec();

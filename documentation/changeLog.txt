@@ -4,7 +4,37 @@ http://onehouronelife.com/updateLog.php
 
 
 
-Version 78    ???
+Version 81    ???
+
+--Fixed scene editor to allow replacement of shoes.
+
+
+
+
+Server Fixes:
+
+--Fixed server crash when worn clothing decays down to nothing.
+
+--Fixed server launch script to use login shell.  Core dumps for crashes.
+
+--Fixed getRandomDeathMarker so that it's actually random and doesn't walk
+  through the full object list each call (thanks TyrantNomad).
+
+--Fixed memory leak when held contained items decay to leave an empty container.
+
+--Fixed server crash when a held container decays to have fewer slots, but the
+  container wasn't full.
+
+--If a held object changes into something that would decay in the same time to
+  the same target, the decay ETA is preserved (example:  filling backpack with
+  soil does not reset decay time to tattered backpack, because both regular and
+  soil-filled backpack decay to tattered in the same time).
+
+
+
+
+
+Version 78    2018-April-20
 
 --Fixed spread of appearing use sprites by rounding instead of flooring.  If
   there was only one sprite, it would appear at 7/8 uses.  Now it appears at
@@ -20,6 +50,11 @@ Version 78    ???
 
 --Fixed remap random source to seed with playerID.
 
+--Auto-generation of variable objects triggered by $N in description, which
+  generates N versions of that object and its transitions automatically.
+  Example:  Key $10 generates 10 types of keys and Locked Door $10 generates
+  matching doors.
+ 
 
 
 
