@@ -2248,7 +2248,22 @@ void setTransitionEpoch( int inEpocSeconds ) {
     }
 
 int getActorFromBreakageCalculation( TransRecord *inTrans ) {
+    // if( inTrans->actorBreakChance == 0 ) {
+    //     return inTrans->newActor;
+    // }
     float randomChance = rand() % 1000 / 1000.0f;
+    ObjectRecord* actor = getObject(inTrans->actor);
+    int maxUses;
+    if( actor->isUseDummy ) {
+        maxUses = getObject(actor->useDummyParent)->numUses;
+    } else {
+        maxUses = actor->numUses;
+    }
+    if( maxUses < 1 ) {
+        maxUses = 1;
+    }
+    printf("actor is %s\n", actor->description);
+    printf("actor maxUses %d\n", maxUses);
     if (randomChance >= inTrans->actorBreakChance) {
         return inTrans->newActor;
     } else {
@@ -2257,7 +2272,22 @@ int getActorFromBreakageCalculation( TransRecord *inTrans ) {
 }
 
 int getTargetFromBreakageCalculation( TransRecord *inTrans ) {
+    // if( inTrans->targetBreakChance == 0 ) {
+    //     return inTrans->newTarget;
+    // }
     float randomChance = rand() % 1000 / 1000.0f;
+    ObjectRecord* target = getObject(inTrans->target);
+    int maxUses;
+    if( target->isUseDummy ) {
+        maxUses = getObject(target->useDummyParent)->numUses;
+    } else {
+        maxUses = target->numUses;
+    }
+    if( maxUses < 1 ) {
+        maxUses = 1;
+    }
+    printf("target is %s\n", target->description);
+    printf("target maxUses %d\n", maxUses);
     if (randomChance >= inTrans->targetBreakChance) {
         return inTrans->newTarget;
     } else {
