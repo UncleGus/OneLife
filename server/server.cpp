@@ -243,6 +243,7 @@ typedef struct LiveObject {
         // or 0 if it never decays
         timeSec_t holdingEtaDecay;
 
+        double distanceToClosestAdultMale;
 
         // where on map held object was picked up from
         char heldOriginValid;
@@ -3132,19 +3133,24 @@ void processLoggedInPlayer( Socket *inSock,
             for( int i=0; i<parentChoices.size(); i++ ) {
                 LiveObject *p = parentChoices.getElementDirect( i );
 
-                double distanceToClosestAduleMale = 10000;
+                p->distanceToClosestAdultMale = 49;
+                // at 50 tiles and beyond all probablities are the same
                 for( int j=0; j<adultMales.size(); j++ ) {
                     LiveObject *f = adultMales.getElementDirect( j );
 
                     double xdiff = (f->xs - p->xs);
                     double ydiff = (f->ys - p->ys);
                     double distance = sqrt( xdiff * xdiff + ydiff * ydiff );
-                    if( distance < distanceToClosestAduleMale ) {
-                        distanceToClosestAduleMale = distance;
+                    if( distance < p->distanceToClosestAdultMale ) {
+                        p->distanceToClosestAdultMale = distance;
                     }
                 }
+                if (p->distanceToClosestAdultMale < 10) {
+                    // all males within 10 tiles have the same chance of being the father
+                    p->distanceToClosestAdultMale = 10;
+                }
 
-                totalTemp += ((0.5 - abs( p->heat - 0.5 )) * 10000 / distanceToClosestAduleMale);
+                totalTemp += ((0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale));
                 }
 
             double choice = 
@@ -3156,7 +3162,7 @@ void processLoggedInPlayer( Socket *inSock,
             for( int i=0; i<parentChoices.size(); i++ ) {
                 LiveObject *p = parentChoices.getElementDirect( i );
 
-                totalTemp += 0.5 - abs( p->heat - 0.5 );
+                totalTemp += ((0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale));
                 
                 if( totalTemp >= choice ) {
                     parent = p;
