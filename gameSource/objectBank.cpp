@@ -42,6 +42,9 @@ static SimpleVector<int> personObjectIDs;
 // track female people
 static SimpleVector<int> femalePersonObjectIDs;
 
+// track male people
+static SimpleVector<int> malePersonObjectIDs;
+
 // track monument calls
 static SimpleVector<int> monumentCallObjectIDs;
 
@@ -919,6 +922,8 @@ float initObjectBankStep() {
                     
                     if( ! r->male ) {
                         femalePersonObjectIDs.push_back( r->id );
+                        } else {
+                            malePersonObjectIDs.push_back( r->id );
                         }
 
                     if( r->race <= MAX_RACE ) {
@@ -1429,6 +1434,7 @@ static void freeObjectRecord( int inID ) {
 
             personObjectIDs.deleteElementEqualTo( inID );
             femalePersonObjectIDs.deleteElementEqualTo( inID );
+            malePersonObjectIDs.deleteElementEqualTo( inID );
             monumentCallObjectIDs.deleteElementEqualTo( inID );
             deathMarkerObjectIDs.deleteElementEqualTo( inID );
             
@@ -1503,6 +1509,7 @@ void freeObjectBank() {
 
     personObjectIDs.deleteAll();
     femalePersonObjectIDs.deleteAll();
+    malePersonObjectIDs.deleteAll();
     monumentCallObjectIDs.deleteAll();
     deathMarkerObjectIDs.deleteAll();
     
@@ -2414,6 +2421,7 @@ int addObject( const char *inDescription,
     
     personObjectIDs.deleteElementEqualTo( newID );
     femalePersonObjectIDs.deleteElementEqualTo( newID );
+    malePersonObjectIDs.deleteElementEqualTo( newID );
 
     for( int i=0; i<=MAX_RACE; i++ ) {
         racePersonObjectIDs[ i ].deleteElementEqualTo( newID );
@@ -2424,6 +2432,8 @@ int addObject( const char *inDescription,
         
         if( ! r->male ) {
             femalePersonObjectIDs.push_back( newID );
+            } else {
+                malePersonObjectIDs.push_back( newID );
             }
         
         
@@ -3084,6 +3094,18 @@ int getRandomFemalePersonObject() {
     return femalePersonObjectIDs.getElementDirect( 
         randSource.getRandomBoundedInt( 0, 
                                         femalePersonObjectIDs.size() - 1  ) );
+    }
+
+int getRandomMalePersonObject() {
+    
+    if( malePersonObjectIDs.size() == 0 ) {
+        return -1;
+        }
+    
+        
+    return malePersonObjectIDs.getElementDirect( 
+        randSource.getRandomBoundedInt( 0, 
+                                        malePersonObjectIDs.size() - 1  ) );
     }
 
 

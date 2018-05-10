@@ -176,14 +176,19 @@ typedef struct LiveObject {
         
         char *name;
 
-        char isEve;        
+        char isEve;
+        char isAdam;
+        char hasAdam;
 
         GridPos birthPos;
 
-        int parentID;
+        int motherID;
+        int fatherID;
+        int closestAdultMaleID;
+        double distanceToClosestAdultMale;
 
         // 0 for Eve
-        int parentChainLength;
+        int motherChainLength;
 
         SimpleVector<int> *lineage;
         
@@ -243,7 +248,6 @@ typedef struct LiveObject {
         // or 0 if it never decays
         timeSec_t holdingEtaDecay;
 
-        double distanceToClosestAdultMale;
 
         // where on map held object was picked up from
         char heldOriginValid;
@@ -353,8 +357,6 @@ typedef struct LiveObject {
         
 
         timeSec_t lastRegionLookTime;
-
-        double lastBreastFeedTimeSeconds;
         
     } LiveObject;
 
@@ -1238,8 +1240,8 @@ int longestShutdownLine = -1;
 
 void handleShutdownDeath( LiveObject *inPlayer,
                           int inX, int inY ) {
-    if( inPlayer->parentChainLength > longestShutdownLine ) {
-        longestShutdownLine = inPlayer->parentChainLength;
+    if( inPlayer->motherChainLength > longestShutdownLine ) {
+        longestShutdownLine = inPlayer->motherChainLength;
         
         FILE *f = fopen( "shutdownLongLineagePos.txt", "w" );
         if( f != NULL ) {
@@ -1299,12 +1301,10 @@ char getFemale( LiveObject *inPlayer ) {
 
 char isFertileAge( LiveObject *inPlayer ) {
     double age = computeAge( inPlayer );
-
-    double timeSinceBreastFeed = Time::getCurrentTime() - inPlayer->lastBreastFeedTimeSeconds;
                     
     char f = getFemale( inPlayer );
                     
-    if( age >= 14 && age <= 40 && f && timeSinceBreastFeed > 30) {
+    if( age >= 14 && age <= 40 && f ) {
         return true;
         }
     else {
@@ -2925,8 +2925,7 @@ void processLoggedInPlayer( Socket *inSock,
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
     newObject.lifeStartTimeSeconds = newObject.trueStartTimeSeconds;
-
-    newObject.lastBreastFeedTimeSeconds = Time::getCurrentTime();
+                            
 
     newObject.lastSayTimeSeconds = Time::getCurrentTime();
     
@@ -2937,8 +2936,9 @@ void processLoggedInPlayer( Socket *inSock,
                             
     int numPlayers = players.size();
                             
-    SimpleVector<LiveObject*> parentChoices;
+    SimpleVector<LiveObject*> motherChoices;
     SimpleVector<LiveObject*> adultMales;
+    SimpleVector<LiveObject*> unmatchedEves;
     
 
     // lower the bad mother limit in low-population situations
@@ -2963,7 +2963,13 @@ void processLoggedInPlayer( Socket *inSock,
             continue;
             }
 
-        if( isFertileAge( player ) ) {
+        if( player->isEve && !player->hasAdam ) {
+            unmatchedEves.push_back( player );
+        }
+
+        if( isFatherAge( player ) ) {
+            adultMales.push_back( player );
+        } else if( isFertileAge( player ) ) {
             numOfAge ++;
             
             // make sure this woman isn't on cooldown
@@ -3014,27 +3020,29 @@ void processLoggedInPlayer( Socket *inSock,
                 }
             
             if( canHaveBaby ) {
-                parentChoices.push_back( player );
+                motherChoices.push_back( player );
                 }
             }
         }
 
-    for( int i=0; i<numPlayers; i++ ) {
-        LiveObject *player = players.getElement( i );
-        
-        if( player->error ) {
-            continue;
-            }
+    newObject.motherChainLength = 1;
 
-        if( isFatherAge( player ) ) {
-            
-            adultMales.push_back( player );
-            }
+    if( unmatchedEves.size() > 0 ) {
+        // new Adam
+        // he starts almost full grown
+
+        newObject.isAdam = true;
+        
+        newObject.lifeStartTimeSeconds -= 14 * ( 1.0 / getAgeRate() );
+
+        
+        int maleID = getRandomMalePersonObject();
+        
+        if( maleID != -1 ) {
+            newObject.displayID = maleID;
         }
 
-    newObject.parentChainLength = 1;
-
-    if( parentChoices.size() == 0 || numOfAge == 0 ) {
+    } else if( motherChoices.size() == 0 || numOfAge == 0 ) {
         // new Eve
         // she starts almost full grown
 
@@ -3051,7 +3059,7 @@ void processLoggedInPlayer( Socket *inSock,
         }
     
 
-    if( numOfAge == 0 ) {
+    if( numOfAge == 0 && newObject.isEve ) {
         // all existing babies are good spawn spot for Eve
                     
         for( int i=0; i<numPlayers; i++ ) {
@@ -3062,7 +3070,7 @@ void processLoggedInPlayer( Socket *inSock,
                 }
 
             if( computeAge( player ) < babyAge ) {
-                parentChoices.push_back( player );
+                motherChoices.push_back( player );
                 }
             }
         }
@@ -3078,7 +3086,7 @@ void processLoggedInPlayer( Socket *inSock,
     // start full up to capacity with food
     newObject.foodStore = computeFoodCapacity( &newObject );
 
-    if( ! newObject.isEve ) {
+    if( ! newObject.isEve && ! newObject.isAdam ) {
         // babies start out almost starving
         newObject.foodStore = 2;
         }
@@ -3108,18 +3116,26 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.lastRegionLookTime = 0;
     
-    
-    LiveObject *parent = NULL;
+    LiveObject *spawnTarget = NULL;
                 
-    if( parentChoices.size() > 0 ) {
+    if( unmatchedEves.size() > 0 ) {
+        // spawned next to random unmatched Eve
+        int spawnTargetIndex = 
+            randSource.getRandomBoundedInt( 0,
+                                            unmatchedEves.size() - 1 );
+        
+        spawnTarget = unmatchedEves.getElementDirect( spawnTargetIndex );
+
+    }
+    if( unmatchedEves.size() == 0 && motherChoices.size() > 0 ) {
 
         if( newObject.isEve ) {
             // spawned next to random existing player
-            int parentIndex = 
+            int spawnTargetIndex = 
                 randSource.getRandomBoundedInt( 0,
-                                                parentChoices.size() - 1 );
+                                                motherChoices.size() - 1 );
             
-            parent = parentChoices.getElementDirect( parentIndex );
+            spawnTarget = motherChoices.getElementDirect( spawnTargetIndex );
             }
         else {
             // baby
@@ -3135,27 +3151,34 @@ void processLoggedInPlayer( Socket *inSock,
             
             double totalTemp = 0;
             
-            for( int i=0; i<parentChoices.size(); i++ ) {
-                LiveObject *p = parentChoices.getElementDirect( i );
+            for( int i=0; i<motherChoices.size(); i++ ) {
+                LiveObject *p = motherChoices.getElementDirect( i );
 
                 p->distanceToClosestAdultMale = 49;
-                // at 50 tiles and beyond all probablities are the same
                 for( int j=0; j<adultMales.size(); j++ ) {
                     LiveObject *f = adultMales.getElementDirect( j );
 
                     double xdiff = (f->xs - p->xs);
                     double ydiff = (f->ys - p->ys);
                     double distance = sqrt( xdiff * xdiff + ydiff * ydiff );
-                    if( distance < p->distanceToClosestAdultMale ) {
-                        p->distanceToClosestAdultMale = distance;
+
+                    if( distance < 10 ) {
+                        // within about a screen's distance, the chance is the same
+                        distance = 10;
                     }
-                }
-                if (p->distanceToClosestAdultMale < 10) {
-                    // all males within 10 tiles have the same chance of being the father
-                    p->distanceToClosestAdultMale = 10;
+
+                    if( distance < p->distanceToClosestAdultMale || 
+                    ( distance == p->distanceToClosestAdultMale && 
+                    randSource.getRandomBoundedDouble(0, 1 ) > 0.5 ) ) {
+                        // this guy is closer or this guy is the same distance
+                        // and wins a coin toss
+                        p->distanceToClosestAdultMale = distance;
+                        p->closestAdultMaleID = f->id;
+                    }
+
                 }
 
-                totalTemp += ((0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale));
+                totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
                 }
 
             double choice = 
@@ -3164,13 +3187,13 @@ void processLoggedInPlayer( Socket *inSock,
             
             totalTemp = 0;
             
-            for( int i=0; i<parentChoices.size(); i++ ) {
-                LiveObject *p = parentChoices.getElementDirect( i );
+            for( int i=0; i<motherChoices.size(); i++ ) {
+                LiveObject *p = motherChoices.getElementDirect( i );
 
-                totalTemp += ((0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale));
+                totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
                 
                 if( totalTemp >= choice ) {
-                    parent = p;
+                    spawnTarget = p;
                     break;
                     }                
                 }
@@ -3178,23 +3201,23 @@ void processLoggedInPlayer( Socket *inSock,
         
 
         
-        if( ! newObject.isEve ) {
+        if( ! newObject.isEve && ! newObject.isAdam ) {
             // mother giving birth to baby
             // take a ton out of her food store
 
             int min = 4;
-            if( parent->foodStore < min ) {
-                min = parent->foodStore;
+            if( spawnTarget->foodStore < min ) {
+                min = spawnTarget->foodStore;
                 }
-            parent->foodStore -= babyBirthFoodDecrement;
-            if( parent->foodStore < min ) {
-                parent->foodStore = min;
+            spawnTarget->foodStore -= babyBirthFoodDecrement;
+            if( spawnTarget->foodStore < min ) {
+                spawnTarget->foodStore = min;
                 }
 
-            parent->foodDecrementETASeconds +=
-                computeFoodDecrementTimeSeconds( parent );
+            spawnTarget->foodDecrementETASeconds +=
+                computeFoodDecrementTimeSeconds( spawnTarget );
             
-            parent->foodUpdate = true;
+            spawnTarget->foodUpdate = true;
             
 
             // only set race if the spawn-near player is our mother
@@ -3202,41 +3225,41 @@ void processLoggedInPlayer( Socket *inSock,
             
             timeSec_t curTime = Time::timeSec();
             
-            parent->babyBirthTimes->push_back( curTime );
-            parent->babyIDs->push_back( newObject.id );
+            spawnTarget->babyBirthTimes->push_back( curTime );
+            spawnTarget->babyIDs->push_back( newObject.id );
             
             // set cool-down time before this worman can have another baby
-            parent->birthCoolDown = pickBirthCooldownSeconds() + curTime;
+            spawnTarget->birthCoolDown = pickBirthCooldownSeconds() + curTime;
 
-            ObjectRecord *parentObject = getObject( parent->displayID );
+            ObjectRecord *motherObject = getObject( spawnTarget->displayID );
 
             // pick race of child
             int numRaces;
             int *races = getRaces( &numRaces );
         
-            int parentRaceIndex = -1;
+            int motherRaceIndex = -1;
             
             for( int i=0; i<numRaces; i++ ) {
-                if( parentObject->race == races[i] ) {
-                    parentRaceIndex = i;
+                if( motherObject->race == races[i] ) {
+                    motherRaceIndex = i;
                     break;
                     }
                 }
             
 
-            if( parentRaceIndex != -1 ) {
+            if( motherRaceIndex != -1 ) {
                 
-                int childRace = parentObject->race;
+                int childRace = motherObject->race;
                 
                 if( randSource.getRandomDouble() > childSameRaceLikelihood ) {
-                    // different race than parent
+                    // different race than mother
                     
                     int offset = 1;
                     
                     if( randSource.getRandomBoolean() ) {
                         offset = -1;
                         }
-                    int childRaceIndex = parentRaceIndex + offset;
+                    int childRaceIndex = motherRaceIndex + offset;
                     
                     // don't wrap around
                     // but push in other direction instead
@@ -3256,9 +3279,9 @@ void processLoggedInPlayer( Socket *inSock,
                     childRace = races[ childRaceIndex ];
                     }
                 
-                if( childRace == parentObject->race ) {
+                if( childRace == motherObject->race ) {
                     newObject.displayID = getRandomFamilyMember( 
-                        parentObject->race, parent->displayID, familySpan );
+                        motherObject->race, spawnTarget->displayID, familySpan );
                     }
                 else {
                     newObject.displayID = 
@@ -3270,19 +3293,19 @@ void processLoggedInPlayer( Socket *inSock,
             delete [] races;
             }
         
-        if( parent->xs == parent->xd && 
-            parent->ys == parent->yd ) {
+        if( spawnTarget->xs == spawnTarget->xd && 
+            spawnTarget->ys == spawnTarget->yd ) {
                         
-            // stationary parent
-            newObject.xs = parent->xs;
-            newObject.ys = parent->ys;
+            // stationary mother
+            newObject.xs = spawnTarget->xs;
+            newObject.ys = spawnTarget->ys;
                         
-            newObject.xd = parent->xs;
-            newObject.yd = parent->ys;
+            newObject.xd = spawnTarget->xs;
+            newObject.yd = spawnTarget->ys;
             }
         else {
-            // find where parent is along path
-            GridPos cPos = computePartialMoveSpot( parent );
+            // find where mother is along path
+            GridPos cPos = computePartialMoveSpot( spawnTarget );
                         
             newObject.xs = cPos.x;
             newObject.ys = cPos.y;
@@ -3291,7 +3314,7 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.yd = cPos.y;
             }
         }                    
-    else {
+    else if ( unmatchedEves.size() == 0 ) {
         // else starts at civ outskirts (lone Eve)
         int startX, startY;
         getEvePosition( newObject.email, &startX, &startY );
@@ -3310,7 +3333,30 @@ void processLoggedInPlayer( Socket *inSock,
         
         newObject.xd = startX;
         newObject.yd = startY;    
-        }
+    } else {
+        if( spawnTarget->xs == spawnTarget->xd && 
+            spawnTarget->ys == spawnTarget->yd ) {
+                        
+            // stationary mother
+            newObject.xs = spawnTarget->xs;
+            newObject.ys = spawnTarget->ys;
+                        
+            newObject.xd = spawnTarget->xs;
+            newObject.yd = spawnTarget->ys;
+            }
+        else {
+            // find where Eve is along path
+            GridPos cPos = computePartialMoveSpot( spawnTarget );
+                        
+            newObject.xs = cPos.x;
+            newObject.ys = cPos.y;
+                        
+            newObject.xd = cPos.x;
+            newObject.yd = cPos.y;
+
+            spawnTarget->hasAdam = true;            
+            }
+    }
     
 
     int forceID = SettingsManager::getIntSetting( "forceEveObject", 0 );
@@ -3421,26 +3467,26 @@ void processLoggedInPlayer( Socket *inSock,
         }
 
     
-    newObject.parentID = -1;
-    char *parentEmail = NULL;
+    newObject.motherID = -1;
+    char *motherEmail = NULL;
 
-    if( parent != NULL && isFertileAge( parent ) ) {
-        // do not log babies that new Eve spawns next to as parents
-        newObject.parentID = parent->id;
-        parentEmail = parent->email;
+    if( spawnTarget != NULL && isFertileAge( spawnTarget ) ) {
+        // do not log babies that new Eve spawns next to as mothers
+        newObject.motherID = spawnTarget->id;
+        motherEmail = spawnTarget->email;
 
-        newObject.parentChainLength = parent->parentChainLength + 1;
+        newObject.motherChainLength = spawnTarget->motherChainLength + 1;
 
         // mother
-        newObject.lineage->push_back( newObject.parentID );
+        newObject.lineage->push_back( newObject.motherID );
         
         for( int i=0; 
-             i < parent->lineage->size() && 
+             i < spawnTarget->lineage->size() && 
                  i < maxLineageTracked - 1;
              i++ ) {
             
             newObject.lineage->push_back( 
-                parent->lineage->getElementDirect( i ) );
+                spawnTarget->lineage->getElementDirect( i ) );
             }
         }
 
@@ -3454,21 +3500,21 @@ void processLoggedInPlayer( Socket *inSock,
     
 
     
-    // parent pointer possibly no longer valid after push_back, which
+    // mother pointer possibly no longer valid after push_back, which
     // can resize the vector
-    parent = NULL;
+    spawnTarget = NULL;
     players.push_back( newObject );            
 
 
     logBirth( newObject.id,
               newObject.email,
-              newObject.parentID,
-              parentEmail,
+              newObject.motherID,
+              motherEmail,
               ! getFemale( &newObject ),
               newObject.xd,
               newObject.yd,
               players.size(),
-              newObject.parentChainLength );
+              newObject.motherChainLength );
     
     AppLog::infoF( "New player %s connected as player %d",
                    newObject.email, newObject.id );
@@ -5453,7 +5499,7 @@ int main() {
                     
 
                     if( m.type == MOVE && nextPlayer->heldByOther ) {
-                        // baby wiggling out of parent's arms
+                        // baby wiggling out of mother's arms
                         handleForcedBabyDrop( 
                             nextPlayer,
                             &playerIndicesToSendUpdatesAbout );
@@ -5914,7 +5960,7 @@ int main() {
                         
 
                         
-                        if( nextPlayer->isEve && nextPlayer->name == NULL ) {
+                        if( ( nextPlayer->isEve || nextPlayer->isAdam ) && nextPlayer->name == NULL ) {
                             char *name = isFamilyNamingSay( m.saidText );
                             
                             if( name != NULL && strcmp( name, "" ) != 0 ) {
@@ -6978,7 +7024,7 @@ int main() {
                                                 hitPlayer );
 
                                         // fixed cost to pick up baby
-                                        // this still encourages baby-parent
+                                        // this still encourages baby-mother
                                         // communication so as not
                                         // to get the most mileage out of 
                                         // food
@@ -6994,8 +7040,6 @@ int main() {
                                         // leave their food decrement
                                         // time alone
                                         nextPlayer->foodUpdate = true;
-
-                                        nextPlayer->lastBreastFeedTimeSeconds = Time::getCurrentTime();
                                         }
                                     
                                     nextPlayer->heldOriginValid = 1;
@@ -8706,7 +8750,6 @@ int main() {
                             isFertileAge( adultO ) ) {
                     
                             heldByFemale = true;
-                            adultO->lastBreastFeedTimeSeconds = Time::getCurrentTime();
                             }
                         }
                     
@@ -9689,7 +9732,7 @@ int main() {
 
                                 if( adultO->id != nextPlayer->id &&
                                     otherPlayer->id != nextPlayer->id ) {
-                                    // parent not us
+                                    // mother not us
                                     // baby not us
 
                                     double d = intDist( playerXD,

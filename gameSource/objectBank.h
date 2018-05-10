@@ -530,6 +530,9 @@ int getRandomPersonObject();
 // -1 if no female
 int getRandomFemalePersonObject();
 
+// -1 if no male
+int getRandomMalePersonObject();
+
 // get a list of all races for which we have at least one person
 // these are returned in order by race number
 int *getRaces( int *outNumRaces );
