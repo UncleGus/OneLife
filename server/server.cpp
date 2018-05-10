@@ -2921,6 +2921,7 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.displayID = getRandomPersonObject();
     
     newObject.isEve = false;
+    newObject.isAdam = false;
 
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
@@ -3473,6 +3474,7 @@ void processLoggedInPlayer( Socket *inSock,
     if( spawnTarget != NULL && isFertileAge( spawnTarget ) ) {
         // do not log babies that new Eve spawns next to as mothers
         newObject.motherID = spawnTarget->id;
+        newObject.fatherID = spawnTarget->closestAdultMaleID;
         motherEmail = spawnTarget->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
