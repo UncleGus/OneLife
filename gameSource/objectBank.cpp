@@ -3108,18 +3108,6 @@ int getRandomMalePersonObject() {
                                         malePersonObjectIDs.size() - 1  ) );
     }
 
-int getRandomMalePersonObject() {
-    
-    if( malePersonObjectIDs.size() == 0 ) {
-        return -1;
-        }
-    
-        
-    return malePersonObjectIDs.getElementDirect( 
-        randSource.getRandomBoundedInt( 0, 
-                                        malePersonObjectIDs.size() - 1  ) );
-    }
-
 int *getRaces( int *outNumRaces ) {
     *outNumRaces = raceList.size();
     
