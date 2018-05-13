@@ -2912,6 +2912,8 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.id = nextID;
     nextID++;
 
+    AppLog::infoF("New player %s logging in, given id %d\n", newObject.email, newObject.id);
+
     SettingsManager::setSetting( "nextPlayerID",
                                  (int)nextID );
 
@@ -2932,8 +2934,6 @@ void processLoggedInPlayer( Socket *inSock,
     
 
     newObject.heldByOther = false;
-                            
-    int numOfAge = 0;
                             
     int numPlayers = players.size();
                             
@@ -2965,20 +2965,22 @@ void processLoggedInPlayer( Socket *inSock,
             }
 
         if( player->isEve && !player->hasAdam ) {
+            AppLog::infoF("Player %d is an Eve with no Adam\n", player->id);
             unmatchedEves.push_back( player );
         }
 
         if( isFatherAge( player ) ) {
+            AppLog::infoF("Player %d is a male of age %d\n", player->id, computeAge( player ));
             adultMales.push_back( player );
         } else if( isFertileAge( player ) ) {
-            numOfAge ++;
-            
+            AppLog::infoF("Player %d is a female of age %d\n", player->id, computeAge( player ));
             // make sure this woman isn't on cooldown
             // and that she's not a bad mother
             char canHaveBaby = true;
 
             
-            if( Time::timeSec() < player->birthCoolDown ) {    
+            if( Time::timeSec() < player->birthCoolDown ) {
+                AppLog::infoF("Player %d is on birth cooldown\n", player->id);
                 canHaveBaby = false;
                 }
 
@@ -3016,11 +3018,13 @@ void processLoggedInPlayer( Socket *inSock,
                 if( numDead >= badMotherLimit ) {
                     // this is a bad mother who lets all babies die
                     // don't give them more babies
+                    AppLog::infoF("Player %d is a bad mother\n", player->id);
                     canHaveBaby = false;
                     }
                 }
             
             if( canHaveBaby ) {
+                AppLog::infoF("Player %d is a an eligible mother\n", player->id);
                 motherChoices.push_back( player );
                 }
             }
@@ -3029,6 +3033,7 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.motherChainLength = 1;
 
     if( unmatchedEves.size() > 0 ) {
+        AppLog::infoF("There are %d unmatched Eves, spawning as an Adam\n", unmatchedEves.size());
         // new Adam
         // he starts almost full grown
 
@@ -3043,7 +3048,8 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.displayID = maleID;
         }
 
-    } else if( motherChoices.size() == 0 || numOfAge == 0 ) {
+    } else if( motherChoices.size() == 0 ) {
+        AppLog::infoF("No eligibile mothers and no unmatched Eves, spawning as an Eve\n");
         // new Eve
         // she starts almost full grown
 
@@ -3058,36 +3064,13 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.displayID = femaleID;
             }
         }
-    
 
-    if( numOfAge == 0 && newObject.isEve ) {
-        // all existing babies are good spawn spot for Eve
-                    
-        for( int i=0; i<numPlayers; i++ ) {
-            LiveObject *player = players.getElement( i );
-            
-            if( player->error ) {
-                continue;
-                }
-
-            if( computeAge( player ) < babyAge ) {
-                motherChoices.push_back( player );
-                }
-            }
-        }
-    else {
-        // testing
-        //newObject.lifeStartTimeSeconds -= 14 * ( 1.0 / getAgeRate() );
-        }
-    
-                
     // else player starts as newborn
-                
-
     // start full up to capacity with food
     newObject.foodStore = computeFoodCapacity( &newObject );
 
     if( ! newObject.isEve && ! newObject.isAdam ) {
+        AppLog::infoF("Spawning as a baby\n");
         // babies start out almost starving
         newObject.foodStore = 2;
         }
@@ -3126,83 +3109,79 @@ void processLoggedInPlayer( Socket *inSock,
                                             unmatchedEves.size() - 1 );
         
         spawnTarget = unmatchedEves.getElementDirect( spawnTargetIndex );
+        AppLog::infoF("Spawning Adam next to %d\n", spawnTarget->id);
 
     }
     if( unmatchedEves.size() == 0 && motherChoices.size() > 0 ) {
+        AppLog::infoF("Choosing a mother\n");
+        // baby
+        
+        // pick random mother from a weighted distribution based on 
+        // each mother's temperature
 
-        if( newObject.isEve ) {
-            // spawned next to random existing player
-            int spawnTargetIndex = 
-                randSource.getRandomBoundedInt( 0,
-                                                motherChoices.size() - 1 );
-            
-            spawnTarget = motherChoices.getElementDirect( spawnTargetIndex );
+        // and proximity to an adult male
+        
+        
+        // 0.5 temp is worth .5 weight
+        // 1.0 temp and 0 are worth 0 weight
+        
+        double totalTemp = 0;
+        
+        for( int i=0; i<motherChoices.size(); i++ ) {
+            LiveObject *p = motherChoices.getElementDirect( i );
+
+            p->distanceToClosestAdultMale = 49;
+            for( int j=0; j<adultMales.size(); j++ ) {
+                LiveObject *f = adultMales.getElementDirect( j );
+
+                double xdiff = (f->xs - p->xs);
+                double ydiff = (f->ys - p->ys);
+                double distance = sqrt( xdiff * xdiff + ydiff * ydiff );
+
+                AppLog::infoF("Distance to %d is %d\n", f->id, distance);
+
+                if( distance < 10 ) {
+                    // within about a screen's distance, the chance is the same
+                    distance = 10;
+                }
+
+                if( distance < p->distanceToClosestAdultMale || 
+                ( distance == p->distanceToClosestAdultMale && 
+                randSource.getRandomBoundedDouble(0, 1 ) > 0.5 ) ) {
+                    // this guy is closer or this guy is the same distance
+                    // and wins a coin toss
+                    p->distanceToClosestAdultMale = distance;
+                    p->closestAdultMaleID = f->id;
+                    AppLog::infoF("Closest male is now %d at distance %d\n", f->id, distance);
+                }
+
             }
-        else {
-            // baby
+
+            totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
+            }
+
+        double choice = 
+            randSource.getRandomBoundedDouble( 0, totalTemp );
+        
+        
+        totalTemp = 0;
+        
+        for( int i=0; i<motherChoices.size(); i++ ) {
+            LiveObject *p = motherChoices.getElementDirect( i );
+
+            totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
             
-            // pick random mother from a weighted distribution based on 
-            // each mother's temperature
-
-            // and proximity to an adult male
-            
-            
-            // 0.5 temp is worth .5 weight
-            // 1.0 temp and 0 are worth 0 weight
-            
-            double totalTemp = 0;
-            
-            for( int i=0; i<motherChoices.size(); i++ ) {
-                LiveObject *p = motherChoices.getElementDirect( i );
-
-                p->distanceToClosestAdultMale = 49;
-                for( int j=0; j<adultMales.size(); j++ ) {
-                    LiveObject *f = adultMales.getElementDirect( j );
-
-                    double xdiff = (f->xs - p->xs);
-                    double ydiff = (f->ys - p->ys);
-                    double distance = sqrt( xdiff * xdiff + ydiff * ydiff );
-
-                    if( distance < 10 ) {
-                        // within about a screen's distance, the chance is the same
-                        distance = 10;
-                    }
-
-                    if( distance < p->distanceToClosestAdultMale || 
-                    ( distance == p->distanceToClosestAdultMale && 
-                    randSource.getRandomBoundedDouble(0, 1 ) > 0.5 ) ) {
-                        // this guy is closer or this guy is the same distance
-                        // and wins a coin toss
-                        p->distanceToClosestAdultMale = distance;
-                        p->closestAdultMaleID = f->id;
-                    }
-
-                }
-
-                totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
-                }
-
-            double choice = 
-                randSource.getRandomBoundedDouble( 0, totalTemp );
-            
-            
-            totalTemp = 0;
-            
-            for( int i=0; i<motherChoices.size(); i++ ) {
-                LiveObject *p = motherChoices.getElementDirect( i );
-
-                totalTemp += (0.5 - abs( p->heat - 0.5 )) * (50 - p->distanceToClosestAdultMale);
-                
-                if( totalTemp >= choice ) {
-                    spawnTarget = p;
-                    break;
-                    }                
+            if( totalTemp >= choice ) {
+                spawnTarget = p;
+                AppLog::infoF("Choosing %d as mother\n", p->id);
+                break;
                 }
             }
         
 
         
         if( ! newObject.isEve && ! newObject.isAdam ) {
+            AppLog::infoF("New player is a baby, choosing race and updating mother's food store\n");
             // mother giving birth to baby
             // take a ton out of her food store
 
@@ -3296,7 +3275,8 @@ void processLoggedInPlayer( Socket *inSock,
         
         if( spawnTarget->xs == spawnTarget->xd && 
             spawnTarget->ys == spawnTarget->yd ) {
-                        
+            AppLog::infoF("Mother is not moving, spawning baby at her location\n");
+
             // stationary mother
             newObject.xs = spawnTarget->xs;
             newObject.ys = spawnTarget->ys;
@@ -3306,6 +3286,7 @@ void processLoggedInPlayer( Socket *inSock,
             }
         else {
             // find where mother is along path
+            AppLog::infoF("Mother is moving, calculating location\n");
             GridPos cPos = computePartialMoveSpot( spawnTarget );
                         
             newObject.xs = cPos.x;
@@ -3316,6 +3297,7 @@ void processLoggedInPlayer( Socket *inSock,
             }
         }                    
     else if ( unmatchedEves.size() == 0 ) {
+        AppLog::infoF("Spawning Eve at a new Eve location\n");
         // else starts at civ outskirts (lone Eve)
         int startX, startY;
         getEvePosition( newObject.email, &startX, &startY );
@@ -3335,9 +3317,10 @@ void processLoggedInPlayer( Socket *inSock,
         newObject.xd = startX;
         newObject.yd = startY;    
     } else {
+        AppLog::infoF("Spawning Adam next to Eve\n");
         if( spawnTarget->xs == spawnTarget->xd && 
             spawnTarget->ys == spawnTarget->yd ) {
-                        
+            AppLog::infoF("Eve is not moving, spawning at her location\n");
             // stationary mother
             newObject.xs = spawnTarget->xs;
             newObject.ys = spawnTarget->ys;
@@ -3346,6 +3329,7 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.yd = spawnTarget->ys;
             }
         else {
+            AppLog::infoF("Eve is moving, calculating her location\n");
             // find where Eve is along path
             GridPos cPos = computePartialMoveSpot( spawnTarget );
                         
