@@ -4,13 +4,27 @@ http://onehouronelife.com/updateLog.php
 
 
 
-Version 92    ???
+Version 95    2018-May-11
 
 --Fixed some transition hints.  New transition system leaves some lastUse
   transtions in place that aren't used by server.  Client shouldn't show these
   as redundant hints.  Client was showing NOTHING as result in case where actor
   was used up and target stayed the same (adding stone to a pile).  Now shows
   same target as result instead of NOTHING.
+
+--Added display of current slot position in object editor.
+
+--Fixed so that arrow keys in text field do not change rotation anchor in
+  animation editor.
+
+--Editor saving face portaits throughout life for use in family tree viewer.
+
+--Client now displays Big and Little words for siblings, and also detects twin
+  status (including identical).
+
+--Client shows A,B,C,...AA, AB,... labels for varible objects and ? label for
+  base object (like for locks after restart).
+
 
 
 
@@ -46,6 +60,27 @@ Server Fixes:
 
 --Server now adjusts all client-sent coordinates relative to player's birth
   position in world.  No more absolute coordinates.
+
+--Fixed bug that caused some initial new-baby PLAYER_UPDATE (PU) messages to
+  not be sent, causing the following lineage message for that new baby to be
+  ignored by client (leading to NO RELATION for some actually-related babies).
+
+--Added same-lineage-birth blocking for a time that is based on the size of the
+  server population.  Below 10 players, there is no same-lineage blocking.
+  From 11 to 50 players, it rises linearly up to the full cooldown time, which
+  is currently 3 hours, and may increase in the future.
+
+--Server now sends lineage info to lineageServer upon player death.
+
+--Baby inherits the last-heard monument call from parent at 0.5 years old.
+  Thus, trips to a monument can be trans-generational (parent can die along
+  the way and baby can continue).
+
+--Support for categories in cross-transitions (where actor ends up on ground as
+  newTarget or target ends up in hand as newActor).
+
+--Server now hides ID of locked objects from the client by replacing it with
+  the parent ID for that variable object.
 
 
 
