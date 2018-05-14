@@ -2953,7 +2953,7 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.isEve = false;
     newObject.isAdam = false;
-
+    newObject.hasAdam = false;
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
     newObject.lifeStartTimeSeconds = newObject.trueStartTimeSeconds;
