@@ -41,9 +41,11 @@
 #include "backup.h"
 #include "triggers.h"
 #include "playerStats.h"
+#include "lineageLog.h"
 #include "serverCalls.h"
 #include "failureLog.h"
 #include "names.h"
+#include "lineageLimit.h"
 
 
 #include "minorGems/util/random/JenkinsRandomSource.h"
@@ -176,6 +178,8 @@ typedef struct LiveObject {
         
         char *name;
 
+        char *lastSay;
+
         char isEve;
         char isAdam;
         char hasAdam;
@@ -192,6 +196,10 @@ typedef struct LiveObject {
 
         SimpleVector<int> *lineage;
         
+        // id of Eve that started this line
+        int lineageEveID;
+        
+
 
         // time that this life started (for computing age)
         // not actual creation time (can be adjusted to tweak starting age,
@@ -345,7 +353,8 @@ typedef struct LiveObject {
 
         char needsUpdate;
         char updateSent;
-
+        char updateGlobal;
+        
         // babies born to this player
         SimpleVector<timeSec_t> *babyBirthTimes;
         SimpleVector<int> *babyIDs;
@@ -357,6 +366,11 @@ typedef struct LiveObject {
         
 
         timeSec_t lastRegionLookTime;
+        
+        char monumentPosSet;
+        GridPos lastMonumentPos;
+        int lastMonumentID;
+        char monumentPosSent;
         
     } LiveObject;
 
@@ -678,6 +692,10 @@ void quitCleanup() {
         if( nextPlayer->name != NULL ) {
             delete [] nextPlayer->name;
             }
+
+        if( nextPlayer->lastSay != NULL ) {
+            delete [] nextPlayer->lastSay;
+            }
         
         if( nextPlayer->email != NULL  ) {
             delete [] nextPlayer->email;
@@ -714,8 +732,12 @@ void quitCleanup() {
         }
     players.deleteAll();
 
-    freePlayerStats();
 
+    freeLineageLimit();
+    
+    freePlayerStats();
+    freeLineageLog();
+    
     freeNames();
     
     freeLifeLog();
@@ -1891,15 +1913,19 @@ double intDist( int inXA, int inYA, int inXB, int inYB ) {
 
 
 char *getHoldingString( LiveObject *inObject ) {
+    
+    int holdingID = hideIDForClient( inObject->holdingID );    
+
+
     if( inObject->numContained == 0 ) {
-        return autoSprintf( "%d", inObject->holdingID );
+        return autoSprintf( "%d", holdingID );
         }
 
     
     SimpleVector<char> buffer;
     
 
-    char *idString = autoSprintf( "%d", inObject->holdingID );
+    char *idString = autoSprintf( "%d", holdingID );
     
     buffer.appendElementString( idString );
     
@@ -1909,8 +1935,9 @@ char *getHoldingString( LiveObject *inObject ) {
     if( inObject->numContained > 0 ) {
         for( int i=0; i<inObject->numContained; i++ ) {
             
-            char *idString = autoSprintf( ",%d", 
-                                          abs( inObject->containedIDs[i] ) );
+            char *idString = autoSprintf( 
+                ",%d", 
+                hideIDForClient( abs( inObject->containedIDs[i] ) ) );
     
             buffer.appendElementString( idString );
     
@@ -1921,7 +1948,9 @@ char *getHoldingString( LiveObject *inObject ) {
                     
                     idString = autoSprintf( 
                         ":%d", 
-                        inObject->subContainedIDs[i].getElementDirect( s ) );
+                        hideIDForClient( 
+                            inObject->subContainedIDs[i].
+                            getElementDirect( s ) ) );
     
                     buffer.appendElementString( idString );
                 
@@ -2956,6 +2985,8 @@ void processLoggedInPlayer( Socket *inSock,
     badMotherLimit = 9999999;
     
     
+    primeLineageTest( numPlayers );
+    
 
     for( int i=0; i<numPlayers; i++ ) {
         LiveObject *player = players.getElement( i );
@@ -2983,6 +3014,12 @@ void processLoggedInPlayer( Socket *inSock,
                 AppLog::infoF("Player %d is on birth cooldown\n", player->id);
                 canHaveBaby = false;
                 }
+            
+            if( ! isLinePermitted( newObject.email, player->lineageEveID ) ) {
+                // this line forbidden for new player
+                continue;
+                }
+            
 
             int numPastBabies = player->babyIDs->size();
             
@@ -3038,6 +3075,7 @@ void processLoggedInPlayer( Socket *inSock,
         // he starts almost full grown
 
         newObject.isAdam = true;
+        newObject.lineageEveID = newObject.id;
         
         newObject.lifeStartTimeSeconds -= 14 * ( 1.0 / getAgeRate() );
 
@@ -3389,7 +3427,8 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.lineage = new SimpleVector<int>();
     
     newObject.name = NULL;
-    
+    newObject.lastSay = NULL;
+
     newObject.pathLength = 0;
     newObject.pathToDest = NULL;
     newObject.pathTruncated = 0;
@@ -3439,13 +3478,16 @@ void processLoggedInPlayer( Socket *inSock,
 
     newObject.needsUpdate = false;
     newObject.updateSent = false;
+    newObject.updateGlobal = false;
     
     newObject.babyBirthTimes = new SimpleVector<timeSec_t>();
     newObject.babyIDs = new SimpleVector<int>();
     
     newObject.birthCoolDown = 0;
-                
-                
+    
+    newObject.monumentPosSet = false;
+    newObject.monumentPosSent = true;
+    
                 
     for( int i=0; i<HEAT_MAP_D * HEAT_MAP_D; i++ ) {
         newObject.heatMap[i] = 0;
@@ -3462,9 +3504,20 @@ void processLoggedInPlayer( Socket *inSock,
         motherEmail = spawnTarget->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
+        newObject.lineageEveID = parent->lineageEveID;
+
 
         // mother
         newObject.lineage->push_back( newObject.motherID );
+
+        // inherit last heard monument, if any, from parent
+        newObject.monumentPosSet = parent->monumentPosSet;
+        newObject.lastMonumentPos = parent->lastMonumentPos;
+        newObject.lastMonumentID = parent->lastMonumentID;
+        if( newObject.monumentPosSet ) {
+            newObject.monumentPosSent = false;
+            }
+        
         
         for( int i=0; 
              i < spawnTarget->lineage->size() && 
@@ -3474,6 +3527,8 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.lineage->push_back( 
                 spawnTarget->lineage->getElementDirect( i ) );
             }
+
+        recordLineage( newObject.email, newObject.lineageEveID );
         }
 
     newObject.birthPos.x = newObject.xd;
@@ -4397,6 +4452,13 @@ void monumentStep() {
             LiveObject *nextPlayer = players.getElement( i );
             if( !nextPlayer->error ) {
                 
+                // remember it to tell babies about it
+                nextPlayer->monumentPosSet = true;
+                nextPlayer->lastMonumentPos.x = monumentCallX;
+                nextPlayer->lastMonumentPos.y = monumentCallY;
+                nextPlayer->lastMonumentID = monumentCallID;
+                nextPlayer->monumentPosSent = true;
+                
                 char *message = autoSprintf( "MN\n%d %d %d\n#", 
                                              monumentCallX -
                                              nextPlayer->birthPos.x, 
@@ -4556,7 +4618,10 @@ int main() {
     initBackup();
     
     initPlayerStats();
-
+    initLineageLog();
+    
+    initLineageLimit();
+    
 
     char rebuilding;
 
@@ -4631,6 +4696,7 @@ int main() {
         stepFailureLog();
         
         stepPlayerStats();
+        stepLineageLog();
         
         
         int numLive = players.size();
@@ -5999,7 +6065,12 @@ int main() {
                             }
                         
                         
-
+                        if( nextPlayer->lastSay != NULL ) {
+                            delete [] nextPlayer->lastSay;
+                            nextPlayer->lastSay = NULL;
+                            }
+                        nextPlayer->lastSay = stringDuplicate( m.saidText );
+                        
                         
                         char *line = autoSprintf( "%d %s\n", nextPlayer->id,
                                                   m.saidText );
@@ -6104,6 +6175,10 @@ int main() {
                                         
                                             logDeath( hitPlayer->id,
                                                       hitPlayer->email,
+                                                      hitPlayer->parentID,
+                                                      hitPlayer->displayID,
+                                                      hitPlayer->name,
+                                                      hitPlayer->lastSay,
                                                       hitPlayer->isEve,
                                                       computeAge( hitPlayer ),
                                                       getSecondsPlayed( 
@@ -7794,8 +7869,7 @@ int main() {
                 nextPlayer->isNew = false;
                 
                 // force this PU to be sent to everyone
-                ChangePosition p = { 0, 0, true };
-                newUpdatesPos.push_back( p );
+                nextPlayer->updateGlobal = true;
                 }
             else if( nextPlayer->error && ! nextPlayer->deleteSent ) {
                 
@@ -7871,6 +7945,10 @@ int main() {
                     
                     logDeath( nextPlayer->id,
                               nextPlayer->email,
+                              nextPlayer->parentID,
+                              nextPlayer->displayID,
+                              nextPlayer->name,
+                              nextPlayer->lastSay,
                               nextPlayer->isEve,
                               computeAge( nextPlayer ),
                               getSecondsPlayed( nextPlayer ),
@@ -8794,6 +8872,10 @@ int main() {
                         
                         logDeath( decrementedPlayer->id,
                                   decrementedPlayer->email,
+                                  decrementedPlayer->parentID,
+                                  decrementedPlayer->displayID,
+                                  decrementedPlayer->name,
+                                  decrementedPlayer->lastSay,
                                   decrementedPlayer->isEve,
                                   computeAge( decrementedPlayer ),
                                   getSecondsPlayed( decrementedPlayer ),
@@ -9210,12 +9292,15 @@ int main() {
             
 
             nextPlayer->posForced = false;
-            
-            ChangePosition p = { nextPlayer->xs, nextPlayer->ys, false };
+
+
+            ChangePosition p = { nextPlayer->xs, nextPlayer->ys, 
+                                 nextPlayer->updateGlobal };
             newUpdatesPos.push_back( p );
 
 
             nextPlayer->updateSent = true;
+            nextPlayer->updateGlobal = false;
             }
         
 
@@ -9667,6 +9752,34 @@ int main() {
             else {
                 // this player has first message, ready for updates/moves
                 
+
+                if( nextPlayer->monumentPosSet && 
+                    ! nextPlayer->monumentPosSent &&
+                    computeAge( nextPlayer ) > 0.5 ) {
+                    
+                    // they learned about a monument from their mother
+                    
+                    // wait until they are half a year old to tell them
+                    // so they have a chance to load the sound first
+                    
+                    char *monMessage = 
+                        autoSprintf( "MN\n%d %d %d\n#", 
+                                     nextPlayer->lastMonumentPos.x -
+                                     nextPlayer->birthPos.x, 
+                                     nextPlayer->lastMonumentPos.y -
+                                     nextPlayer->birthPos.y,
+                                     nextPlayer->lastMonumentID );
+                    
+                    sendMessageToPlayer( nextPlayer, monMessage, 
+                                         strlen( monMessage ) );
+                    
+                    nextPlayer->monumentPosSent = true;
+                    
+                    delete [] monMessage;
+                    }
+
+                
+
                 int playerXD = nextPlayer->xd;
                 int playerYD = nextPlayer->yd;
                 
@@ -10406,6 +10519,10 @@ int main() {
                 
                 if( nextPlayer->name != NULL ) {
                     delete [] nextPlayer->name;
+                    }
+
+                if( nextPlayer->lastSay != NULL ) {
+                    delete [] nextPlayer->lastSay;
                     }
                 
                 if( nextPlayer->containedIDs != NULL ) {

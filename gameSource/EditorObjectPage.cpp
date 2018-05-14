@@ -17,6 +17,12 @@
 
 #include "minorGems/io/file/FileInputStream.h"
 
+#include "minorGems/graphics/converters/PNGImageConverter.h"
+
+
+
+static double faceStepAges[NUM_FACES_STEPS] = { 0.4, 4, 14, 30, 40, 55 };
+
 
 
 extern Font *mainFont;
@@ -203,7 +209,13 @@ EditorObjectPage::EditorObjectPage()
           mEatingSoundWidget( smallFont, +200, -310 ),
           mDecaySoundWidget( smallFont, +450, -310 ),
           mCreationSoundInitialOnlyCheckbox( -185, -285, 2 ),
-          mSlotPlaceholderSprite( loadSprite( "slotPlaceholder.tga" ) ) {
+          mSlotPlaceholderSprite( loadSprite( "slotPlaceholder.tga" ) ),
+          mFaceFrameSprite( loadSprite( "faceFrame.tga" ) ),
+          mFaceFrameMaskSprite( loadSprite( "faceFrameMask.tga" ) ),
+          mFaceFrameBackgroundSprite( 
+              loadSprite( "faceFrameBackground.tga" ) ),
+          mFaceFrameImage( readTGAFile( "faceFrame.tga" ) ),
+          mFaceFrameMaskImage( readTGAFile( "faceFrameMask.tga" ) ) {
 
 
     mDragging = false;
@@ -453,6 +465,9 @@ EditorObjectPage::EditorObjectPage()
     mPrintRequested = false;
     mSavePrintOnly = false;
     
+    mSaveFaces = false;
+    
+
     mCurrentObject.id = -1;
     mCurrentObject.description = mDescriptionField.getText();
     mCurrentObject.containable = 0;
@@ -719,6 +734,14 @@ EditorObjectPage::~EditorObjectPage() {
 
     freeSprite( mSlotPlaceholderSprite );
     
+    freeSprite( mFaceFrameSprite );
+    freeSprite( mFaceFrameMaskSprite );
+    freeSprite( mFaceFrameBackgroundSprite );
+    
+    delete mFaceFrameImage;
+    delete mFaceFrameMaskImage;
+
+
     for( int i=0; i<NUM_OBJECT_CHECKBOXES; i++ ) {
         delete mCheckboxes[i];
         }
@@ -1280,6 +1303,10 @@ void EditorObjectPage::showVertRotButtons() {
 
 
 void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
     
     if( inTarget == &mDescriptionField ) {
         
@@ -1394,6 +1421,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
         
         objectPickable.usePickable( newID );
         
+        mCurrentObject.id = newID;
+        
         delete [] text;
         delete [] biomes;
         
@@ -1401,7 +1430,16 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
         mSpritePicker.unselectObject();
 
         mObjectPicker.redoSearch( false );
-        actionPerformed( &mClearObjectButton );
+
+        if( mCheckboxes[2]->getToggled() ) {
+            // person, save face
+            mSaveFaces = true;
+            mFacesStep = 0;
+            mFacesOrigAge = mPersonAgeSlider.getValue();
+            }
+        else {
+            actionPerformed( &mClearObjectButton );
+            }
         }
     else if( inTarget == &mReplaceObjectButton ) {
         char *text = mDescriptionField.getText();
@@ -1538,7 +1576,15 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             }    
 
 
-        actionPerformed( &mClearObjectButton );
+        if( mCheckboxes[2]->getToggled() ) {
+            // person, save face
+            mSaveFaces = true;
+            mFacesStep = 0;
+            mFacesOrigAge = mPersonAgeSlider.getValue();
+            }
+        else {
+            actionPerformed( &mClearObjectButton );
+            }
         }
     else if( inTarget == &mClearObjectButton ) {
         mCurrentObject.id = -1;
@@ -3288,10 +3334,67 @@ void EditorObjectPage::draw( doublePair inViewCenter,
     drawRect( barPos, 192, 16 );
 
 
+    doublePair framePos = { 0, 0 };
+    char allLoaded = false;
+
+    // always keep whole current object loaded
+    allLoaded = true;
+    for( int i=0; i<mCurrentObject.numSprites; i++ ) {
+        allLoaded = 
+            allLoaded && markSpriteLive( mCurrentObject.sprites[i] );
+        }
+
+
+
     if( mPrintRequested ) {
         doublePair pos = { 0, 0 };
                            
         drawSquare( pos, 600 );
+        }
+    else if( mSaveFaces ) {
+        
+        if( allLoaded ) {
+
+            mPersonAgeSlider.setValue( faceStepAges[ mFacesStep ] );
+
+            double age = mPersonAgeSlider.getValue();
+            
+            int headIndex = getHeadIndex( &mCurrentObject, age );
+            
+            doublePair headPos = mCurrentObject.spritePos[ headIndex ];
+            
+            
+            int frontFootIndex = getFrontFootIndex( &mCurrentObject, age );
+            
+            doublePair frontFootPos = 
+                mCurrentObject.spritePos[ frontFootIndex ];
+            
+
+            int bodyIndex = getBodyIndex( &mCurrentObject, age );
+            
+            doublePair bodyPos = mCurrentObject.spritePos[ bodyIndex ];
+            
+            
+            if( headIndex != -1 ) {
+                framePos = add( add( mCurrentObject.spritePos[ headIndex ],
+                                     getAgeHeadOffset( age, headPos,
+                                                       bodyPos,
+                                                       frontFootPos ) ),
+                                getAgeBodyOffset( age, bodyPos ) );
+                framePos.y -= 15;
+                }
+            
+            setDrawColor( 0, 0, 0, 1 );
+            
+            drawRect( framePos, 110, 110 );
+            
+            setDrawColor( 1, 1, 1, 1 );
+            drawSprite( mFaceFrameBackgroundSprite, framePos );
+            
+            startAddingToStencil( false, true );
+            drawSprite( mFaceFrameMaskSprite, framePos );
+            startDrawingThroughStencil();
+            }
         }
     
 
@@ -3527,7 +3630,91 @@ void EditorObjectPage::draw( doublePair inViewCenter,
         
         mPrintRequested = false;
         }
-            
+
+    if( mSaveFaces && allLoaded ) {
+        stopStencil();
+        
+        setDrawColor( 1, 1, 1, 1 );
+        drawSprite( mFaceFrameSprite, framePos );
+
+        int w = 100;
+        int h = 98;
+        
+        Image *im = getScreenRegion( framePos.x - 51, framePos.y - 49,
+                                   w, h );
+        
+        
+        Image *transImage = im->generateAlphaChannel();
+
+        delete im;
+        
+        double *a = transImage->getChannel( 3 );
+        
+        int numPixels = w * h;
+        for( int i=0; i<numPixels; i++ ) {
+            a[i] = 0;
+            }
+        
+        int fW = mFaceFrameImage->getWidth();
+        int fH = mFaceFrameImage->getHeight();
+        
+        double *fA = mFaceFrameImage->getChannel( 3 );
+
+
+        int fmW = mFaceFrameMaskImage->getWidth();
+        int fmH = mFaceFrameMaskImage->getHeight();
+        
+        double *fmA = mFaceFrameMaskImage->getChannel( 3 );
+
+        for( int y=0; y<h; y++ ) {
+            int cY = y - 49;
+            int fY = cY + fH/2;
+            int fmY = cY + fmH/2;
+
+            for( int x=0; x<w; x++ ) {
+                int i = y * w + x;
+
+                int cX = x - 51;
+
+                int fX = cX + fW/2;                
+                int fI = fY * fW + fX;
+
+                int fmX = cX + fmW/2;
+                int fmI = fmY * fmW + fmX;
+
+                a[i] = fA[ fI ];
+                if( fmA[ fmI ] > a[i] ) {
+                    a[i] = fmA[ fmI ];
+                    }
+                }
+            }
+        
+        
+        
+        char *name = autoSprintf( "faces/face_%d_%d.png",
+                                  mCurrentObject.id,
+                                  lrint( mPersonAgeSlider.getValue() ) );
+        
+        PNGImageConverter pngConv;
+        
+        File outFile( NULL, name );
+        FileOutputStream outStream( &outFile );
+        
+        pngConv.formatImage( transImage, &outStream );
+
+        delete [] name;
+        delete transImage;
+        
+
+        mFacesStep++;
+        
+        if( mFacesStep >= NUM_FACES_STEPS ) {
+            mSaveFaces = false;
+            mPersonAgeSlider.setValue( mFacesOrigAge );
+            actionPerformed( &mClearObjectButton );
+            }
+        }
+    
     
 
 
@@ -3792,6 +3979,24 @@ void EditorObjectPage::draw( doublePair inViewCenter,
                                        spritePos.x, spritePos.y );
         
         smallFont->drawString( tag, pos, alignRight );
+        
+        smallFont->drawString( posString, pos, alignLeft );
+        
+        delete [] posString;
+        }
+    else if( mPickedSlot != -1 ) {
+        char *tag = autoSprintf( "Slot %d", mPickedSlot + 1 );
+        pos.x = 0;
+        pos.y = -106;
+
+        doublePair slotPos = mCurrentObject.slotPos[ mPickedSlot ];
+        
+        char *posString = autoSprintf( "  ( %.0f, %.0f )",
+                                       slotPos.x, slotPos.y );
+        
+        smallFont->drawString( tag, pos, alignRight );
+        
+        delete [] tag;
         
         smallFont->drawString( posString, pos, alignLeft );
         
@@ -4370,6 +4575,11 @@ void EditorObjectPage::pickedLayerChanged() {
 
 
 void EditorObjectPage::pointerMove( float inX, float inY ) {
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
+    
     lastMouseX = inX;
     lastMouseY = inY;
 
@@ -4408,6 +4618,11 @@ void EditorObjectPage::pointerMove( float inX, float inY ) {
 
 
 void EditorObjectPage::pointerDown( float inX, float inY ) {
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
+    
     mHoverStrength = 0;
     
     if( inX < -192 || inX > 192 || 
@@ -4546,7 +4761,11 @@ void EditorObjectPage::recursiveMove( ObjectRecord *inObject,
 
 
 void EditorObjectPage::pointerDrag( float inX, float inY ) {
-
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
+    
     lastMouseX = inX;
     lastMouseY = inY;
 
@@ -4664,6 +4883,10 @@ static int *deleteFromIntArray( int *inArray, int inOldLength,
 
 
 void EditorObjectPage::keyDown( unsigned char inASCII ) {
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
     
     if( TextField::isAnyFocused() || mSetHeldPos ) {
         return;
@@ -5086,6 +5309,10 @@ void EditorObjectPage::keyUp( unsigned char inASCII ) {
 
 
 void EditorObjectPage::specialKeyDown( int inKeyCode ) {
+    if( mSaveFaces ) {
+        // ignore events
+        return;
+        }
     
     if( mDescriptionField.isAnyFocused() ) {
         return;
