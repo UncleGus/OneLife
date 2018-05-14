@@ -3504,16 +3504,16 @@ void processLoggedInPlayer( Socket *inSock,
         motherEmail = spawnTarget->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
-        newObject.lineageEveID = parent->lineageEveID;
+        newObject.lineageEveID = spawnTarget->lineageEveID;
 
 
         // mother
         newObject.lineage->push_back( newObject.motherID );
 
         // inherit last heard monument, if any, from parent
-        newObject.monumentPosSet = parent->monumentPosSet;
-        newObject.lastMonumentPos = parent->lastMonumentPos;
-        newObject.lastMonumentID = parent->lastMonumentID;
+        newObject.monumentPosSet = spawnTarget->monumentPosSet;
+        newObject.lastMonumentPos = spawnTarget->lastMonumentPos;
+        newObject.lastMonumentID = spawnTarget->lastMonumentID;
         if( newObject.monumentPosSet ) {
             newObject.monumentPosSent = false;
             }
@@ -6175,7 +6175,7 @@ int main() {
                                         
                                             logDeath( hitPlayer->id,
                                                       hitPlayer->email,
-                                                      hitPlayer->parentID,
+                                                      hitPlayer->motherID,
                                                       hitPlayer->displayID,
                                                       hitPlayer->name,
                                                       hitPlayer->lastSay,
@@ -7945,7 +7945,7 @@ int main() {
                     
                     logDeath( nextPlayer->id,
                               nextPlayer->email,
-                              nextPlayer->parentID,
+                              nextPlayer->motherID,
                               nextPlayer->displayID,
                               nextPlayer->name,
                               nextPlayer->lastSay,
@@ -8872,7 +8872,7 @@ int main() {
                         
                         logDeath( decrementedPlayer->id,
                                   decrementedPlayer->email,
-                                  decrementedPlayer->parentID,
+                                  decrementedPlayer->motherID,
                                   decrementedPlayer->displayID,
                                   decrementedPlayer->name,
                                   decrementedPlayer->lastSay,
