@@ -1300,7 +1300,7 @@ double computeAge( LiveObject *inPlayer ) {
 int getSayLimit( LiveObject *inPlayer ) {
     int limit = (unsigned int)( floor( computeAge( inPlayer ) ) + 1 );
 
-    if( inPlayer->isEve && limit < 30 ) {
+    if( (inPlayer->isEve || inPlayer->isAdam) && limit < 30 ) {
         // give Eve room to name her family line
         limit = 30;
         }
