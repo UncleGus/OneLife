@@ -4,6 +4,34 @@ http://onehouronelife.com/updateLog.php
 
 
 
+Server Fixes:
+
+--Fixed bug in lineage server that caused death to not get logged if last words
+  contained a single quote mark.
+
+--Added Daily and Weekly long lines to family tree browser.
+
+--Family tree view now shows most ancient ancestor at top.
+
+--More efficient relation computation for shallow relations in deep trees.
+  Cut-off of 25 generations when computing relations in deep trees (beyond
+  that, people become Distant Relatives) because it was getting too slow to
+  compute.
+
+--Fixed family tree to show '1 second' instead of '1 seconds'.
+
+--Fixed so that murdered person's last words shown correctly in family tree,
+  and so that a murdered person who starves to death before dying isn't logged
+  twice.
+
+--Server now sends non-human death-source ID to lineage server (snake, etc).
+
+--Lineage server displays a variety of death reasons.
+
+
+
+
+
 Version 95    2018-May-11
 
 --Fixed some transition hints.  New transition system leaves some lastUse
