@@ -7982,7 +7982,7 @@ int main() {
                 recordPlayerLineage( nextPlayer->email, 
                                      age,
                                      nextPlayer->id,
-                                     nextPlayer->parentID,
+                                     nextPlayer->motherID,
                                      nextPlayer->displayID,
                                      killerID,
                                      nextPlayer->name,
