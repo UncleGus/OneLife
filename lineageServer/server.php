@@ -312,7 +312,14 @@ function ls_setupDatabase() {
             "INDEX( parent_id )," .
             // ID of player's killer on server
             // -1 if this player was not murdered
+            // -ID if player killed by a non-human object (like a snake)
             "killer_id INT NOT NULL," .
+            // string describing death, if not murder
+            // Starved
+            // Old Age
+            // Killed by Snake
+            // etc.
+            "death_cause VARCHAR(254) NOT NULL,".
             // object ID when player displayed in client
             "display_id INT UNSIGNED NOT NULL," .
             // age at time of death in years
@@ -323,7 +330,11 @@ function ls_setupDatabase() {
             "last_words VARCHAR(63) NOT NULL,".
             // -1 if not set yet
             // 0 for Eve
-            "generation INT NOT NULL );";
+            "generation INT NOT NULL,".
+            // -1 if not set yet
+            // 0 for Eve
+            // the Eve of this family line
+            "eve_life_id INT NOT NULL );";
 
         $result = ls_queryDatabase( $query );
 
@@ -820,6 +831,70 @@ function ls_getGeneration( $inLifeID ) {
 
 
 
+function ls_getEveID( $inLifeID ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT server_id, eve_life_id, parent_id ".
+        "FROM $tableNamePrefix"."lives ".
+        "WHERE id = '$inLifeID';";
+
+    $result = ls_queryDatabase( $query );
+
+    $eve_life_id = ls_mysqli_result( $result, 0, "eve_life_id" );
+    
+    if( $eve_life_id == -1 ) {
+
+        // compute it, if we can
+
+        $server_id = ls_mysqli_result( $result, 0, "server_id" );
+        $parent_id = ls_mysqli_result( $result, 0, "parent_id" );
+
+        
+        while( $parent_id != -1 ) {
+
+            $parent_life_id = ls_getLifeID( $server_id, $parent_id );
+            
+            if( $parent_life_id == -1 ) {
+                // parent hasn't died yet
+                break;
+                }
+            
+            $query = "SELECT id, eve_life_id, parent_id ".
+                "FROM $tableNamePrefix"."lives ".
+                "WHERE id = '$parent_life_id';";
+
+            $result = ls_queryDatabase( $query );
+
+            $parent_id = ls_mysqli_result( $result, 0, "parent_id" );
+            $eve_life_id = ls_mysqli_result( $result, 0, "eve_life_id" );
+
+            if( $eve_life_id == 0 || $parent_id == -1 ) {
+                // reached Eve
+                $eve_life_id = ls_mysqli_result( $result, 0, "id" );
+                break;
+                }
+            if( $eve_life_id > 0 ) {
+                // found an ancestor who is already marked with Eve
+                break;
+                }
+            }
+
+        if( $eve_life_id != -1 ) {
+            // found it
+            // save it
+
+            $query = "UPDATE $tableNamePrefix"."lives SET ".
+                "eve_life_id = '$eve_life_id' WHERE id = '$inLifeID';";
+            ls_queryDatabase( $query );
+            }
+        }
+
+    return $eve_life_id;
+    }
+
+
+
+
 // cannot be called if record doesn't exist yet
 function ls_getUserID( $inEmail ) {
     global $tableNamePrefix;
@@ -1113,11 +1188,13 @@ function ls_logLife() {
 
     // unknown until we are asked to compute it the first time
     $generation = -1;
+    $eve_life_id = -1;
     
     if( $parent_id == -1 ) {
         // Eve
         // we know it
         $generation = 1;
+        $eve_life_id = 0;
         }
     
     
@@ -1128,13 +1205,17 @@ function ls_logLife() {
         "player_id = '$player_id', ".
         "parent_id = '$parent_id', ".
         "killer_id = '$killer_id', ".
+        // generate this later, as-needed
+        "death_cause = '', ".
         "display_id = '$display_id', ".
         "age = '$age', ".
         "name = '$name', ".
         "male = '$male', ".
-        "last_words = '$last_words', ".
-        "generation = '$generation';";
-    
+        // double-quotes, because ' is an allowed character
+        "last_words = \"$last_words\", ".
+        "generation = '$generation'," .
+        "eve_life_id = '$eve_life_id';";
+
     ls_queryDatabase( $query );
     
     
@@ -1225,12 +1306,15 @@ function ls_frontPage() {
     ls_printFrontPageRows( "$filterClause AND age >= 50", "death_time DESC",
                            $numPerList );
 
- 
-    echo "<tr><td colspan=6><font size=5>Long Lines:</font></td></tr>\n";
-    
-    ls_printFrontPageRows( $filterClause, "generation DESC, death_time DESC",
-                           $numPerList );
 
+    echo "<tr><td colspan=6><font size=5>Today's Long Lines:".
+        "</font></td></tr>\n";
+    
+    ls_printFrontPageRows(
+        "$filterClause AND death_time >= DATE_SUB( NOW(), INTERVAL 1 DAY )",
+        "generation DESC, death_time DESC",
+        $numPerList );
+    
     
     echo "<tr><td colspan=6>".
         "<font size=5>Recent Adult Deaths:</font></td></tr>\n";
@@ -1246,6 +1330,26 @@ function ls_frontPage() {
     ls_printFrontPageRows( "$filterClause AND age < 20", "death_time DESC",
                            $numPerList );
 
+
+    
+    echo "<tr><td colspan=6><font size=5>This Week's Long Lines:".
+        "</font></td></tr>\n";
+    
+    ls_printFrontPageRows(
+        "$filterClause AND death_time >= DATE_SUB( NOW(), INTERVAL 1 WEEK )",
+        "generation DESC, death_time DESC",
+        $numPerList );
+
+    
+
+    echo "<tr><td colspan=6><font size=5>All-Time Long Lines:".
+        "</font></td></tr>\n";
+    
+    ls_printFrontPageRows( $filterClause, "generation DESC, death_time DESC",
+                           $numPerList );
+
+
+    
     
     echo "</table></center>";
     
@@ -1355,16 +1459,35 @@ function ls_printFrontPageRows( $inFilterClause, $inOrderBy, $inNumRows ) {
 
 
 
-// gets array from $inFromID up to Eve
-function ls_getLineage( $inFromID ) {
+// cache in each run
+$lineageCache = array();
+
+// gets array from $inFromID up to Eve, or limited by $inLimit steps
+function ls_getLineage( $inFromID, $inLimit ) {
+    global $lineageCache;
+
+    if( in_array( $inFromID, $lineageCache ) ) {
+        return $lineageCache[ $inFromID ];
+        }
+    
+
     $line = array();
 
     $parentID = $inFromID;
+
+    $steps = 0;
     
-    while( $parentID != -1 ) {
+    while( $parentID != -1 && $steps < $inLimit ) {
         $line[] = $parentID;
         $parentID = ls_getParentLifeID( $parentID );
+        $steps++;
         }
+
+    if( $inLimit > 10 ) {
+        // store long ones to re-use later
+        $lineageCache[ $inFromID ] = $line;
+        }
+    
     
     return $line;
     }
@@ -1432,7 +1555,7 @@ function ls_getCousinRemovedWord( $inRemovedSteps ) {
 
 // from is the person that we're taking the point of view of
 // to is the person that we're trying to find the relationship name of
-function ls_getRelName( $inFromID, $inToID ) {
+function ls_getRelName( $inFromID, $inToID, $inLimit ) {
     if( $inFromID == $inToID ) {
         return "";
         }
@@ -1441,7 +1564,7 @@ function ls_getRelName( $inFromID, $inToID ) {
 
 
     
-    $fromLine = ls_getLineage( $inFromID );
+    $fromLine = ls_getLineage( $inFromID, $inLimit );
     
     $parIndex = array_search( $inToID, $fromLine );
 
@@ -1462,7 +1585,7 @@ function ls_getRelName( $inFromID, $inToID ) {
 
 
     
-    $toLine = ls_getLineage( $inToID );
+    $toLine = ls_getLineage( $inToID, $inLimit );
     
     $parIndex = array_search( $inFromID, $toLine );
 
@@ -1660,7 +1783,7 @@ function ls_displayPerson( $inID, $inRelID, $inFullWords ) {
     global $tableNamePrefix;
 
     $query = "SELECT id, display_id, name, ".
-        "age, last_words, generation, death_time ".
+        "age, last_words, generation, death_time, death_cause ".
         "FROM $tableNamePrefix"."lives WHERE id=$inID;";
     
     $result = ls_queryDatabase( $query );
@@ -1676,6 +1799,7 @@ function ls_displayPerson( $inID, $inRelID, $inFullWords ) {
         $age = ls_mysqli_result( $result, 0, "age" );
         $generation = ls_mysqli_result( $result, 0, "generation" );
         $death_time = ls_mysqli_result( $result, 0, "death_time" );
+        $death_cause = ls_mysqli_result( $result, 0, "death_cause" );
 
 
 
@@ -1708,7 +1832,22 @@ function ls_displayPerson( $inID, $inRelID, $inFullWords ) {
 
         
         echo "<br>\n$name<br>\n";
-        $relName = ls_getRelName( $inRelID, $inID );
+
+        // most common case requires only a few steps
+        // don't walk all the way up unless we have to
+        $relName = ls_getRelName( $inRelID, $inID, 3 );
+
+        if( $relName == "No Relation" ) {
+            // allow more steps, but still don't walk all the way to
+            // the top of deep trees
+            $relName = ls_getRelName( $inRelID, $inID, 25 );
+
+            if( $relName == "No Relation" ) {
+                $relName = "Distant Relative";
+                }
+            }
+        
+
         if( $relName != "" ) {
             echo "$relName<br>\n";
             }
@@ -1728,6 +1867,19 @@ function ls_displayPerson( $inID, $inRelID, $inFullWords ) {
                     }
                 }
             }
+
+        $deathHTML = $deathCause;
+
+        if( $deathHTML == "" ) {
+            $deathHTML = ls_getDeathHTML( $inID );
+            }
+
+        if( $deathHTML != "" ) {
+            echo "<br>\n";
+            echo "$deathHTML\n";
+            }
+
+            
         
         if( $last_words != "" ) {
             echo "<br>\n";
@@ -1794,6 +1946,105 @@ function ls_displayGenRow( $inGenArray, $inCenterID, $inRelID, $inFullWords ) {
 
 
 
+
+function ls_getDeathHTML( $inID ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT age, killer_id, death_cause ".
+        "FROM $tableNamePrefix"."lives WHERE id=$inID;";
+    
+    $result = ls_queryDatabase( $query );
+    
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows == 0 ) {
+        return "";
+        }
+
+    $death_cause = ls_mysqli_result( $result, 0, "death_cause" );
+
+    if( $death_cause != "" ) {
+        return $death_cause;
+        }
+
+
+    $killer_id = ls_mysqli_result( $result, 0, "killer_id" );
+    $age = ls_mysqli_result( $result, 0, "age" );
+    
+    
+    if( $killer_id > 0 ) {
+        $query = "SELECT id, name ".
+            "FROM $tableNamePrefix"."lives WHERE player_id=$killer_id;";
+        
+        $result = ls_queryDatabase( $query );
+        
+        $numRows = mysqli_num_rows( $result );
+        
+        if( $numRows == 0 ) {
+            return "Murdered";
+            }
+
+        $id = ls_mysqli_result( $result, 0, "id" );
+        $name = ls_mysqli_result( $result, 0, "name" );        
+
+        return "Killed by <a href='server.php?action=character_page&".
+            "id=$id'>$name</a>";
+        }
+    else if( $killer_id <= -1 ) {
+
+        $deathString = "";
+        
+        if( $killer_id == -1 ) {
+            if( $age >= 60 ) {
+                $deathString = "Died of Old Age";
+                }
+            else {
+                $deathString = "Starved";
+                }
+            }
+        else {
+            global $objectsPath;
+
+            $objID = - $killer_id;
+
+            $fileName = $objectsPath . "/" . $objID . ".txt";
+
+            if( file_exists( $fileName ) ) {
+
+                $fh = fopen( $fileName, 'r');
+                $line = fgets( $fh );
+                if( $line != FALSE ) {
+                    // second line is description
+                    $line = fgets( $fh );
+                    if( $line != FALSE ) {
+                        $commentPos = strpos( $line, "#" );
+                        if( $commentPos != FALSE ) {
+                            $line = substr( $line, 0, $commentPos );
+                            }
+
+                        $deathString = "Killed by $line";
+                        }
+                    }
+                
+                fclose( $fh );
+                }
+            }
+        if( $deathString != "" ) {
+            // save it
+            
+            $query = "UPDATE $tableNamePrefix"."lives ".
+                "SET death_cause='$deathString' ".
+                "WHERE id=$inID;";
+            ls_queryDatabase( $query );
+            }
+        
+        return $deathString;
+        }
+    }
+
+
+
+
 function ls_getParentLifeID( $inID ) {
     global $tableNamePrefix;
     
@@ -1852,6 +2103,19 @@ function ls_characterPage() {
 
     echo "<center>\n";
 
+
+    $parent = ls_getParentLifeID( $id );
+    $ancestor = ls_getEveID( $id );
+
+    if( $ancestor > 0 && $ancestor != $parent ) {
+        $ancientGen = ls_getSiblings( $ancestor );
+        // ancestor in center
+        ls_displayGenRow( $ancientGen, ls_getParentLifeID( $ancestor ),
+                          $rel_id, false );
+
+        echo "<font size=5>...</font>\n";
+        }
+    
     
     $prevGen = ls_getPrevGen( $id );
     // parent in center
@@ -1933,6 +2197,9 @@ function ls_closeDatabase() {
  */
 function ls_secondsToTimeSummary( $inSeconds ) {
     if( $inSeconds < 120 ) {
+        if( $inSeconds == 1 ) {
+            return "$inSeconds second";
+            }
         return "$inSeconds seconds";
         }
     else if( $inSeconds < 3600 ) {
@@ -1957,6 +2224,9 @@ function ls_secondsToTimeSummary( $inSeconds ) {
  */
 function ls_secondsToAgeSummary( $inSeconds ) {
     if( $inSeconds < 120 ) {
+        if( $inSeconds == 1 ) {
+            return "$inSeconds second";
+            }
         return "$inSeconds seconds";
         }
     else if( $inSeconds < 3600 * 2 ) {
