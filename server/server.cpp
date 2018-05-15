@@ -131,6 +131,7 @@ static SimpleVector<char*> nameGivingPhrases;
 static SimpleVector<char*> familyNameGivingPhrases;
 
 static char *eveName = NULL;
+static char *adamName = NULL;
 
 
 // maps extended ascii codes to true/false for characters allowed in SAY
@@ -776,6 +777,11 @@ void quitCleanup() {
     if( eveName != NULL ) {
         delete [] eveName;
         eveName = NULL;
+        }
+
+    if( adamName != NULL ) {
+        delete [] adamName;
+        adamName = NULL;
         }
 
     if( apocalypseRequest != NULL ) {
@@ -3496,12 +3502,16 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.motherID = -1;
     char *motherEmail = NULL;
+    newObject.fatherID = -1;
+    char *fatherEmail = NULL;
 
-    if( spawnTarget != NULL && isFertileAge( spawnTarget ) ) {
+    if( spawnTarget != NULL && isFertileAge( spawnTarget ) && !newObject.isAdam ) {
         // do not log babies that new Eve spawns next to as mothers
+        // or Eves that Adam spawns next to
         newObject.motherID = spawnTarget->id;
         newObject.fatherID = spawnTarget->closestAdultMaleID;
         motherEmail = spawnTarget->email;
+        fatherEmail = getLiveObject( newObject.fatherID )->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
         newObject.lineageEveID = spawnTarget->lineageEveID;
@@ -4600,6 +4610,8 @@ int main() {
     
     eveName = 
         SettingsManager::getStringSetting( "eveName", "EVE" );
+    adamName = 
+        SettingsManager::getStringSetting( "adamName", "ADAM" );
 
 
 #ifdef WIN_32
@@ -6017,9 +6029,15 @@ int main() {
                             
                             if( name != NULL && strcmp( name, "" ) != 0 ) {
                                 const char *close = findCloseLastName( name );
-                                nextPlayer->name = autoSprintf( "%s %s",
-                                                                eveName, 
-                                                                close );
+                                if( nextPlayer->isEve ) {
+                                    nextPlayer->name = autoSprintf( "%s %s",
+                                                                    eveName, 
+                                                                    close );
+                                } else if( nextPlayer->isAdam ) {
+                                    nextPlayer->name = autoSprintf( "%s %s",
+                                                                    adamName, 
+                                                                    close );
+                                }
                                 logName( nextPlayer->id,
                                          nextPlayer->name );
                                 playerIndicesToSendNamesAbout.push_back( i );
