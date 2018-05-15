@@ -11573,43 +11573,17 @@ void LivingLifePage::step() {
             for( int i=1; i<numLines; i++ ) {
 
                 int id;
-                int numRead = sscanf( lines[i], "%d ",
-                                      &( id ) );
+                int fatherID;
+                int motherID;
+                int numRead = sscanf( lines[i], "%d %d %d",
+                                      &( id ), &( fatherID ), &( motherID ) );
 
                 if( numRead == 1 ) {
                     for( int j=0; j<gameObjects.size(); j++ ) {
-                        if( gameObjects.getElement(j)->id == id ) {
-                            
-                            LiveObject *existing = gameObjects.getElement(j);
-                            
-                            existing->lineage.deleteAll();
-
-                            char *firstSpace = strstr( lines[i], " " );
-        
-                            if( firstSpace != NULL ) {
-
-                                char *linStart = &( firstSpace[1] );
-                                
-                                SimpleVector<char *> *tokens = 
-                                    tokenizeString( linStart );
-
-                                for( int t=0; t<tokens->size(); t++ ) {
-                                    char *tok = tokens->getElementDirect( t );
-                                    
-                                    int mID = 0;
-                                    sscanf( tok, "%d", &mID );
-                                    
-                                    if( mID != 0 ) {
-                                        existing->lineage.push_back( mID );
-                                        }
-                                    }
-                                
-
-                                
-                                tokens->deallocateStringElements();
-                                delete tokens;
-                                }
-                            
+                        LiveObject *existing = gameObjects.getElement(j);
+                        if( existing->id == id ) {
+                            existing->fatherID = fatherID;
+                            existing->motherID = motherID;
                             break;
                             }
                         }

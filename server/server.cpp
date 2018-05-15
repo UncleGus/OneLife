@@ -9432,15 +9432,8 @@ int main() {
                 linWorking.appendElementString( pID );
                 delete [] pID;
                 numAdded++;
-                for( int j=0; j<nextPlayer->lineage->size(); j++ ) {
-                    char *mID = 
-                        autoSprintf( 
-                            " %d",
-                            nextPlayer->lineage->getElementDirect( j ) );
-                    linWorking.appendElementString( mID );
-                    delete [] mID;
-                    }        
-                linWorking.push_back( '\n' );
+                linWorking.appendElementString( autoSprintf( " %d", nextPlayer->fatherID ));
+                linWorking.appendElementString( autoSprintf( " %d\n", nextPlayer->motherID ));
                 }
             
             linWorking.push_back( '#' );
