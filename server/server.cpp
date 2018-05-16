@@ -3516,6 +3516,8 @@ void processLoggedInPlayer( Socket *inSock,
         }
 
     
+    newObject.closestAdultMaleID = -1;
+    newObject.distanceToClosestAdultMale = 10000;
     newObject.motherID = -1;
     char *motherEmail = NULL;
     newObject.fatherID = -1;
@@ -9464,8 +9466,8 @@ int main() {
                     continue;
                     }
 
-                char *pID = autoSprintf( "%d", nextPlayer->id );
-                char *fatherID = autoSprintf( "%d", nextPlayer->fatherID );
+                char *pID = autoSprintf( "%d ", nextPlayer->id );
+                char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
                 char *motherID = autoSprintf( "%d", nextPlayer->motherID );
                 AppLog::infoF("Sending lineage message: %d %d %d\n", nextPlayer->id, nextPlayer->fatherID, nextPlayer->motherID);
                 linWorking.appendElementString( pID );
