@@ -341,12 +341,20 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
     int commonAncestorID = -1;
 
     for( int i = 0; i < ourLin.size(); i++ ) {
+        if( commonAncestorID != -1 ) {
+            break;
+        }
+        int ourCurrentMember = ourLin.getElementDirect( i );
+        if( ourCurrentMember == -1 ) {
+            continue;
+        }
         for( int j = 0; j < theirLin.size(); j++ ) {
-            if( commonAncestorID != -1 ) {
-                break;
+            int theirCurrentMember = theirLin.getElementDirect( j );
+            if( theirCurrentMember == -1 ) {
+                continue;
             }
-            if( ourLin.getElement( i ) == ourLin.getElement( j )) {
-                commonAncestorID = *ourLin.getElement( i );
+            if( ourCurrentMember == theirCurrentMember ) {
+                commonAncestorID = ourCurrentMember;
                 ourCommonAncestorIndex = i;
                 theirCommonAncestorIndex = j;
                 break;
@@ -360,10 +368,10 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
 
     int ourDistanceToCommonAncestor = 0;
     int theirDistanceToCommonAncestor = 0;
-    while ( 1 << ( ourDistanceToCommonAncestor + 1 ) <= ( ourCommonAncestorIndex +1 ) ) {
+    while ( 1 << ( ourDistanceToCommonAncestor + 1 ) <= ( ourCommonAncestorIndex + 1 ) ) {
         ourDistanceToCommonAncestor++;
     }
-    while ( 1 << ( theirDistanceToCommonAncestor + 1 ) <= ( theirCommonAncestorIndex +1 ) ) {
+    while ( 1 << ( theirDistanceToCommonAncestor + 1 ) <= ( theirCommonAncestorIndex + 1 ) ) {
         theirDistanceToCommonAncestor++;
     }
 

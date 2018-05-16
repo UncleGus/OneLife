@@ -9707,14 +9707,6 @@ int main() {
                     delete [] fatherID;
                     delete [] motherID;
                     numAdded++;
-                    for( int j=0; j<o->lineage->size(); j++ ) {
-                        char *mID = 
-                            autoSprintf( 
-                                " %d",
-                                o->lineage->getElementDirect( j ) );
-                        linWorking.appendElementString( mID );
-                        delete [] mID;
-                        }        
                     linWorking.push_back( '\n' );
                     }
                 
