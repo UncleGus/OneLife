@@ -9467,6 +9467,7 @@ int main() {
                 char *pID = autoSprintf( "%d ", nextPlayer->id );
                 char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
                 char *motherID = autoSprintf( "%d", nextPlayer->motherID );
+                AppLog::infoF("Sending lineage message: %d %d %d\n", pID, fatherID, motherID);
                 linWorking.appendElementString( pID );
                 linWorking.appendElementString( fatherID );
                 linWorking.appendElementString( motherID );
@@ -9700,6 +9701,7 @@ int main() {
                     char *pID = autoSprintf( "%d ", nextPlayer->id );
                     char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
                     char *motherID = autoSprintf( "%d", nextPlayer->motherID );
+                    AppLog::infoF("Sending first lineage message: %d %d %d\n", pID, fatherID, motherID);
                     linWorking.appendElementString( pID );
                     linWorking.appendElementString( fatherID );
                     linWorking.appendElementString( motherID );

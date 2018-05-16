@@ -275,7 +275,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         i++;
     }
 
-    while( ourLin.getElementDirect( ourLin.size() ) == -1 ) {
+    while( ourLin.getElementDirect( ourLin.size() -1 ) == -1 ) {
         ourLin.shrink(ourLin.size() - 1 );
     }
 
@@ -287,6 +287,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
 
     // start with an ID list of just that player
     i = 0;
+    foundPerson = false;
     SimpleVector<int> theirLin;
     theirLin.push_back( inTheirObject->id );
 
@@ -326,7 +327,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         i++;
     }
 
-    while( theirLin.getElementDirect( theirLin.size() ) == -1 ) {
+    while( theirLin.getElementDirect( theirLin.size() -1 ) == -1 ) {
         theirLin.shrink(theirLin.size() - 1 );
     }
 
