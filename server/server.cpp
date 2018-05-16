@@ -9457,12 +9457,16 @@ int main() {
                     continue;
                     }
 
-                char *pID = autoSprintf( "%d", nextPlayer->id );
+                char *pID = autoSprintf( "%d ", nextPlayer->id );
+                char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
+                char *motherID = autoSprintf( "%d", nextPlayer->motherID );
                 linWorking.appendElementString( pID );
+                linWorking.appendElementString( fatherID );
+                linWorking.appendElementString( motherID );
                 delete [] pID;
+                delete [] fatherID;
+                delete [] motherID;
                 numAdded++;
-                linWorking.appendElementString( autoSprintf( " %d", nextPlayer->fatherID ));
-                linWorking.appendElementString( autoSprintf( " %d\n", nextPlayer->motherID ));
                 }
             
             linWorking.push_back( '#' );
@@ -9686,9 +9690,15 @@ int main() {
                         continue;
                         }
 
-                    char *pID = autoSprintf( "%d", o->id );
+                    char *pID = autoSprintf( "%d ", nextPlayer->id );
+                    char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
+                    char *motherID = autoSprintf( "%d", nextPlayer->motherID );
                     linWorking.appendElementString( pID );
+                    linWorking.appendElementString( fatherID );
+                    linWorking.appendElementString( motherID );
                     delete [] pID;
+                    delete [] fatherID;
+                    delete [] motherID;
                     numAdded++;
                     for( int j=0; j<o->lineage->size(); j++ ) {
                         char *mID = 
