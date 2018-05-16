@@ -247,7 +247,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
             printf("This is the start of a new generation\n");
             // looking at a new generation
             if( ! foundPerson ) {
-                printf("The generation we just traveresed was empty, stopping here\n");
+                printf("The generation we just traversed was empty, stopping here\n");
                 // the 'generation' we just traversed was all empty members (-1)
                 break;
             }
@@ -299,7 +299,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
             printf("This is the start of a new generation\n");
             // looking at a new generation
             if( ! foundPerson ) {
-                printf("The generation we just traveresed was empty, stopping here\n");
+                printf("The generation we just traversed was empty, stopping here\n");
                 // the 'generation' we just traversed was all empty members (-1)
                 break;
             }
