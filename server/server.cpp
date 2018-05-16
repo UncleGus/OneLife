@@ -3389,8 +3389,8 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.xd = cPos.x;
             newObject.yd = cPos.y;
 
-            spawnTarget->hasAdam = true;            
             }
+        spawnTarget->hasAdam = true;
     }
     
 
