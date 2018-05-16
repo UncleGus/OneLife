@@ -3027,10 +3027,10 @@ void processLoggedInPlayer( Socket *inSock,
                 canHaveBaby = false;
                 }
             
-            if( ! isLinePermitted( newObject.email, player->lineageEveID ) ) {
-                // this line forbidden for new player
-                continue;
-                }
+            // if( ! isLinePermitted( newObject.email, player->lineageEveID ) ) {
+            //     // this line forbidden for new player
+            //     continue;
+            //     }
             
 
             int numPastBabies = player->babyIDs->size();
