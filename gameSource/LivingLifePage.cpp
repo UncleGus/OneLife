@@ -240,26 +240,34 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
     ourLin.push_back( inOurObject->id );
 
     while( i < ourLin.size() ) {
+        printf("Looking at ourLin index %d\n", i);
         // get member at i in list, if there is a member there
+
         if( i == totalPopulation ) {
+            printf("This is the start of a new generation\n");
             // looking at a new generation
             if( ! foundPerson ) {
+                printf("The generation we just traveresed was empty, stopping here\n");
                 // the 'generation' we just traversed was all empty members (-1)
                 break;
             }
             generation++;
             totalPopulation += 1 << generation;
             foundPerson = false;
+            printf("This is generation %d, containing %d people, with %d people in total in the tree\n", generation, 1 << generation, totalPopulation);
         }
         int currentID = ourLin.getElementDirect( i );
+        printf("This person's id is %d\n", currentID);
         if( currentID != -1 ) {
             foundPerson = true;
             LiveObject *currentMember = getGameObject( currentID );
+            printf("This is a real person with a father of %d and mother of %d, who are being added to the tree\n", currentMember->fatherID, currentMember->motherID);
             // add member's father to end of list
             ourLin.push_back( currentMember->fatherID );
             // add member's mother to end of list
             ourLin.push_back( currentMember->motherID );
         } else {
+            printf("This is nobody, adding -1 as father and mother to the tree\n");
             // add -1 for "nobody"
             ourLin.push_back( -1 );
             ourLin.push_back( -1 );
@@ -269,6 +277,11 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
 
     while( ourLin.getElementDirect( ourLin.size() ) == -1 ) {
         ourLin.shrink(ourLin.size() - 1 );
+    }
+
+    printf("Our family tree is:\n");
+    for( int i=0; i<ourLin.size(); i++ ) {
+        printf("%d ", ourLin.getElementDirect( i ));
     }
 
     // start with an ID list of just that player
@@ -9232,7 +9245,8 @@ void LivingLifePage::step() {
                 
                 o.name = NULL;
                 o.relationName = NULL;
-
+                o.fatherID = -1;
+                o.motherID = -1;
 
                 o.tempAgeOverrideSet = false;
                 o.tempAgeOverride = 0;
