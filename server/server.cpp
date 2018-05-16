@@ -3390,6 +3390,7 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.yd = cPos.y;
 
             }
+        AppLog::infoF("Remembering that this Eve has an Adam\n");
         spawnTarget->hasAdam = true;
     }
     
@@ -3397,6 +3398,7 @@ void processLoggedInPlayer( Socket *inSock,
     int forceID = SettingsManager::getIntSetting( "forceEveObject", 0 );
     
     if( forceID > 0 ) {
+        AppLog::infoF("Forcing Eve displayID\n");
         newObject.displayID = forceID;
         }
     
@@ -3404,6 +3406,7 @@ void processLoggedInPlayer( Socket *inSock,
     float forceAge = SettingsManager::getFloatSetting( "forceEveAge", 0.0 );
     
     if( forceAge > 0 ) {
+        AppLog::infoF("Forcing Eve age\n");
         newObject.lifeStartTimeSeconds = 
             Time::getCurrentTime() - forceAge * ( 1.0 / getAgeRate() );
         }
@@ -3413,9 +3416,11 @@ void processLoggedInPlayer( Socket *inSock,
 
 
     if( areTriggersEnabled() ) {
+        AppLog::infoF("Triggers are enabled\n");
         int id = getTriggerPlayerDisplayID( inEmail );
         
         if( id != -1 ) {
+            AppLog::infoF("ID is not -1\n");
             newObject.displayID = id;
             
             newObject.lifeStartTimeSeconds = 
@@ -3436,6 +3441,7 @@ void processLoggedInPlayer( Socket *inSock,
         }
     
     
+    AppLog::infoF("Setting new object values\n");
     newObject.lineage = new SimpleVector<int>();
     
     newObject.name = NULL;
@@ -3513,15 +3519,14 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.motherID = -1;
     char *motherEmail = NULL;
     newObject.fatherID = -1;
-    char *fatherEmail = NULL;
 
     if( spawnTarget != NULL && isFertileAge( spawnTarget ) && !newObject.isAdam ) {
+        AppLog::infoF("Setting new object's father and mother IDs\n");
         // do not log babies that new Eve spawns next to as mothers
         // or Eves that Adam spawns next to
         newObject.motherID = spawnTarget->id;
         newObject.fatherID = spawnTarget->closestAdultMaleID;
         motherEmail = spawnTarget->email;
-        fatherEmail = getLiveObject( newObject.fatherID )->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
         newObject.lineageEveID = spawnTarget->lineageEveID;
@@ -3539,6 +3544,7 @@ void processLoggedInPlayer( Socket *inSock,
             }
         
         
+        AppLog::infoF("Copying some lineage stuff\n");
         for( int i=0; 
              i < spawnTarget->lineage->size() && 
                  i < maxLineageTracked - 1;
@@ -3567,6 +3573,7 @@ void processLoggedInPlayer( Socket *inSock,
     players.push_back( newObject );            
 
 
+    AppLog::infoF("Logging the birth\n");
     logBirth( newObject.id,
               newObject.email,
               newObject.motherID,
