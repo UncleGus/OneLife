@@ -3257,6 +3257,8 @@ void processLoggedInPlayer( Socket *inSock,
             
             spawnTarget->babyBirthTimes->push_back( curTime );
             spawnTarget->babyIDs->push_back( newObject.id );
+            LiveObject *f = getLiveObject( spawnTarget->closestAdultMaleID );
+            f->babyIDs->push_back( newObject.id );
             
             // set cool-down time before this worman can have another baby
             spawnTarget->birthCoolDown = pickBirthCooldownSeconds() + curTime;
