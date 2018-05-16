@@ -11617,10 +11617,11 @@ void LivingLifePage::step() {
                 int numRead = sscanf( lines[i], "%d %d %d",
                                       &( id ), &( fatherID ), &( motherID ) );
 
-                if( numRead == 1 ) {
+                if( numRead == 3 ) {
                     for( int j=0; j<gameObjects.size(); j++ ) {
                         LiveObject *existing = gameObjects.getElement(j);
                         if( existing->id == id ) {
+                            printf("Setting player %d father to %d and mother to %d\n", existing->id, fatherID, motherID );
                             existing->fatherID = fatherID;
                             existing->motherID = motherID;
                             break;
