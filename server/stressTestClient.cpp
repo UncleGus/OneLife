@@ -20,6 +20,345 @@ void usage() {
     exit( 1 );
     }
 
+int ourID;
+
+typedef struct LiveObject {
+        int id;
+        int fatherID;
+        int motherID;
+        char *relationName;
+        char male;
+    } LiveObject;
+
+SimpleVector<LiveObject> gameObjects;
+
+
+LiveObject *getLiveObject( int inID ) {
+    
+    LiveObject *obj = NULL;
+
+    for( int i=0; i<gameObjects.size(); i++ ) {
+        
+        LiveObject *o = gameObjects.getElement( i );
+        
+        if( o->id == inID ) {
+            obj = o;
+            break;
+            }
+        }
+    return obj;
+    }
+
+LiveObject *getOurLiveObject() {
+    
+    return getLiveObject( ourID );
+    }
+
+char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
+    // start with an ID list of just this player
+    int i = 0;
+    int generation = 0;
+    int totalPopulation = 1;
+    char foundPerson = false;
+    SimpleVector<int> ourLin;
+    ourLin.push_back( inOurObject->id );
+
+    while( i < ourLin.size() ) {
+        printf("Looking at ourLin index %d\n", i);
+        // get member at i in list, if there is a member there
+
+        if( i == totalPopulation ) {
+            printf("This is the start of a new generation\n");
+            // looking at a new generation
+            if( ! foundPerson ) {
+                printf("The generation we just traversed was empty, stopping here\n");
+                // the 'generation' we just traversed was all empty members (-1)
+                break;
+            }
+            generation++;
+            totalPopulation += 1 << generation;
+            foundPerson = false;
+            printf("This is generation %d, containing %d people, with %d people in total in the tree\n", generation, 1 << generation, totalPopulation);
+        }
+        int currentID = ourLin.getElementDirect( i );
+        printf("This person's id is %d\n", currentID);
+        if( currentID != -1 ) {
+            foundPerson = true;
+            LiveObject *currentMember = getLiveObject( currentID );
+            printf("This is a real person with a father of %d and mother of %d, who are being added to the tree\n", currentMember->fatherID, currentMember->motherID);
+            // add member's father to end of list
+            ourLin.push_back( currentMember->fatherID );
+            // add member's mother to end of list
+            ourLin.push_back( currentMember->motherID );
+        } else {
+            printf("This is nobody, adding -1 as father and mother to the tree\n");
+            // add -1 for "nobody"
+            ourLin.push_back( -1 );
+            ourLin.push_back( -1 );
+        }
+        i++;
+    }
+
+    while( ourLin.getElementDirect( ourLin.size() -1 ) == -1 ) {
+        ourLin.shrink(ourLin.size() - 1 );
+    }
+
+    printf("Our family tree is:\n");
+    for( int i=0; i<ourLin.size(); i++ ) {
+        printf("%d ", ourLin.getElementDirect( i ));
+    }
+    printf("\n");
+
+    // start with an ID list of just that player
+    i = 0;
+    foundPerson = false;
+    SimpleVector<int> theirLin;
+    theirLin.push_back( inTheirObject->id );
+
+    while( i < theirLin.size() ) {
+        printf("Looking at theirLin index %d\n", i);
+        // get member at i in list, if there is a member there
+
+        if( i == totalPopulation ) {
+            printf("This is the start of a new generation\n");
+            // looking at a new generation
+            if( ! foundPerson ) {
+                printf("The generation we just traversed was empty, stopping here\n");
+                // the 'generation' we just traversed was all empty members (-1)
+                break;
+            }
+            generation++;
+            totalPopulation += 1 << generation;
+            foundPerson = false;
+            printf("This is generation %d, containing %d people, with %d people in total in the tree\n", generation, 1 << generation, totalPopulation);
+        }
+        int currentID = theirLin.getElementDirect( i );
+        printf("This person's id is %d\n", currentID);
+        if( currentID != -1 ) {
+            foundPerson = true;
+            LiveObject *currentMember = getLiveObject( currentID );
+            printf("This is a real person with a father of %d and mother of %d, who are being added to the tree\n", currentMember->fatherID, currentMember->motherID);
+            // add member's father to end of list
+            theirLin.push_back( currentMember->fatherID );
+            // add member's mother to end of list
+            theirLin.push_back( currentMember->motherID );
+        } else {
+            printf("This is nobody, adding -1 as father and mother to the tree\n");
+            // add -1 for "nobody"
+            theirLin.push_back( -1 );
+            theirLin.push_back( -1 );
+        }
+        i++;
+    }
+
+    while( theirLin.getElementDirect( theirLin.size() -1 ) == -1 ) {
+        theirLin.shrink(theirLin.size() - 1 );
+    }
+
+    printf("Their family tree is:\n");
+    for( int i=0; i<theirLin.size(); i++ ) {
+        printf("%d ", theirLin.getElementDirect( i ));
+    }
+    printf("\n");
+
+    int ourCommonAncestorIndex = 0;
+    int theirCommonAncestorIndex = 0;
+    int commonAncestorID = -1;
+
+    for( int i = 0; i < ourLin.size(); i++ ) {
+        if( commonAncestorID != -1 ) {
+            break;
+        }
+        int ourCurrentMember = ourLin.getElementDirect( i );
+        if( ourCurrentMember == -1 ) {
+            continue;
+        }
+        for( int j = 0; j < theirLin.size(); j++ ) {
+            int theirCurrentMember = theirLin.getElementDirect( j );
+            if( theirCurrentMember == -1 ) {
+                continue;
+            }
+            if( ourCurrentMember == theirCurrentMember ) {
+                commonAncestorID = ourCurrentMember;
+                ourCommonAncestorIndex = i;
+                theirCommonAncestorIndex = j;
+                break;
+            }
+        }
+    }
+
+    if ( commonAncestorID == -1 ) {
+        return NULL;
+    }
+
+    int ourDistanceToCommonAncestor = 0;
+    int theirDistanceToCommonAncestor = 0;
+    while ( 1 << ( ourDistanceToCommonAncestor + 1 ) <= ( ourCommonAncestorIndex + 1 ) ) {
+        ourDistanceToCommonAncestor++;
+    }
+    while ( 1 << ( theirDistanceToCommonAncestor + 1 ) <= ( theirCommonAncestorIndex + 1 ) ) {
+        theirDistanceToCommonAncestor++;
+    }
+
+    const char *main = "";
+    char grand = false;
+    int numGreats = 0;
+    int cousinNum = 0;
+    int cousinRemovedNum = 0;
+    char theyMale = inTheirObject->male;
+
+    char big = false;
+    char little = false;
+    char twin = false;
+    char identical = false;
+
+    if( ourDistanceToCommonAncestor == 0 ) {
+        // this is a direct descendant
+        if( theyMale ) {
+            main = "son";
+            }
+        else {
+            main = "daughter";
+            }
+        if( theirDistanceToCommonAncestor > 1 ) {
+            grand = true;
+            numGreats = theirDistanceToCommonAncestor - 2;
+        }
+    } else if ( theirDistanceToCommonAncestor == 0 ) {
+        // this is a direct ancestor
+        if( theyMale ) {
+            main = "father";
+            }
+        else {
+            main = "mother";
+            }
+        if( ourDistanceToCommonAncestor > 1 ) {
+            grand = true;
+            numGreats = ourDistanceToCommonAncestor - 2;
+        }
+    } else if ( ourDistanceToCommonAncestor == theirDistanceToCommonAncestor ) {
+        if ( ourDistanceToCommonAncestor == 1 ) {
+            // this is a sibling
+            if( theyMale ) {
+                main = "brother";
+                }
+            else {
+                main = "sister";
+                }
+        } else {
+            // this is a cousin
+            main = "cousin";
+            cousinNum = ourDistanceToCommonAncestor - 1;
+        }
+    } else if ( theirDistanceToCommonAncestor == 1 ) {
+        // this is an aunt or uncle
+        if( theyMale ) {
+            main = "uncle";
+            }
+        else {
+            main = "aunt";
+            }
+        if( ourDistanceToCommonAncestor > 2 ) {
+            grand = true;
+            numGreats = ourDistanceToCommonAncestor - 3;
+        }
+    } else if ( ourDistanceToCommonAncestor == 1 ) {
+        // this is a nephew or niece
+        if( theyMale ) {
+            main = "nephew";
+            }
+        else {
+            main = "niece";
+            }
+        if( theirDistanceToCommonAncestor > 2 ) {
+            grand = true;
+            numGreats = theirDistanceToCommonAncestor - 3;
+        }
+    } else {
+        // this is a removed cousin
+        main = "cousin";
+        if ( ourDistanceToCommonAncestor < theirDistanceToCommonAncestor ) {
+            cousinNum = ourDistanceToCommonAncestor;
+        } else {
+            cousinNum = theirDistanceToCommonAncestor;
+        }
+        cousinRemovedNum = abs( ourDistanceToCommonAncestor - theirDistanceToCommonAncestor );
+    }
+
+
+    SimpleVector<char> buffer;
+    
+    buffer.appendElementString( "your" );
+    buffer.appendElementString( " " );
+
+    for( int i=0; i<numGreats; i++ ) {
+        buffer.appendElementString( "great" );
+        }
+    if( grand ) {
+        buffer.appendElementString( "grand" );
+        }
+    
+    if( cousinNum > 0 ) {
+        int remainingCousinNum = cousinNum;
+
+        if( cousinNum >= 30 ) {
+            buffer.appendElementString( "distant" );
+            remainingCousinNum = 0;
+            }
+        
+        if( cousinNum > 20 && cousinNum < 30 ) {
+            buffer.appendElementString( "twenty" );
+            remainingCousinNum = cousinNum - 20;
+            }
+
+        if( remainingCousinNum > 0  ) {
+            char *numth = autoSprintf( "%dth", remainingCousinNum );
+            buffer.appendElementString( numth );
+            delete [] numth;
+            }
+        buffer.appendElementString( " " );
+        }
+
+    if( little ) {
+        buffer.appendElementString( "little" );
+        buffer.appendElementString( " " );
+        }
+    else if( big ) {
+        buffer.appendElementString( "big" );
+        buffer.appendElementString( " " );
+        }
+    else if( twin ) {
+        if( identical ) {
+            buffer.appendElementString( "identical" );
+            buffer.appendElementString( " " );
+            }
+        
+        buffer.appendElementString( "twin" );
+        buffer.appendElementString( " " );
+        }
+    
+    
+    buffer.appendElementString( main );
+    
+    if( cousinRemovedNum > 0 ) {
+        buffer.appendElementString( " " );
+        
+        if( cousinRemovedNum > 9 ) {
+            buffer.appendElementString( "many Times" );
+            }
+        else {
+            char *numTimes = autoSprintf( "%d Times", cousinRemovedNum );
+            buffer.appendElementString( numTimes );
+            delete [] numTimes;
+            }
+        buffer.appendElementString( " " );
+        buffer.appendElementString( "removed" );
+        }
+
+    printf("This person is %s\n", buffer.getElementString());
+    return buffer.getElementString();
+    }
+
 
 typedef struct Client {
         int i;
@@ -377,10 +716,95 @@ int main( int inNumArgs, char **inArgs ) {
                             delete [] lines[p];
                             }
                         delete [] lines;
+                        } else if ( strstr( message, "LN" ) == message ) {
+                            int numLines;
+                            char **lines = split( message, "\n", &numLines );
+                            
+                            if( numLines > 0 ) {
+                                // skip first
+                                delete [] lines[0];
+                                }
+                            
+                            
+                            for( int i=1; i<numLines; i++ ) {
+
+                                int id;
+                                int fatherID;
+                                int motherID;
+                                int numRead = sscanf( lines[i], "%d %d %d",
+                                                    &( id ), &( fatherID ), &( motherID ) );
+
+                                // add LiveObject if it doesn't already exist
+                                if( getLiveObject( id ) == NULL ) {
+                                    LiveObject *n = new LiveObject();
+                                    n->id = id;
+                                    n->fatherID = fatherID;
+                                    n->motherID = motherID;
+                                    n->relationName = NULL;
+                                    if( id % 2 == 0 ) {
+                                        n->male = true;
+                                    } else {
+                                        n->male = false;
+                                    }
+                                    gameObjects.push_back( *n );
+                                }
+
+                                if( numRead == 3 ) {
+                                    for( int j=0; j<gameObjects.size(); j++ ) {
+                                        LiveObject *existing = gameObjects.getElement(j);
+                                        if( existing->id == id ) {
+                                            printf("Setting player %d father to %d and mother to %d\n", existing->id, fatherID, motherID );
+                                            existing->fatherID = fatherID;
+                                            existing->motherID = motherID;
+                                            break;
+                                            }
+                                        }
+                                    
+                                    }
+                                
+                                delete [] lines[i];
+                                }
+                            delete [] lines;
+
+                            // after a LINEAGE message, we should have lineage for all
+                            // players
+                            
+                            // now process each one and generate relation string
+                            LiveObject *ourObject = getOurLiveObject();
+                            
+                            for( int j=0; j<gameObjects.size(); j++ ) {
+                                if( gameObjects.getElement(j)->id != ourID ) {
+                                            
+                                    LiveObject *other = gameObjects.getElement(j);
+                                
+                                    if( other->relationName == NULL ) {
+                                        
+                                        /*
+                                        // test
+                                        ourObject->lineage.deleteAll();
+                                        other->lineage.deleteAll();
+                                        
+                                        int cousinNum = 25;
+                                        int removeNum = 5;
+                                        
+                                        for( int i=0; i<=cousinNum; i++ ) {    
+                                            ourObject->lineage.push_back( i );
+                                            }
+
+                                        for( int i=0; i<=cousinNum - removeNum; i++ ) {    
+                                            other->lineage.push_back( 100 + i );
+                                            }
+                                        other->lineage.push_back( cousinNum );
+                                        */
+                                        other->relationName = getRelationName( ourObject,
+                                                                            other );
+                                        }
+                                    }
+                                }
+                            }
                         }
                     delete [] message;
                     }                
-                }
             else {
                 // player is live
                 
