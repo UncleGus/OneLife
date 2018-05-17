@@ -710,6 +710,8 @@ int main( int inNumArgs, char **inArgs ) {
                                 connections[i].x, 
                                 connections[i].y );
 
+                        ourID = connections[i].id;
+
 
                         
                         for( int p=0; p<numLines; p++ ) {
