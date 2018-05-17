@@ -240,26 +240,34 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
     ourLin.push_back( inOurObject->id );
 
     while( i < ourLin.size() ) {
+        printf("Looking at ourLin index %d\n", i);
         // get member at i in list, if there is a member there
+
         if( i == totalPopulation ) {
+            printf("This is the start of a new generation\n");
             // looking at a new generation
             if( ! foundPerson ) {
+                printf("The generation we just traversed was empty, stopping here\n");
                 // the 'generation' we just traversed was all empty members (-1)
                 break;
             }
             generation++;
             totalPopulation += 1 << generation;
             foundPerson = false;
+            printf("This is generation %d, containing %d people, with %d people in total in the tree\n", generation, 1 << generation, totalPopulation);
         }
         int currentID = ourLin.getElementDirect( i );
+        printf("This person's id is %d\n", currentID);
         if( currentID != -1 ) {
             foundPerson = true;
             LiveObject *currentMember = getGameObject( currentID );
+            printf("This is a real person with a father of %d and mother of %d, who are being added to the tree\n", currentMember->fatherID, currentMember->motherID);
             // add member's father to end of list
             ourLin.push_back( currentMember->fatherID );
             // add member's mother to end of list
             ourLin.push_back( currentMember->motherID );
         } else {
+            printf("This is nobody, adding -1 as father and mother to the tree\n");
             // add -1 for "nobody"
             ourLin.push_back( -1 );
             ourLin.push_back( -1 );
@@ -267,36 +275,51 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         i++;
     }
 
-    while( ourLin.getElementDirect( ourLin.size() ) == -1 ) {
+    while( ourLin.getElementDirect( ourLin.size() -1 ) == -1 ) {
         ourLin.shrink(ourLin.size() - 1 );
     }
 
+    printf("Our family tree is:\n");
+    for( int i=0; i<ourLin.size(); i++ ) {
+        printf("%d ", ourLin.getElementDirect( i ));
+    }
+    printf("\n");
+
     // start with an ID list of just that player
     i = 0;
+    foundPerson = false;
     SimpleVector<int> theirLin;
-    ourLin.push_back( inTheirObject->id );
+    theirLin.push_back( inTheirObject->id );
 
     while( i < theirLin.size() ) {
+        printf("Looking at theirLin index %d\n", i);
         // get member at i in list, if there is a member there
+
         if( i == totalPopulation ) {
+            printf("This is the start of a new generation\n");
             // looking at a new generation
             if( ! foundPerson ) {
+                printf("The generation we just traversed was empty, stopping here\n");
                 // the 'generation' we just traversed was all empty members (-1)
                 break;
             }
             generation++;
             totalPopulation += 1 << generation;
             foundPerson = false;
+            printf("This is generation %d, containing %d people, with %d people in total in the tree\n", generation, 1 << generation, totalPopulation);
         }
         int currentID = theirLin.getElementDirect( i );
+        printf("This person's id is %d\n", currentID);
         if( currentID != -1 ) {
             foundPerson = true;
             LiveObject *currentMember = getGameObject( currentID );
+            printf("This is a real person with a father of %d and mother of %d, who are being added to the tree\n", currentMember->fatherID, currentMember->motherID);
             // add member's father to end of list
             theirLin.push_back( currentMember->fatherID );
             // add member's mother to end of list
             theirLin.push_back( currentMember->motherID );
         } else {
+            printf("This is nobody, adding -1 as father and mother to the tree\n");
             // add -1 for "nobody"
             theirLin.push_back( -1 );
             theirLin.push_back( -1 );
@@ -304,21 +327,35 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         i++;
     }
 
-    while( theirLin.getElementDirect( theirLin.size() ) == -1 ) {
+    while( theirLin.getElementDirect( theirLin.size() -1 ) == -1 ) {
         theirLin.shrink(theirLin.size() - 1 );
     }
+
+    printf("Their family tree is:\n");
+    for( int i=0; i<theirLin.size(); i++ ) {
+        printf("%d ", theirLin.getElementDirect( i ));
+    }
+    printf("\n");
 
     int ourCommonAncestorIndex = 0;
     int theirCommonAncestorIndex = 0;
     int commonAncestorID = -1;
 
     for( int i = 0; i < ourLin.size(); i++ ) {
+        if( commonAncestorID != -1 ) {
+            break;
+        }
+        int ourCurrentMember = ourLin.getElementDirect( i );
+        if( ourCurrentMember == -1 ) {
+            continue;
+        }
         for( int j = 0; j < theirLin.size(); j++ ) {
-            if( commonAncestorID != -1 ) {
-                break;
+            int theirCurrentMember = theirLin.getElementDirect( j );
+            if( theirCurrentMember == -1 ) {
+                continue;
             }
-            if( ourLin.getElement( i ) == ourLin.getElement( j )) {
-                commonAncestorID = *ourLin.getElement( i );
+            if( ourCurrentMember == theirCurrentMember ) {
+                commonAncestorID = ourCurrentMember;
                 ourCommonAncestorIndex = i;
                 theirCommonAncestorIndex = j;
                 break;
@@ -332,10 +369,10 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
 
     int ourDistanceToCommonAncestor = 0;
     int theirDistanceToCommonAncestor = 0;
-    while ( 1 << ( ourDistanceToCommonAncestor + 1 ) <= ( ourCommonAncestorIndex +1 ) ) {
+    while ( 1 << ( ourDistanceToCommonAncestor + 1 ) <= ( ourCommonAncestorIndex + 1 ) ) {
         ourDistanceToCommonAncestor++;
     }
-    while ( 1 << ( theirDistanceToCommonAncestor + 1 ) <= ( theirCommonAncestorIndex +1 ) ) {
+    while ( 1 << ( theirDistanceToCommonAncestor + 1 ) <= ( theirCommonAncestorIndex + 1 ) ) {
         theirDistanceToCommonAncestor++;
     }
 
@@ -508,6 +545,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         buffer.appendElementString( translate( "removed" ) );
         }
 
+    printf("This person is %s\n", buffer.getElementString());
     return buffer.getElementString();
     }
 
@@ -9232,7 +9270,8 @@ void LivingLifePage::step() {
                 
                 o.name = NULL;
                 o.relationName = NULL;
-
+                o.fatherID = -1;
+                o.motherID = -1;
 
                 o.tempAgeOverrideSet = false;
                 o.tempAgeOverride = 0;
@@ -11578,10 +11617,11 @@ void LivingLifePage::step() {
                 int numRead = sscanf( lines[i], "%d %d %d",
                                       &( id ), &( fatherID ), &( motherID ) );
 
-                if( numRead == 1 ) {
+                if( numRead == 3 ) {
                     for( int j=0; j<gameObjects.size(); j++ ) {
                         LiveObject *existing = gameObjects.getElement(j);
                         if( existing->id == id ) {
+                            printf("Setting player %d father to %d and mother to %d\n", existing->id, fatherID, motherID );
                             existing->fatherID = fatherID;
                             existing->motherID = motherID;
                             break;

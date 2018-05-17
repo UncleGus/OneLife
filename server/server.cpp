@@ -285,6 +285,12 @@ typedef struct LiveObject {
         // and what original weapon killed them?
         int murderSourceID;
         char holdingWound;
+
+        // who killed them?
+        int murderPerpID;
+        
+        // or if they were killed by a non-person, what was it?
+        int deathSourceID;
         
 
         Socket *sock;
@@ -3251,6 +3257,10 @@ void processLoggedInPlayer( Socket *inSock,
             
             spawnTarget->babyBirthTimes->push_back( curTime );
             spawnTarget->babyIDs->push_back( newObject.id );
+            if( spawnTarget->closestAdultMaleID != -1 ) {
+                LiveObject *f = getLiveObject( spawnTarget->closestAdultMaleID );
+                f->babyIDs->push_back( newObject.id );
+            }
             
             // set cool-down time before this worman can have another baby
             spawnTarget->birthCoolDown = pickBirthCooldownSeconds() + curTime;
@@ -3383,14 +3393,16 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.xd = cPos.x;
             newObject.yd = cPos.y;
 
-            spawnTarget->hasAdam = true;            
             }
+        AppLog::infoF("Remembering that this Eve has an Adam\n");
+        spawnTarget->hasAdam = true;
     }
     
 
     int forceID = SettingsManager::getIntSetting( "forceEveObject", 0 );
     
     if( forceID > 0 ) {
+        AppLog::infoF("Forcing Eve displayID\n");
         newObject.displayID = forceID;
         }
     
@@ -3398,6 +3410,7 @@ void processLoggedInPlayer( Socket *inSock,
     float forceAge = SettingsManager::getFloatSetting( "forceEveAge", 0.0 );
     
     if( forceAge > 0 ) {
+        AppLog::infoF("Forcing Eve age\n");
         newObject.lifeStartTimeSeconds = 
             Time::getCurrentTime() - forceAge * ( 1.0 / getAgeRate() );
         }
@@ -3407,9 +3420,11 @@ void processLoggedInPlayer( Socket *inSock,
 
 
     if( areTriggersEnabled() ) {
+        AppLog::infoF("Triggers are enabled\n");
         int id = getTriggerPlayerDisplayID( inEmail );
         
         if( id != -1 ) {
+            AppLog::infoF("ID is not -1\n");
             newObject.displayID = id;
             
             newObject.lifeStartTimeSeconds = 
@@ -3430,6 +3445,7 @@ void processLoggedInPlayer( Socket *inSock,
         }
     
     
+    AppLog::infoF("Setting new object values\n");
     newObject.lineage = new SimpleVector<int>();
     
     newObject.name = NULL;
@@ -3462,6 +3478,10 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.murderSourceID = 0;
     newObject.holdingWound = false;
     
+    newObject.murderPerpID = 0;
+    newObject.deathSourceID = 0;
+    
+
     newObject.sock = inSock;
     newObject.sockBuffer = inSockBuffer;
     newObject.isNew = true;
@@ -3500,18 +3520,19 @@ void processLoggedInPlayer( Socket *inSock,
         }
 
     
+    newObject.closestAdultMaleID = -1;
+    newObject.distanceToClosestAdultMale = 10000;
     newObject.motherID = -1;
     char *motherEmail = NULL;
     newObject.fatherID = -1;
-    char *fatherEmail = NULL;
 
     if( spawnTarget != NULL && isFertileAge( spawnTarget ) && !newObject.isAdam ) {
+        AppLog::infoF("Setting new object's father and mother IDs\n");
         // do not log babies that new Eve spawns next to as mothers
         // or Eves that Adam spawns next to
         newObject.motherID = spawnTarget->id;
         newObject.fatherID = spawnTarget->closestAdultMaleID;
         motherEmail = spawnTarget->email;
-        fatherEmail = getLiveObject( newObject.fatherID )->email;
 
         newObject.motherChainLength = spawnTarget->motherChainLength + 1;
         newObject.lineageEveID = spawnTarget->lineageEveID;
@@ -3529,6 +3550,7 @@ void processLoggedInPlayer( Socket *inSock,
             }
         
         
+        AppLog::infoF("Copying some lineage stuff\n");
         for( int i=0; 
              i < spawnTarget->lineage->size() && 
                  i < maxLineageTracked - 1;
@@ -3557,6 +3579,7 @@ void processLoggedInPlayer( Socket *inSock,
     players.push_back( newObject );            
 
 
+    AppLog::infoF("Logging the birth\n");
     logBirth( newObject.id,
               newObject.email,
               newObject.motherID,
@@ -5394,7 +5417,9 @@ int main() {
                     setDeathReason( nextPlayer, 
                                     "killed",
                                     curOverID );
-
+                    
+                    nextPlayer->deathSourceID = curOverID;
+                    
                     nextPlayer->error = true;
                     nextPlayer->errorCauseString =
                         "Player killed by permanent object";
@@ -6169,6 +6194,10 @@ int main() {
                                         hitPlayer->murderSourceID =
                                             nextPlayer->holdingID;
                                         
+                                        hitPlayer->murderPerpID =
+                                            nextPlayer->id;
+                                        
+
                                         setDeathReason( hitPlayer, 
                                                         "killed",
                                                         nextPlayer->holdingID );
@@ -6193,10 +6222,6 @@ int main() {
                                         
                                             logDeath( hitPlayer->id,
                                                       hitPlayer->email,
-                                                      hitPlayer->motherID,
-                                                      hitPlayer->displayID,
-                                                      hitPlayer->name,
-                                                      hitPlayer->lastSay,
                                                       hitPlayer->isEve,
                                                       computeAge( hitPlayer ),
                                                       getSecondsPlayed( 
@@ -7951,10 +7976,33 @@ int main() {
                     dropPos = 
                         computePartialMoveSpot( nextPlayer );
                     }
+                
+                // report to lineage server once here
+                double age = computeAge( nextPlayer );
+                
+                int killerID = -1;
+                if( nextPlayer->murderPerpID > 0 ) {
+                    killerID = nextPlayer->murderPerpID;
+                    }
+                else if( nextPlayer->deathSourceID > 0 ) {
+                    // include as negative of ID
+                    killerID = - nextPlayer->deathSourceID;
+                    }
+                
+                
+                char male = ! getFemale( nextPlayer );
+                
+                recordPlayerLineage( nextPlayer->email, 
+                                     age,
+                                     nextPlayer->id,
+                                     nextPlayer->motherID,
+                                     nextPlayer->displayID,
+                                     killerID,
+                                     nextPlayer->name,
+                                     nextPlayer->lastSay,
+                                     male );
 
                 if( ! nextPlayer->deathLogged ) {
-                    double age = computeAge( nextPlayer );
-                    
                     char disconnect = true;
                     
                     if( age >= forceDeathAge ) {
@@ -7963,14 +8011,10 @@ int main() {
                     
                     logDeath( nextPlayer->id,
                               nextPlayer->email,
-                              nextPlayer->motherID,
-                              nextPlayer->displayID,
-                              nextPlayer->name,
-                              nextPlayer->lastSay,
                               nextPlayer->isEve,
-                              computeAge( nextPlayer ),
+                              age,
                               getSecondsPlayed( nextPlayer ),
-                              ! getFemale( nextPlayer ),
+                              male,
                               dropPos.x, dropPos.y,
                               players.size() - 1,
                               disconnect );
@@ -8888,19 +8932,17 @@ int main() {
                                 computePartialMoveSpot( decrementedPlayer );
                             }
                         
-                        logDeath( decrementedPlayer->id,
-                                  decrementedPlayer->email,
-                                  decrementedPlayer->motherID,
-                                  decrementedPlayer->displayID,
-                                  decrementedPlayer->name,
-                                  decrementedPlayer->lastSay,
-                                  decrementedPlayer->isEve,
-                                  computeAge( decrementedPlayer ),
-                                  getSecondsPlayed( decrementedPlayer ),
-                                  ! getFemale( decrementedPlayer ),
-                                  deathPos.x, deathPos.y,
-                                  players.size() - 1,
-                                  false );
+                        if( ! decrementedPlayer->deathLogged ) {    
+                            logDeath( decrementedPlayer->id,
+                                      decrementedPlayer->email,
+                                      decrementedPlayer->isEve,
+                                      computeAge( decrementedPlayer ),
+                                      getSecondsPlayed( decrementedPlayer ),
+                                      ! getFemale( decrementedPlayer ),
+                                      deathPos.x, deathPos.y,
+                                      players.size() - 1,
+                                      false );
+                            }
                         
                         if( shutdownMode ) {
                             handleShutdownDeath( decrementedPlayer,
@@ -9428,12 +9470,17 @@ int main() {
                     continue;
                     }
 
-                char *pID = autoSprintf( "%d", nextPlayer->id );
+                char *pID = autoSprintf( "%d ", nextPlayer->id );
+                char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
+                char *motherID = autoSprintf( "%d", nextPlayer->motherID );
+                AppLog::infoF("Sending lineage message: %d %d %d\n", nextPlayer->id, nextPlayer->fatherID, nextPlayer->motherID);
                 linWorking.appendElementString( pID );
+                linWorking.appendElementString( fatherID );
+                linWorking.appendElementString( motherID );
                 delete [] pID;
+                delete [] fatherID;
+                delete [] motherID;
                 numAdded++;
-                linWorking.appendElementString( autoSprintf( " %d", nextPlayer->fatherID ));
-                linWorking.appendElementString( autoSprintf( " %d\n", nextPlayer->motherID ));
                 }
             
             linWorking.push_back( '#' );
@@ -9657,18 +9704,17 @@ int main() {
                         continue;
                         }
 
-                    char *pID = autoSprintf( "%d", o->id );
+                    char *pID = autoSprintf( "%d ", nextPlayer->id );
+                    char *fatherID = autoSprintf( "%d ", nextPlayer->fatherID );
+                    char *motherID = autoSprintf( "%d", nextPlayer->motherID );
+                    AppLog::infoF("Sending first lineage message: %d %d %d\n", nextPlayer->id, nextPlayer->fatherID, nextPlayer->motherID);
                     linWorking.appendElementString( pID );
+                    linWorking.appendElementString( fatherID );
+                    linWorking.appendElementString( motherID );
                     delete [] pID;
+                    delete [] fatherID;
+                    delete [] motherID;
                     numAdded++;
-                    for( int j=0; j<o->lineage->size(); j++ ) {
-                        char *mID = 
-                            autoSprintf( 
-                                " %d",
-                                o->lineage->getElementDirect( j ) );
-                        linWorking.appendElementString( mID );
-                        delete [] mID;
-                        }        
                     linWorking.push_back( '\n' );
                     }
                 
