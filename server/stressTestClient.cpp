@@ -662,7 +662,7 @@ int main( int inNumArgs, char **inArgs ) {
                 }
             numConnected ++;
         
-            if( connections[i].id == -1 ) {
+            if( true || connections[i].id == -1) {
                 // still waiting for first PU
 
                 if( connections[i].disconnected ) {
