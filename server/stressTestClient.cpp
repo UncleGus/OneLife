@@ -826,7 +826,7 @@ int main( int inNumArgs, char **inArgs ) {
                     }
 
 
-                if( !connections[i].moving ) {
+                if( false && !connections[i].moving ) {
                 
                     // make a move
 
