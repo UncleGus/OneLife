@@ -755,7 +755,7 @@ int main( int inNumArgs, char **inArgs ) {
                                     for( int j=0; j<gameObjects.size(); j++ ) {
                                         LiveObject *existing = gameObjects.getElement(j);
                                         if( existing->id == id ) {
-                                            printf("Setting player %d father to %d and mother to %d\n", existing->id, fatherID, motherID );
+                                            // printf("Setting player %d father to %d and mother to %d\n", existing->id, fatherID, motherID );
                                             existing->fatherID = fatherID;
                                             existing->motherID = motherID;
                                             break;
