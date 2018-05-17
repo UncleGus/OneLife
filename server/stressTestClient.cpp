@@ -736,17 +736,17 @@ int main( int inNumArgs, char **inArgs ) {
 
                                 // add LiveObject if it doesn't already exist
                                 if( getLiveObject( id ) == NULL ) {
-                                    LiveObject *n = new LiveObject();
-                                    n->id = id;
-                                    n->fatherID = fatherID;
-                                    n->motherID = motherID;
-                                    n->relationName = NULL;
+                                    LiveObject n;
+                                    n.id = id;
+                                    n.fatherID = fatherID;
+                                    n.motherID = motherID;
+                                    n.relationName = NULL;
                                     if( id % 2 == 0 ) {
-                                        n->male = true;
+                                        n.male = true;
                                     } else {
-                                        n->male = false;
+                                        n.male = false;
                                     }
-                                    gameObjects.push_back( *n );
+                                    gameObjects.push_back( n );
                                 }
 
                                 if( numRead == 3 ) {
