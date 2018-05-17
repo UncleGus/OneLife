@@ -355,7 +355,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         buffer.appendElementString( "removed" );
         }
 
-    printf("%d, this person is %s\n", ourID, buffer.getElementString());
+    printf("%d, %d is %s\n", ourID, inTheirObject->id, buffer.getElementString());
     return buffer.getElementString();
     }
 
