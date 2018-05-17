@@ -355,7 +355,7 @@ char *getRelationName( LiveObject *inOurObject, LiveObject *inTheirObject ) {
         buffer.appendElementString( "removed" );
         }
 
-    printf("This person is %s\n", buffer.getElementString());
+    printf("%d, this person is %s\n", ourID, buffer.getElementString());
     return buffer.getElementString();
     }
 
@@ -676,7 +676,7 @@ int main( int inNumArgs, char **inArgs ) {
                 char *message = getNextMessage( &( connections[i] ) );
 
                 if( message != NULL ) {
-                    printf( "Client %d got message:\n%s\n\n", i, message );
+                    // printf( "Client %d got message:\n%s\n\n", i, message );
                     
                     if( strstr( message, "MC" ) == message ) {
                         //printf( "Client %d got first map chunk\n", i );
@@ -704,11 +704,11 @@ int main( int inNumArgs, char **inArgs ) {
                                                       lines[ numLines - 2 ] );
                             }
                     
-                        printf( "Client %d got first player update, "
-                                "pid = %d, pos = %d,%d\n", i, 
-                                connections[i].id,
-                                connections[i].x, 
-                                connections[i].y );
+                        // printf( "Client %d got first player update, "
+                        //         "pid = %d, pos = %d,%d\n", i, 
+                        //         connections[i].id,
+                        //         connections[i].x, 
+                        //         connections[i].y );
 
                         ourID = connections[i].id;
 
