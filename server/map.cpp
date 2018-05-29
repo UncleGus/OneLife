@@ -661,6 +661,12 @@ static int computeMapBiomeIndex( int inX, int inY,
                                         inY,
                                         0.55, 
                                         0.83332 + 0.08333 * numBiomes );
+
+        // proof of concept for relative biome sizes
+        // just need some way to define and read in scalars for each biome
+        if( i == numBiomes -3 ) {
+            randVal *= 1.5;
+        }
         
         if( randVal > maxValue ) {
             // a new first place
