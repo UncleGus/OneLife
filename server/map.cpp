@@ -169,6 +169,7 @@ static double gapIntScale = 1000000.0;
 // object ids that occur naturally on map at random, per biome
 static int numBiomes;
 static int *biomes;
+static float *biomeScalars;
 
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
@@ -662,11 +663,7 @@ static int computeMapBiomeIndex( int inX, int inY,
                                         0.55, 
                                         0.83332 + 0.08333 * numBiomes );
 
-        // proof of concept for relative biome sizes
-        // just need some way to define and read in scalars for each biome
-        if( i == numBiomes -3 ) {
-            randVal *= 1.5;
-        }
+        randVal *= biomeScalar[i];
         
         if( randVal > maxValue ) {
             // a new first place
@@ -2284,7 +2281,7 @@ void initMap() {
     
     // first, find all biomes
     SimpleVector<int> biomeList;
-    
+    SimpleVector<float> biomeScalarList;
     
     for( int i=0; i<numObjects; i++ ) {
         ObjectRecord *o = allObjects[i];
@@ -2339,6 +2336,33 @@ void initMap() {
             }
         }
 
+
+    for( int i=0; i<numBiomes; i++ ) {
+        SimpleVector<char> fileNameWorking;
+        char *fileNameString = autoSprintf("ground/ground_%d.txt", biomes[i]);
+        fileNameWorking.appendElementString( fileNameString );
+        delete fileNameString;
+        char *fileName = fileNameWorking.getElementString();
+        FILE *biomeScalarFile = fopen( fileName, "r" );
+                
+        float biomeScalar = 1.0f;
+
+        if( biomeScalarFile == NULL ) {
+            biomeScalarList.push_back( 1.0f );
+        } else {
+            int numRead = fscanf( biomeScalarFile, "%f", &biomeScalar );
+            if( numRead == 1 ) {
+                biomeScalarList.push_back( biomeScalar );
+            } else {
+                biomeScalarList.push_back( 1.0f );
+            }
+        }
+    }
+    biomeScalars = biomeScalarList.getElementArray();
+
+    for( int i=0; i<numBiomes; i++ ) {
+        AppLog::infoF( "Biome %d: scalar %f", biomes[i], biomeScalars[i] );
+    }
 
     for( int j=0; j<numBiomes; j++ ) {    
         AppLog::infoF( 
