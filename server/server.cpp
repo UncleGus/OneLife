@@ -2578,6 +2578,10 @@ char isMapSpotBlocking( int inX, int inY ) {
             return true;
             }
         }
+
+    if( getMapBlocking( inX, inY ) == 1 ) {
+        return true;
+    }
     
     // not directly blocked
     // need to check for wide objects to left and right

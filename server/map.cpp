@@ -170,6 +170,7 @@ static double gapIntScale = 1000000.0;
 static int numBiomes;
 static int *biomes;
 static float *biomeScalars;
+static int *biomeBlockers;
 
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
@@ -663,7 +664,7 @@ static int computeMapBiomeIndex( int inX, int inY,
                                         0.55, 
                                         0.83332 + 0.08333 * numBiomes );
 
-        randVal *= biomeScalar[i];
+        randVal *= biomeScalars[i];
         
         if( randVal > maxValue ) {
             // a new first place
@@ -2282,6 +2283,7 @@ void initMap() {
     // first, find all biomes
     SimpleVector<int> biomeList;
     SimpleVector<float> biomeScalarList;
+    SimpleVector<int> biomeBlockingList;
     
     for( int i=0; i<numObjects; i++ ) {
         ObjectRecord *o = allObjects[i];
@@ -2343,25 +2345,34 @@ void initMap() {
         fileNameWorking.appendElementString( fileNameString );
         delete fileNameString;
         char *fileName = fileNameWorking.getElementString();
-        FILE *biomeScalarFile = fopen( fileName, "r" );
+        FILE *biomeFile = fopen( fileName, "r" );
                 
         float biomeScalar = 1.0f;
+        int biomeBlocking = 0;
 
-        if( biomeScalarFile == NULL ) {
+        if( biomeFile == NULL ) {
             biomeScalarList.push_back( 1.0f );
+            biomeBlockingList.push_back( 0 );
         } else {
-            int numRead = fscanf( biomeScalarFile, "%f", &biomeScalar );
-            if( numRead == 1 ) {
+            int numRead = fscanf( biomeFile, "%f %d", &biomeScalar, &biomeBlocking );
+            if( numRead >= 1 ) {
                 biomeScalarList.push_back( biomeScalar );
             } else {
                 biomeScalarList.push_back( 1.0f );
             }
+            if( numRead >= 2 ) {
+                biomeBlockingList.push_back( biomeBlocking );
+            } else {
+                biomeBlockingList.push_back( 0 );
+            }
+            
         }
     }
     biomeScalars = biomeScalarList.getElementArray();
+    biomeBlockers = biomeBlockingList.getElementArray();
 
     for( int i=0; i<numBiomes; i++ ) {
-        AppLog::infoF( "Biome %d: scalar %f", biomes[i], biomeScalars[i] );
+        AppLog::infoF( "Biome %d: scalar %f blocking %d", biomes[i], biomeScalars[i], biomeBlockers[i] );
     }
 
     for( int j=0; j<numBiomes; j++ ) {    
@@ -4210,6 +4221,9 @@ int getMapBiome( int inX, int inY ) {
     return biomes[getMapBiomeIndex( inX, inY )];
     }
 
+int getMapBlocking( int inX, int inY ) {
+    return biomeBlockers[getMapBiomeIndex( inX, inY )];
+    }
 
 
 
