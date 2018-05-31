@@ -169,7 +169,7 @@ static double gapIntScale = 1000000.0;
 // object ids that occur naturally on map at random, per biome
 static int numBiomes;
 static int *biomes;
-static float *biomeScalars;
+static double *biomeBiases;
 static int *biomeBlockers;
 
 // one vector per biome
@@ -664,7 +664,10 @@ static int computeMapBiomeIndex( int inX, int inY,
                                         0.55, 
                                         0.83332 + 0.08333 * numBiomes );
 
-        randVal *= biomeScalars[i];
+        printf( "randVal before bias: %f\n", randVal );
+        randVal += biomeBiases[i];
+        printf( "randVal after bias: %f\n", randVal );
+
         
         if( randVal > maxValue ) {
             // a new first place
@@ -2282,7 +2285,7 @@ void initMap() {
     
     // first, find all biomes
     SimpleVector<int> biomeList;
-    SimpleVector<float> biomeScalarList;
+    SimpleVector<double> biomeBiasList;
     SimpleVector<int> biomeBlockingList;
     
     for( int i=0; i<numObjects; i++ ) {
@@ -2347,18 +2350,18 @@ void initMap() {
         char *fileName = fileNameWorking.getElementString();
         FILE *biomeFile = fopen( fileName, "r" );
                 
-        float biomeScalar = 1.0f;
+        double biomeBias = 0.0;
         int biomeBlocking = 0;
 
         if( biomeFile == NULL ) {
-            biomeScalarList.push_back( 1.0f );
+            biomeBiasList.push_back( 0.0 );
             biomeBlockingList.push_back( 0 );
         } else {
-            int numRead = fscanf( biomeFile, "%f %d", &biomeScalar, &biomeBlocking );
+            int numRead = fscanf( biomeFile, "%lf %d", &biomeBias, &biomeBlocking );
             if( numRead >= 1 ) {
-                biomeScalarList.push_back( biomeScalar );
+                biomeBiasList.push_back( biomeBias );
             } else {
-                biomeScalarList.push_back( 1.0f );
+                biomeBiasList.push_back( 0.0 );
             }
             if( numRead >= 2 ) {
                 biomeBlockingList.push_back( biomeBlocking );
@@ -2368,11 +2371,11 @@ void initMap() {
             
         }
     }
-    biomeScalars = biomeScalarList.getElementArray();
+    biomeBiases = biomeBiasList.getElementArray();
     biomeBlockers = biomeBlockingList.getElementArray();
 
     for( int i=0; i<numBiomes; i++ ) {
-        AppLog::infoF( "Biome %d: scalar %f blocking %d", biomes[i], biomeScalars[i], biomeBlockers[i] );
+        AppLog::infoF( "Biome %d: bias %f blocking %d", biomes[i], biomeBiases[i], biomeBlockers[i] );
     }
 
     for( int j=0; j<numBiomes; j++ ) {    
