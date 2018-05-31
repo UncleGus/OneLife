@@ -664,10 +664,6 @@ static int computeMapBiomeIndex( int inX, int inY,
                                         0.55, 
                                         0.83332 + 0.08333 * numBiomes );
 
-        printf( "randVal before bias: %f\n", randVal );
-        randVal += biomeBiases[i];
-        printf( "randVal after bias: %f\n", randVal );
-
         
         if( randVal > maxValue ) {
             // a new first place
