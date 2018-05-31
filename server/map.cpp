@@ -905,7 +905,14 @@ static int getBaseMap( int inX, int inY ) {
     if( getXYRandom( inX, inY ) < density ) {
 
 
-
+        // check if this is a water biome
+        // if it is, do the pathfinding stuff
+        // and mapCacheInsert() all the tiles in the right places
+        // only problem is that this will probably make a partially completed chunk
+        // message obsolete and might even change the world on the server
+        // without telling affected players
+        // the player triggering the chunk message might be able to get it, but not
+        // necessarily everyone in the area
 
         // next step, pick top two biomes
         int secondPlace;
