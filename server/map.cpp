@@ -172,17 +172,33 @@ static int *biomes;
 static double *biomeBiases;
 static int *biomeBlockers;
 
+typedef enum direction {
+	NORTH,
+    EAST,
+    SOUTH,
+    WEST,
+    UNKNOWN
+    } direction;
+
 
 // these will all be read in from a file
-static int waterSpawnId = -10;
-static int waterNorth = -11;
-static int waterNorthEast = -12;
-static int waterEast = -13;
-static int waterSouthEast = -14;
-static int waterSouth = -15;
-static int waterSouthWest = -16;
-static int waterWest = -17;
-static int waterNorthWest = -18;
+static int waterSpawnId = 141;
+static int waterSouthToNorth = 1093;
+static int waterWestToEast = 1094;
+static int waterNorthToSouth = 1095;
+static int waterEastToWest = 1096;
+static int waterSouthToEast = 1097;
+static int waterSouthToWest = 1098;
+static int waterWestToSouth = 1099;
+static int waterWestToNorth = 1100;
+static int waterNorthToWest = 1101;
+static int waterNorthToEast = 1102;
+static int waterEastToNorth = 1103;
+static int waterEastToSouth = 1104;
+static int waterSpringToNorth = 1107;
+static int waterSpringToEast = 1108;
+static int waterSpringToSouth = 1105;
+static int waterSpringToWest = 1106;
 
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
@@ -916,16 +932,6 @@ static int getBaseMap( int inX, int inY ) {
     
     if( getXYRandom( inX, inY ) < density ) {
 
-
-        // check if this is a water biome
-        // if it is, do the pathfinding stuff
-        // and mapCacheInsert() all the tiles in the right places
-        // only problem is that this will probably make a partially completed chunk
-        // message obsolete and might even change the world on the server
-        // without telling affected players
-        // the player triggering the chunk message might be able to get it, but not
-        // necessarily everyone in the area
-
         // next step, pick top two biomes
         int secondPlace;
         double secondPlaceGap;
@@ -933,6 +939,14 @@ static int getBaseMap( int inX, int inY ) {
         int pickedBiome = getMapBiomeIndex( inX, inY, &secondPlace,
                                             &secondPlaceGap );
         
+        // we don't want stream spawn objects spawning
+        // on non-water biomes, so if the second place biome
+        // is water, implying that the first place is not,
+        // then we don't want water biome objects to be spawned
+        if( biomeBlockers[secondPlace] == 1 ) {
+            secondPlace = pickedBiome;
+        }
+
         if( pickedBiome == -1 ) {
             mapCacheInsert( inX, inY, 0 );
             return 0;
@@ -4243,7 +4257,112 @@ int getMapBlocking( int inX, int inY ) {
     return biomeBlockers[getMapBiomeIndex( inX, inY )];
     }
 
+void mapCacheInsertFake( int inX, int inY, int id ) {
+    printf( "I would be creating a %d at %d, %d\n", id, inX, inY );
+}
 
+void placeWaterTile( int inX, int inY, direction oldDirection, direction newDirection ) {
+    switch( oldDirection ) {
+        case NORTH:
+            switch( newDirection ) {
+                case NORTH:
+                    mapCacheInsert( inX, inY, waterNorthToSouth);
+                break;
+                case EAST:
+                    mapCacheInsert( inX, inY, waterEastToSouth);
+                break;
+                case WEST:
+                    mapCacheInsert( inX, inY, waterWestToSouth);
+                break;
+                case SOUTH:
+                case UNKNOWN:
+                    mapCacheInsert( inX, inY, waterSpringToSouth);
+                break;
+            }
+        break;
+        case EAST:
+            switch( newDirection ) {
+                case NORTH:
+                    mapCacheInsert( inX, inY, waterNorthToWest);
+                break;
+                case EAST:
+                    mapCacheInsert( inX, inY, waterEastToWest);
+                break;
+                case SOUTH:
+                    mapCacheInsert( inX, inY, waterSouthToWest);
+                break;
+                case WEST:
+                case UNKNOWN:
+                    mapCacheInsert( inX, inY, waterSpringToWest);
+                break;
+            }
+        break;
+        case SOUTH:
+            switch( newDirection ) {
+                case EAST:
+                    mapCacheInsert( inX, inY, waterEastToNorth);
+                break;
+                case SOUTH:
+                    mapCacheInsert( inX, inY, waterSouthToNorth);
+                break;
+                case WEST:
+                    mapCacheInsert( inX, inY, waterWestToNorth);
+                break;
+                case NORTH:
+                case UNKNOWN:
+                    mapCacheInsert( inX, inY, waterSpringToNorth);
+                break;
+            }
+        break;
+        case WEST:
+            switch( newDirection ) {
+                case NORTH:
+                    mapCacheInsert( inX, inY, waterNorthToEast);
+                break;
+                case SOUTH:
+                    mapCacheInsert( inX, inY, waterSouthToEast);
+                break;
+                case WEST:
+                    mapCacheInsert( inX, inY, waterWestToEast);
+                break;
+                case EAST:
+                case UNKNOWN:
+                    mapCacheInsert( inX, inY, waterSpringToEast);
+                break;
+            }
+        break;
+        case UNKNOWN:
+        // do nothing
+        break;
+    }
+}
+
+char isWaterBiomeCell( int inX, int inY ) {
+    return getMapBlocking( inX, inY ) == 1;
+}
+
+char isWaterObjectCell( int inX, int inY ) {
+    int cellObject = getMapObject( inX, inY );
+    if ( cellObject == waterSouthToNorth ||
+        cellObject == waterWestToEast ||
+        cellObject == waterNorthToSouth ||
+        cellObject == waterEastToWest ||
+        cellObject == waterSouthToEast ||
+        cellObject == waterSouthToWest ||
+        cellObject == waterWestToSouth ||
+        cellObject == waterWestToNorth ||
+        cellObject == waterNorthToWest ||
+        cellObject == waterNorthToEast ||
+        cellObject == waterEastToNorth ||
+        cellObject == waterEastToSouth ||
+        cellObject == waterSpringToNorth ||
+        cellObject == waterSpringToEast ||
+        cellObject == waterSpringToSouth ||
+        cellObject == waterSpringToWest ) {
+        return true;
+    }
+    return false;
+}
 
 // returns properly formatted chunk message for chunk centered
 // around x,y
@@ -4274,10 +4393,12 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
     // -1 = abort this generation run and start again
     // 1 = completed
     
-    while( !chunkGenerationStatus == 1 ) {
+    while( chunkGenerationStatus != 1 ) {
+        printf( "Generating chunk message\n" );
         chunkGenerationStatus = 0;
         for( int y=inStartY; y<endY; y++ ) {
             if( chunkGenerationStatus == -1 ) {
+                printf( "Aborting this chunk message generation\n" );
                 break;
             }
             int chunkY = y - inStartY;
@@ -4285,6 +4406,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
 
             for( int x=inStartX; x<endX; x++ ) {
                 if( chunkGenerationStatus == -1 ) {
+                    printf( "Aborting this chunk message generation\n" );
                     break;
                 }
 
@@ -4297,36 +4419,107 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                 chunk[cI] = getMapObject( x, y );
 
                 if( chunk[cI] == waterSpawnId ) {
-                    // do stream pathfinding stuff here
 
                     // generate a stream length
-                    int streamLength = ceil( getXYFractal( x, y, 0.5, 1 ) * 16 );
-                    int finished = 0;
-
-                    while( finished == 0 ) {
-                        int newCellFound = 0;
-                        int checkOrder [4] = { 0, 1, 2, 3 };
-                        setXYRandomSeed( 1 * 263 + 723 );
-                        double northRand = getXYFractal( x, y, 0.5, 1 );
-                        setXYRandomSeed( 2 * 263 + 723 );
-                        double southRand = getXYFractal( x, y, 0.5, 1 );
-
+                    printf( "Spawning a stream\n" );
+                    setXYRandomSeed( 9476 );
+                    int streamLength = getXYRandom( x, y ) * 16;
+                    direction newCellDirection = UNKNOWN;
+                    direction oldCellDirection = UNKNOWN;
+                    int oldX = x;
+                    int oldY = y;
+                    direction checkOrder [4] = { NORTH, EAST, SOUTH, WEST };
+                    for( int nn=0; nn<10; nn++ ) {
+                        int firstIndex = getXYRandom( x + nn * 10, y ) * 4;
+                        int secondIndex = getXYRandom( x, y + nn * 10 ) * 4;
+                        direction holder = checkOrder[secondIndex];
+                        checkOrder[secondIndex] = checkOrder[firstIndex];
+                        checkOrder[firstIndex] = holder;
                     }
+                    
+                    while( streamLength > 0 ) {
+                        oldCellDirection = newCellDirection;
+                        newCellDirection = UNKNOWN;
+                        printf( "Rest of stream length is %d\n", streamLength );
+                        printf( "oldCellDirection is %d\n", oldCellDirection );
+                        for( int nn=0; nn<4; nn++ ) {
+                            int firstIndex = getXYRandom( x + nn * 10, y ) * 4;
+                            int secondIndex = getXYRandom( x, y + nn * 10 ) * 4;
+                            direction holder = checkOrder[secondIndex];
+                            checkOrder[secondIndex] = checkOrder[firstIndex];
+                            checkOrder[firstIndex] = holder;
+                        }
+                        int checkIndex = 0;
+                        int checkX;
+                        int checkY;
+                        while( newCellDirection == UNKNOWN && checkIndex < 4) {
+                            printf( "Making check #%d for empty dry cell\n", checkIndex );
+                            printf( "Starting from cell %d, %d and checking ", oldX, oldY );
+                            switch( checkOrder[checkIndex] ) {
+                                case NORTH:
+                                    printf( "NORTH");
+                                    checkX = oldX;
+                                    checkY = oldY + 1;
+                                break;
+                                case EAST:
+                                    printf( "EAST");
+                                    checkX = oldX + 1;
+                                    checkY = oldY;
+                                break;
+                                case SOUTH:
+                                    printf( "SOUTH");
+                                    checkX = oldX;
+                                    checkY = oldY - 1;
+                                break;
+                                case WEST:
+                                    printf( "WEST");
+                                    checkX = oldX - 1;
+                                    checkY = oldY;
+                                break;
+                                case UNKNOWN:
+                                    printf( "UNKNOWN" );
+                                break;
+                            }
+                            printf( " in cell %d, %d\n", checkX, checkY);
+                            // if this new cell is not a water cell and does not already contain a water tile
+                            if( !isWaterBiomeCell( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                                newCellDirection = checkOrder[checkIndex];
+                                printf( "Found a suitable cell\n" );
+                            } else {
+                                printf( "This cell is not suitable\n" );
+                                checkIndex++;
+                            }
+                        }
+                        if( newCellDirection != UNKNOWN ) {
+                            // we have a new cell to place a water tile in
+                            // first we need to place the appropriate water cell in
+                            // the tile we just came from, now that we know the two directions
+                            printf( "Placing a water tile\n" );
+                            placeWaterTile( oldX, oldY, oldCellDirection, newCellDirection );
+                            oldX = checkX;
+                            oldY = checkY;
+                            streamLength--;
+                        } else {
+                            // we couldn't find a new cell to place a water tile in,
+                            // finish the stream here
+                            printf( "Dead end\n" );
+                            streamLength = 0;
+                        }
+                    }
+                    printf( "End of stream\n" );
 
-                    // remember current cell is x, y
-                    // remember previous cell is current cell
-                    // determine noisy order for checking cardinal directions for dry cell
-                    // find adjacent dry cell
-                    // remember current cell is new dry cell location
-                    // determine direction of dry cell. which is the exit direction of stream from dry cell
-                    // and entry direction of the previous cell
-                    // set current cell tile to watertile using the two directions to determine which
-                    // is stream length reached?
-                        // yes, place directional headwater object in new cell and end loop
-                    // no, 
+                    // place headwater at oldX, oldY, based on oldCellDirection
+                    printf( "Placing a headwater object at %d, %d\n", oldX, oldY );
+                    placeWaterTile( oldX, oldY, oldCellDirection, newCellDirection );
 
-                    chunkGenerationStatus = -1; // need to generate the map chunk message because cell contents have changed
-                    break;
+                    // remove object at x, y
+                    printf( "Removing initial spawn trigger object at %d, %d\n", x, y );
+                    mapCacheInsert( x, y, 0);
+
+
+                    // printf( "Signalling chunk generation restart\n");
+                    // chunkGenerationStatus = -1; // need to generate the map chunk message because cell contents have changed
+                    // break;
                 }
 
                 if( lastCheckedBiome == -1 ) {
@@ -4380,6 +4573,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                 }
             
             }
+            printf( "Finished generating the chunk message\n" );
             chunkGenerationStatus = 1;
         }
 
