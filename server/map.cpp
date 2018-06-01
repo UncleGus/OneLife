@@ -172,6 +172,18 @@ static int *biomes;
 static double *biomeBiases;
 static int *biomeBlockers;
 
+
+// these will all be read in from a file
+static int waterSpawnId = -10;
+static int waterNorth = -11;
+static int waterNorthEast = -12;
+static int waterEast = -13;
+static int waterSouthEast = -14;
+static int waterSouth = -15;
+static int waterSouthWest = -16;
+static int waterWest = -17;
+static int waterNorthWest = -18;
+
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
 static SimpleVector<float> *naturalMapChances;
@@ -4257,73 +4269,119 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
     int endY = inStartY + inHeight;
     int endX = inStartX + inWidth;
 
+    int chunkGenerationStatus = 0;
+    // 0 = in progress
+    // -1 = abort this generation run and start again
+    // 1 = completed
     
-    
-    for( int y=inStartY; y<endY; y++ ) {
-        int chunkY = y - inStartY;
-        
-
-        for( int x=inStartX; x<endX; x++ ) {
-            int chunkX = x - inStartX;
+    while( !chunkGenerationStatus == 1 ) {
+        chunkGenerationStatus = 0;
+        for( int y=inStartY; y<endY; y++ ) {
+            if( chunkGenerationStatus == -1 ) {
+                break;
+            }
+            int chunkY = y - inStartY;
             
-            int cI = chunkY * inWidth + chunkX;
-            
-            lastCheckedBiome = -1;
-            
-            chunk[cI] = getMapObject( x, y );
 
-            if( lastCheckedBiome == -1 ) {
-                // biome wasn't checked in order to compute
-                // getMapObject
-
-                // get it ourselves
-                
-                lastCheckedBiome = biomes[getMapBiomeIndex( x, y )];
+            for( int x=inStartX; x<endX; x++ ) {
+                if( chunkGenerationStatus == -1 ) {
+                    break;
                 }
-            chunkBiomes[ cI ] = lastCheckedBiome;
 
-            chunkFloors[cI] = getMapFloor( x, y );
-            
-
-            int numContained;
-            int *contained = getContained( x, y, &numContained );
-
-            if( contained != NULL ) {
-                containedStackSizes[cI] = numContained;
-                containedStacks[cI] = contained;
+                int chunkX = x - inStartX;
                 
-                subContainedStackSizes[cI] = new int[numContained];
-                subContainedStacks[cI] = new int*[numContained];
+                int cI = chunkY * inWidth + chunkX;
+                
+                lastCheckedBiome = -1;
+                
+                chunk[cI] = getMapObject( x, y );
 
-                for( int i=0; i<numContained; i++ ) {
-                    subContainedStackSizes[cI][i] = 0;
-                    subContainedStacks[cI][i] = NULL;
+                if( chunk[cI] == waterSpawnId ) {
+                    // do stream pathfinding stuff here
+
+                    // generate a stream length
+                    int streamLength = ceil( getXYFractal( x, y, 0.5, 1 ) * 16 );
+                    int finished = 0;
+
+                    while( finished == 0 ) {
+                        int newCellFound = 0;
+                        int checkOrder [4] = { 0, 1, 2, 3 };
+                        setXYRandomSeed( 1 * 263 + 723 );
+                        double northRand = getXYFractal( x, y, 0.5, 1 );
+                        setXYRandomSeed( 2 * 263 + 723 );
+                        double southRand = getXYFractal( x, y, 0.5, 1 );
+
+                    }
+
+                    // remember current cell is x, y
+                    // remember previous cell is current cell
+                    // determine noisy order for checking cardinal directions for dry cell
+                    // find adjacent dry cell
+                    // remember current cell is new dry cell location
+                    // determine direction of dry cell. which is the exit direction of stream from dry cell
+                    // and entry direction of the previous cell
+                    // set current cell tile to watertile using the two directions to determine which
+                    // is stream length reached?
+                        // yes, place directional headwater object in new cell and end loop
+                    // no, 
+
+                    chunkGenerationStatus = -1; // need to generate the map chunk message because cell contents have changed
+                    break;
+                }
+
+                if( lastCheckedBiome == -1 ) {
+                    // biome wasn't checked in order to compute
+                    // getMapObject
+
+                    // get it ourselves
                     
-                    if( containedStacks[cI][i] < 0 ) {
-                        // a sub container
-                        containedStacks[cI][i] *= -1;
+                    lastCheckedBiome = biomes[getMapBiomeIndex( x, y )];
+                    }
+                chunkBiomes[ cI ] = lastCheckedBiome;
+
+                chunkFloors[cI] = getMapFloor( x, y );
+                
+
+                int numContained;
+                int *contained = getContained( x, y, &numContained );
+
+                if( contained != NULL ) {
+                    containedStackSizes[cI] = numContained;
+                    containedStacks[cI] = contained;
+                    
+                    subContainedStackSizes[cI] = new int[numContained];
+                    subContainedStacks[cI] = new int*[numContained];
+
+                    for( int i=0; i<numContained; i++ ) {
+                        subContainedStackSizes[cI][i] = 0;
+                        subContainedStacks[cI][i] = NULL;
                         
-                        int numSubContained;
-                        int *subContained = getContained( x, y, 
-                                                          &numSubContained,
-                                                          i + 1 );
-                        if( subContained != NULL ) {
-                            subContainedStackSizes[cI][i] = numSubContained;
-                            subContainedStacks[cI][i] = subContained;
+                        if( containedStacks[cI][i] < 0 ) {
+                            // a sub container
+                            containedStacks[cI][i] *= -1;
+                            
+                            int numSubContained;
+                            int *subContained = getContained( x, y, 
+                                                            &numSubContained,
+                                                            i + 1 );
+                            if( subContained != NULL ) {
+                                subContainedStackSizes[cI][i] = numSubContained;
+                                subContainedStacks[cI][i] = subContained;
+                                }
                             }
                         }
                     }
+                else {
+                    containedStackSizes[cI] = 0;
+                    containedStacks[cI] = NULL;
+                    subContainedStackSizes[cI] = NULL;
+                    subContainedStacks[cI] = NULL;
+                    }
                 }
-            else {
-                containedStackSizes[cI] = 0;
-                containedStacks[cI] = NULL;
-                subContainedStackSizes[cI] = NULL;
-                subContainedStacks[cI] = NULL;
-                }
+            
             }
-        
+            chunkGenerationStatus = 1;
         }
-
 
 
     SimpleVector<unsigned char> chunkDataBuffer;
