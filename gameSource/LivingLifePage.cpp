@@ -13921,6 +13921,9 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         int destID = mMap[ inMapY * mMapD + inMapX ];
         
         
+        // TODO: import biome definitions and create a function
+        // that checks them for blockingness and add it as a conditional here
+        // to stop the janky walking interruption
         if( destID > 0 && getObject( destID )->blocksWalking ) {
             return true;
             }
