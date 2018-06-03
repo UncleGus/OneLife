@@ -4536,10 +4536,11 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
 
                 // generate a stream length
                 setXYRandomSeed( 9476 );
-                int streamLength = getXYRandom( x, y ) * 16;
+                int streamLength = getXYRandom( x, y ) * 32;
                 AppLog::infoF( "================SPAWNING A STREAM AT %d, %d OF LENGTH %d==================", x, y, streamLength );
                 direction newCellDirection = UNKNOWN;
                 direction oldCellDirection = UNKNOWN;
+                direction dominantDirection = UNKNOWN;
                 int oldX = x;
                 int oldY = y;
                 direction checkOrder [4] = { NORTH, EAST, SOUTH, WEST };
@@ -4554,6 +4555,9 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                 while( streamLength > 0 ) {
                     oldCellDirection = newCellDirection;
                     newCellDirection = UNKNOWN;
+                    if( dominantDirection == UNKNOWN ) {
+                        dominantDirection = oldCellDirection;
+                    }
                     // AppLog::infoF( "Rest of stream length is %d", streamLength );
                     // AppLog::infoF( "oldCellDirection is %d", oldCellDirection );
                     for( int nn=0; nn<4; nn++ ) {
@@ -4566,6 +4570,38 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                     int checkIndex = 0;
                     int checkX;
                     int checkY;
+                    if( dominantDirection != UNKNOWN && getXYRandom( oldX + 243, oldY - 723 ) * 10 > 5 ) {
+                        switch( dominantDirection ) {
+                            case NORTH:
+                                // AppLog::infoF( "NORTH");
+                                checkX = oldX;
+                                checkY = oldY + 1;
+                            break;
+                            case EAST:
+                                // AppLog::infoF( "EAST");
+                                checkX = oldX + 1;
+                                checkY = oldY;
+                            break;
+                            case SOUTH:
+                                // AppLog::infoF( "SOUTH");
+                                checkX = oldX;
+                                checkY = oldY - 1;
+                            break;
+                            case WEST:
+                                // AppLog::infoF( "WEST");
+                                checkX = oldX - 1;
+                                checkY = oldY;
+                            break;
+                            case UNKNOWN:
+                                // AppLog::infoF( "UNKNOWN" );
+                            break;
+                        }
+                        if( !isWaterBiomeCell( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                            newCellDirection = dominantDirection;
+                            // AppLog::infoF( "Found a suitable cell" );
+                        }
+
+                    }
                     while( newCellDirection == UNKNOWN && checkIndex < 4) {
                         // AppLog::infoF( "Making check #%d for empty dry cell", checkIndex );
                         // AppLog::infoF( "Starting from cell %d, %d and checking ", oldX, oldY );
