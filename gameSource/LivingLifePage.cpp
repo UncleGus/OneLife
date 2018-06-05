@@ -1203,11 +1203,11 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 int mapI = mapY * mMapD + mapX;
             
                 // note that unknowns (-1) count as blocked too
-                if( mMap[ mapI ] == 0
+                if( mMapBiomes[ mapI ] != waterBiome && (
+                    mMap[ mapI ] == 0
                     ||
                     ( mMap[ mapI ] != -1 && 
-                      ! getObject( mMap[ mapI ] )->blocksWalking &&
-                      mMapBiomes[ mapI ] != waterBiome ) ) {
+                      ! getObject( mMap[ mapI ] )->blocksWalking ) ) ) {
                     
                     blockedMap[ y * pathFindingD + x ] = false;
                     }
@@ -1634,17 +1634,20 @@ void LivingLifePage::clearMap() {
         mMapPlayerPlacedFlags[i] = false;
         }
     
-        FILE *waterFile = fopen( "ground/water.txt", "r" );
-        if( waterFile != NULL ) {
-            int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
-            if( numRead != 1 ) {
-                waterBiome = -100;
-                printf( "Could not find waterBiome information in ground/water.txt\n" );
+        
+        if( waterBiome == -100 ) {
+            FILE *waterFile = fopen( "ground/water.txt", "r" );
+            if( waterFile != NULL ) {
+                int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+                if( numRead != 1 ) {
+                    waterBiome = -50;
+                    printf( "Could not find waterBiome information in ground/water.txt\n" );
+                }
+                printf( "waterBiome=%d\n", waterBiome );
+                fclose( waterFile );
+            } else {
+                printf( "Problem reading water file from ground/water.txt\n" );
             }
-            printf( "waterBiome=%d\n", waterBiome );
-            fclose( waterFile );
-        } else {
-            printf( "Problem reading water file from ground/water.txt\n" );
         }
 
     }
@@ -14000,7 +14003,7 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         if( destID > 0 && getObject( destID )->blocksWalking ) {
             return true;
             }
-        else if( destBiome == waterBiome ) {
+        if( destBiome == waterBiome ) {
             return true;
             }
         else {

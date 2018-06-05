@@ -4585,7 +4585,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                                 // AppLog::infoF( "UNKNOWN" );
                             break;
                         }
-                        if( !isWaterBiomeCell( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
                             newCellDirection = dominantDirection;
                             // AppLog::infoF( "Found a suitable cell" );
                         }
