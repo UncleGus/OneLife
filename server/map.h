@@ -216,7 +216,7 @@ void restretchMapContainedDecays( int inX, int inY,
 
 int getMapBiome( int inX, int inY );
 
-int getMapBlocking( int inX, int inY );
+char isWaterBiome( int inX, int inY );
 
 
 #endif

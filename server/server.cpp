@@ -2590,7 +2590,7 @@ char isMapSpotBlocking( int inX, int inY ) {
             }
         }
 
-    if( getMapBlocking( inX, inY ) == 1 ) {
+    if( isWaterBiome( inX, inY ) ) {
         return true;
     }
     
