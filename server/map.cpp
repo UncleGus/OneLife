@@ -183,6 +183,7 @@ typedef enum direction {
 
 // these will all be read in from a file
 static int waterBiome = -1;
+static int waterScale = 1;
 static int waterSpawnId = -1;
 static int waterSouthToNorth = -1;
 static int waterWestToEast = -1;
@@ -692,12 +693,19 @@ static int computeMapBiomeIndex( int inX, int inY,
         
         setXYRandomSeed( biome * 263 + 723 );
 
+        double thisScale = 0.83332 + 0.08333 * numBiomes;
+        thisScale += 0.5;
+        if( biome == waterBiome ) {
+            thisScale *= waterScale;
+        }
         double randVal = getXYFractal(  inX,
                                         inY,
                                         0.55, 
-                                        0.83332 + 0.08333 * numBiomes );
+                                        thisScale );
 
         
+        randVal += biomeBiases[i];
+
         if( randVal > maxValue ) {
             // a new first place
             
@@ -1100,8 +1108,8 @@ void outputMapImage() {
     
     // output a chunk of the map as an image
 
-    int w =  500;
-    int h = 500;
+    int w =  1000;
+    int h = 1000;
     
     Image objIm( w, h, 3, true );
     Image biomeIm( w, h, 3, true );
@@ -2424,6 +2432,7 @@ void initMap() {
     FILE *waterFile = fopen( "ground/water.txt", "r" );
         if( waterFile != NULL ) {
             int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+            numRead += fscanf( waterFile, "waterScale=%d\n", &waterScale );
             numRead += fscanf( waterFile, "waterSpawnId=%d\n", &waterSpawnId );
             numRead += fscanf( waterFile, "waterSouthToNorth=%d\n", &waterSouthToNorth );
             numRead += fscanf( waterFile, "waterWestToEast=%d\n", &waterWestToEast );
@@ -2445,12 +2454,12 @@ void initMap() {
             numRead += fscanf( waterFile, "waterWestToLake=%d\n", &waterWestToLake );
             numRead += fscanf( waterFile, "waterNorthToLake=%d\n", &waterNorthToLake );
             numRead += fscanf( waterFile, "waterEastToLake=%d\n", &waterEastToLake );
-            if( numRead != 22 ) {
+            if( numRead != 23 ) {
                 waterBiome = -1;
-                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 22 required lines found", numRead );
+                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 23 required lines found", numRead );
             }
             AppLog::infoF( "waterBiome=%d", waterBiome );
-            AppLog::infoF( "waterBiome=%d", waterBiome );
+            AppLog::infoF( "waterScale=%d", waterScale );
             AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
             AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
             AppLog::infoF( "waterWestToEast=%d", waterWestToEast );
@@ -2472,10 +2481,10 @@ void initMap() {
             AppLog::infoF( "waterWestToLake=%d", waterWestToLake );
             AppLog::infoF( "waterNorthToLake=%d", waterNorthToLake );
             AppLog::infoF( "waterEastToLake=%d", waterEastToLake );
+            fclose( waterFile );
         } else {
             AppLog::infoF( "Problem reading water file from ground/water.txt" );
         }
-    fclose( waterFile );
 
 
     int totalSetCount = cleanMap();
@@ -2614,9 +2623,9 @@ void initMap() {
     
     // for debugging the map
     // printBiomeSamples();
-    //outputMapImage();
+    // outputMapImage();
 
-    //outputBiomeFractals();
+    // outputBiomeFractals();
     }
 
 
