@@ -102,7 +102,7 @@ static char teaserVideo = false;
 static char showBugMessage = false;
 static const char *bugEmail = "jason" "rohrer" "@" "fastmail.fm";
 
-
+static int waterBiome = 100; // hardcoded for now as proof of concept
 
 
 // most recent home at end
@@ -1206,7 +1206,8 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 if( mMap[ mapI ] == 0
                     ||
                     ( mMap[ mapI ] != -1 && 
-                      ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                      ! getObject( mMap[ mapI ] )->blocksWalking &&
+                      mMapBiomes[ mapI ] != waterBiome ) ) {
                     
                     blockedMap[ y * pathFindingD + x ] = false;
                     }
@@ -1632,9 +1633,21 @@ void LivingLifePage::clearMap() {
         
         mMapPlayerPlacedFlags[i] = false;
         }
+    
+        FILE *waterFile = fopen( "ground/water.txt", "r" );
+        if( waterFile != NULL ) {
+            int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+            if( numRead != 1 ) {
+                waterBiome = -100;
+                printf( "Could not find waterBiome information in ground/water.txt\n" );
+            }
+            printf( "waterBiome=%d\n", waterBiome );
+            fclose( waterFile );
+        } else {
+            printf( "Problem reading water file from ground/water.txt\n" );
+        }
+
     }
-
-
 
 LivingLifePage::LivingLifePage() 
         : mServerSocket( -1 ), 
@@ -13978,12 +13991,16 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         inMapX >= 0 && inMapX < mMapD ) {
         
         int destID = mMap[ inMapY * mMapD + inMapX ];
+        int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
         
         
         // TODO: import biome definitions and create a function
         // that checks them for blockingness and add it as a conditional here
         // to stop the janky walking interruption
         if( destID > 0 && getObject( destID )->blocksWalking ) {
+            return true;
+            }
+        else if( destBiome == waterBiome ) {
             return true;
             }
         else {
@@ -14149,6 +14166,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
     int destID = 0;
     int floorDestID = 0;
+    int destBiome = -1;
     
     int destNumContained = 0;
     
@@ -14223,6 +14241,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         mapX >= 0 && mapX < mMapD ) {
         
         destID = mMap[ mapY * mMapD + mapX ];
+        destBiome = mMapBiomes[ mapY * mMapD + mapX ];
         floorDestID = mMapFloors[ mapY * mMapD + mapX ];
         
         destNumContained = mMapContainedStacks[ mapY * mMapD + mapX ].size();
@@ -14380,7 +14399,9 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         // clicked on empty space near an object
         
-        if( ! getObject( destID )->blocksWalking ) {
+        if( ! getObject( destID )->blocksWalking && 
+            destBiome != waterBiome
+        ) {
             
             // object in this space not blocking
             
@@ -14416,7 +14437,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
                         if( oID == 0 
                             ||
-                            ( oID > 0 && ! getObject( oID )->blocksWalking ) ) {
+                            ( oID > 0 && ! getObject( oID )->blocksWalking &&
+                            destBiome != waterBiome ) ) {
 
 
                             double d2 = distance2( p, clickP );
@@ -14758,7 +14780,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     if( mMap[ mapI ] == 0
                         ||
                         ( mMap[ mapI ] != -1 && 
-                          ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                          ! getObject( mMap[ mapI ] )->blocksWalking &&
+                          destBiome != waterBiome ) ) {
                         
                         int emptyX = clickDestX + nDX[n];
                         int emptyY = clickDestY + nDY[n];
