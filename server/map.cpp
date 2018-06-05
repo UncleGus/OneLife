@@ -183,6 +183,7 @@ typedef enum direction {
 // these will all be read in from a file
 static int waterBiome = -100;
 static int waterScale = 1;
+static int waterLength = -1;
 static int waterSpawnId = -1;
 static int waterSouthToNorth = -1;
 static int waterWestToEast = -1;
@@ -951,13 +952,6 @@ static int getBaseMap( int inX, int inY ) {
         int pickedBiome = getMapBiomeIndex( inX, inY, &secondPlace,
                                             &secondPlaceGap );
         
-        // we don't want stream spawn objects spawning
-        // on non-water biomes, so if the second place biome
-        // is water, implying that the first place is not,
-        // then we don't want water biome objects to be spawned
-        if( secondPlace == waterBiome ) {
-            secondPlace = pickedBiome;
-        }
 
         if( pickedBiome == -1 ) {
             mapCacheInsert( inX, inY, 0 );
@@ -966,6 +960,14 @@ static int getBaseMap( int inX, int inY ) {
         
         lastCheckedBiome = biomes[pickedBiome];
         
+        // we don't want stream spawn objects spawning
+        // on non-water biomes, so if the second place biome
+        // is water, implying that the first place is not,
+        // then we don't want water biome objects to be spawned
+        // we also don't want non-water objects spawning in water cells
+        if( biomes[secondPlace] == waterBiome || biomes[pickedBiome] == waterBiome ) {
+            secondPlace = pickedBiome;
+        }
 
         
         // randomly let objects from second place biome peek through
@@ -2423,6 +2425,7 @@ void initMap() {
         if( waterFile != NULL ) {
             int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
             numRead += fscanf( waterFile, "waterScale=%d\n", &waterScale );
+            numRead += fscanf( waterFile, "waterLength=%d\n", &waterLength );
             numRead += fscanf( waterFile, "waterSpawnId=%d\n", &waterSpawnId );
             numRead += fscanf( waterFile, "waterSouthToNorth=%d\n", &waterSouthToNorth );
             numRead += fscanf( waterFile, "waterWestToEast=%d\n", &waterWestToEast );
@@ -2444,12 +2447,13 @@ void initMap() {
             numRead += fscanf( waterFile, "waterWestToLake=%d\n", &waterWestToLake );
             numRead += fscanf( waterFile, "waterNorthToLake=%d\n", &waterNorthToLake );
             numRead += fscanf( waterFile, "waterEastToLake=%d\n", &waterEastToLake );
-            if( numRead != 23 ) {
+            if( numRead != 24 ) {
                 waterBiome = -100;
-                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 23 required lines found", numRead );
+                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 24 required lines found", numRead );
             }
             AppLog::infoF( "waterBiome=%d", waterBiome );
             AppLog::infoF( "waterScale=%d", waterScale );
+            AppLog::infoF( "waterLength=%d", waterLength );
             AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
             AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
             AppLog::infoF( "waterWestToEast=%d", waterWestToEast );
@@ -4314,8 +4318,8 @@ int getMapBiome( int inX, int inY ) {
     return biomes[getMapBiomeIndex( inX, inY )];
     }
 
-void mapCacheInsertFake( int inX, int inY, int id ) {
-    printf( "I would be creating a %d at %d, %d\n", id, inX, inY );
+char isWaterBiomeCell( int inX, int inY ) {
+    return getMapBiome( inX, inY ) == waterBiome;
 }
 
 void placeWaterTile( int inX, int inY, direction oldDirection, direction newDirection ) {
@@ -4525,7 +4529,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
 
                 // generate a stream length
                 setXYRandomSeed( 9476 );
-                int streamLength = getXYRandom( x, y ) * 32;
+                int streamLength = getXYRandom( x, y ) * waterLength;
                 AppLog::infoF( "================SPAWNING A STREAM AT %d, %d OF LENGTH %d==================", x, y, streamLength );
                 direction newCellDirection = UNKNOWN;
                 direction oldCellDirection = UNKNOWN;

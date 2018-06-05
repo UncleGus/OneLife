@@ -2590,7 +2590,7 @@ char isMapSpotBlocking( int inX, int inY ) {
             }
         }
 
-    if( isWaterBiome( inX, inY ) ) {
+    if( isWaterBiomeCell( inX, inY ) ) {
         return true;
     }
     
@@ -3333,7 +3333,9 @@ void processLoggedInPlayer( Socket *inSock,
     else {
         // else starts at civ outskirts (lone Eve)
         int startX, startY;
-        getEvePosition( newObject.email, &startX, &startY );
+        do {
+            getEvePosition( newObject.email, &startX, &startY );
+        } while( isWaterBiomeCell( startX, startY ) );
 
         if( SettingsManager::getIntSetting( "forceEveLocation", 0 ) ) {
 
