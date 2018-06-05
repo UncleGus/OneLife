@@ -102,7 +102,7 @@ static char teaserVideo = false;
 static char showBugMessage = false;
 static const char *bugEmail = "jason" "rohrer" "@" "fastmail.fm";
 
-
+static int waterBiome = 100; // hardcoded for now as proof of concept
 
 
 // most recent home at end
@@ -1206,7 +1206,8 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 if( mMap[ mapI ] == 0
                     ||
                     ( mMap[ mapI ] != -1 && 
-                      ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                      ! getObject( mMap[ mapI ] )->blocksWalking &&
+                      mMapBiomes[ mapI ] != waterBiome ) ) {
                     
                     blockedMap[ y * pathFindingD + x ] = false;
                     }
@@ -1284,6 +1285,7 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                                   &closestFound );
             inObject->xd = inObject->waypointX;
             inObject->yd = inObject->waypointY;
+            inObject->destTruncated = false;
             }
         }
     else {
@@ -1631,9 +1633,21 @@ void LivingLifePage::clearMap() {
         
         mMapPlayerPlacedFlags[i] = false;
         }
+    
+        FILE *waterFile = fopen( "ground/water.txt", "r" );
+        if( waterFile != NULL ) {
+            int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+            if( numRead != 1 ) {
+                waterBiome = -100;
+                printf( "Could not find waterBiome information in ground/water.txt\n" );
+            }
+            printf( "waterBiome=%d\n", waterBiome );
+            fclose( waterFile );
+        } else {
+            printf( "Problem reading water file from ground/water.txt\n" );
+        }
+
     }
-
-
 
 LivingLifePage::LivingLifePage() 
         : mServerSocket( -1 ), 
@@ -7125,6 +7139,10 @@ static char shouldCreationSoundPlay( int inOldID, int inNewID ) {
     
     ObjectRecord *obj = getObject( inNewID );
 
+    if( obj->creationSound.numSubSounds == 0 ) {
+        return false;
+        }
+
     if( inOldID > 0 && inNewID > 0 ) {
         ObjectRecord *oldObj = getObject( inOldID );
         
@@ -7866,6 +7884,7 @@ void LivingLifePage::step() {
 
         // end it
         ourObject->pendingActionAnimationProgress = 0;
+        ourObject->pendingActionAnimationTotalProgress = 0;
         ourObject->pendingAction = false;
                                 
         playerActionPending = false;
@@ -7895,6 +7914,7 @@ void LivingLifePage::step() {
         
         ourObject->xd = goodX;
         ourObject->yd = goodY;
+        ourObject->destTruncated = false;
         }
     
     
@@ -9086,27 +9106,7 @@ void LivingLifePage::step() {
                                 else if( responsiblePlayerID < -1 ) {
                                     // player caused this object to change
                                     
-                                    if( newObj->creationSound.numSubSounds == 0
-                                        ||
-                                        ! shouldCreationSoundPlay( old, 
-                                                                   newID ) ) {
-                                        // no creation sound will play for new
-                                        // (if it will, it will be played
-                                        //  below)
-                                        ObjectRecord *obj = getObject( old );
-                                        
-                                        // don't play using sound unless
-                                        // if they are both use dummies
-                                        if( !bothSameUseParent( old, newID )
-                                            &&
-                                            obj->usingSound.numSubSounds 
-                                            > 0 ) {    
-                                            
-                                            playSound( 
-                                                obj->usingSound,
-                                                getVectorFromCamera( x, y ) );
-                                            }
-                                        }
+                                    // sound will be played elsewhere
                                     }
                                 }
                             
@@ -9435,6 +9435,9 @@ void LivingLifePage::step() {
                 o.heldByDropOffset.x = 0;
                 o.heldByDropOffset.y = 0;
                 
+                o.jumpOutOfArmsSent = false;
+                
+
                 o.ridingOffset.x = 0;
                 o.ridingOffset.y = 0;
 
@@ -9641,6 +9644,25 @@ void LivingLifePage::step() {
                         }
                     
                     if( existing != NULL &&
+                        existing->destTruncated &&
+                        ( existing->xd != o.xd ||
+                          existing->yd != o.yd ) ) {
+                        // edge case:
+                        // our move was truncated due to an obstacle
+                        // but then after that we tried to move to what
+                        // the server saw as our current location
+                        // the server will send a PU for that last move
+                        // to end it immediately, but our xd,yd will still
+                        // be set from the truncated move
+                        // treat this PU as a force
+                        printf( "Artificially forcing PU position %d,%d "
+                                "because it mismatches our last truncated "
+                                "move destination %d,%d\n",
+                                o.xd, o.yd, existing->xd, existing->yd );
+                        forced = true;
+                        }
+                    
+                    if( existing != NULL &&
                         existing->id != ourID &&
                         existing->currentSpeed != 0 &&
                         ! forced ) {
@@ -9735,6 +9757,7 @@ void LivingLifePage::step() {
                             
                             existing->xd = o.xd;
                             existing->yd = o.yd;
+                            existing->destTruncated = false;
                             }
                         existing->outOfRange = false;
 
@@ -9825,6 +9848,8 @@ void LivingLifePage::step() {
                                 existing->actionTargetY = actionTargetY;
                                 existing->pendingActionAnimationProgress = 
                                     0.025 * frameRateFactor;
+                                existing->pendingActionAnimationTotalProgress = 
+                                    existing->pendingActionAnimationProgress;
                                 }
 
                             if( heldOriginValid || 
@@ -9850,6 +9875,7 @@ void LivingLifePage::step() {
                         
                         char creationSoundPlayed = false;
                         char otherSoundPlayed = false;
+                        char groundSoundPlayed = false;
                         
 
                         if( justAte && 
@@ -10253,8 +10279,26 @@ void LivingLifePage::step() {
                                                 heldTransitionSourceID;
                                             }
                                         
+                                        if( heldTransitionSourceID > 0 ) {
+                                            TransRecord *groundTrans =
+                                                getTrans( 
+                                                    oldHeld, 
+                                                    heldTransitionSourceID );
+                                            if( groundTrans != NULL &&
+                                                groundTrans->newTarget > 0 &&
+                                                groundTrans->newTarget ==
+                                                existing->holdingID ) {
+                                                if( shouldCreationSoundPlay(
+                                                    groundTrans->target,
+                                                    groundTrans->newTarget ) ) {
+                                                    groundSoundPlayed = true;
+                                                    }
+                                                }
+                                            }
+                                        
 
-                                        if( testAncestor > 0 ) {
+                                        if( ! groundSoundPlayed &&
+                                            testAncestor > 0 ) {
                                             // new held object is result
                                             // of a transtion
                                             // (otherwise, it has been
@@ -10368,6 +10412,7 @@ void LivingLifePage::step() {
                                         
                                         if( ! otherSoundPlayed && 
                                             ! creationSoundPlayed &&
+                                            ! groundSoundPlayed &&
                                             ! clothingSoundPlayed ) {
                                             // play generic pickup sound
 
@@ -10419,6 +10464,7 @@ void LivingLifePage::step() {
                             heldTransitionSourceID > 0 &&
                             ! creationSoundPlayed &&
                             ! clothingSoundPlayed &&
+                            ! groundSoundPlayed &&
                             ! otherSoundPlayed ) {
                             
                             
@@ -10528,7 +10574,8 @@ void LivingLifePage::step() {
                             
                             existing->xd = o.xd;
                             existing->yd = o.yd;
-                            
+                            existing->destTruncated = false;
+
                             if( existing->lastHeldByRawPosSet ) {    
                                 existing->heldByDropOffset =
                                     sub( existing->lastHeldByRawPos,
@@ -10602,7 +10649,7 @@ void LivingLifePage::step() {
 
                             existing->xd = o.xd;
                             existing->yd = o.yd;
-
+                            existing->destTruncated = false;
                             }
                         
                         if( existing->id == ourID ) {
@@ -10620,6 +10667,8 @@ void LivingLifePage::step() {
 
                             if( forced ) {
                                 existing->pendingActionAnimationProgress = 0;
+                                existing->pendingActionAnimationTotalProgress =
+                                    0;
                                 existing->pendingAction = false;
                                 
                                 playerActionPending = false;
@@ -10726,6 +10775,7 @@ void LivingLifePage::step() {
 
                         o.pendingAction = false;
                         o.pendingActionAnimationProgress = 0;
+                        o.pendingActionAnimationTotalProgress = 0;
                         
                         o.currentPos.x = o.xd;
                         o.currentPos.y = o.yd;
@@ -10954,6 +11004,8 @@ void LivingLifePage::step() {
                 
                 if( babyO != NULL && existing != NULL ) {
                     babyO->heldByAdultID = existing->id;
+                    babyO->jumpOutOfArmsSent = false;
+                    
                     // stop crying when held
                     babyO->tempAgeOverrideSet = false;
                     
@@ -11245,6 +11297,8 @@ void LivingLifePage::step() {
                                 existing->xd = o.xd;
                                 existing->yd = o.yd;
                                 
+                                existing->destTruncated = truncated;
+
                                 if( existing->id != ourID ) {
                                     // look at how far we think object is
                                     // from current fractional position
@@ -11597,6 +11651,8 @@ void LivingLifePage::step() {
                                 // (no longer possible, since truncated)
 
                                 existing->pendingActionAnimationProgress = 0;
+                                existing->pendingActionAnimationTotalProgress =
+                                    0;
                                 existing->pendingAction = false;
                                 
                                 playerActionPending = false;
@@ -12068,6 +12124,8 @@ void LivingLifePage::step() {
                         
                         char *strUpper = stringToUpperCase(
                             lastAteObj->description );
+
+                        stripDescriptionComment( strUpper );
 
                         const char *key = "lastAte";
                         
@@ -12844,11 +12902,13 @@ void LivingLifePage::step() {
         
         
         
+        double progressInc = 0.025 * frameRateFactor;
 
         if( o->id == ourID &&
             ( o->pendingAction || o->pendingActionAnimationProgress != 0 ) ) {
             
-            o->pendingActionAnimationProgress += 0.025 * frameRateFactor;
+            o->pendingActionAnimationProgress += progressInc;
+            o->pendingActionAnimationTotalProgress += progressInc;
             
             if( o->pendingActionAnimationProgress > 1 ) {
                 if( o->pendingAction ) {
@@ -12859,6 +12919,7 @@ void LivingLifePage::step() {
                     // no longer pending, finish last cycle by snapping
                     // back to 0
                     o->pendingActionAnimationProgress = 0;
+                    o->pendingActionAnimationTotalProgress = 0;
                     o->actionTargetTweakX = 0;
                     o->actionTargetTweakY = 0;
                     }
@@ -12866,17 +12927,19 @@ void LivingLifePage::step() {
             }
         else if( o->id != ourID && o->pendingActionAnimationProgress != 0 ) {
             
-            o->pendingActionAnimationProgress += 0.025 * frameRateFactor;
+            o->pendingActionAnimationProgress += progressInc;
+            o->pendingActionAnimationTotalProgress += progressInc;
             
             if( o->pendingActionAnimationProgress > 1 ) {
-                    // no longer pending, finish last cycle by snapping
-                    // back to 0
-                    o->pendingActionAnimationProgress = 0;
-                    o->actionTargetTweakX = 0;
-                    o->actionTargetTweakY = 0;
-                    }
+                // no longer pending, finish last cycle by snapping
+                // back to 0
+                o->pendingActionAnimationProgress = 0;
+                o->pendingActionAnimationTotalProgress = 0;
+                o->actionTargetTweakX = 0;
+                o->actionTargetTweakY = 0;
                 }
             }
+        }
     
 
     if( nextActionMessageToSend != NULL
@@ -12908,6 +12971,8 @@ void LivingLifePage::step() {
             // matter how fast the server responds
             ourLiveObject->pendingActionAnimationProgress = 
                 0.025 * frameRateFactor;
+            ourLiveObject->pendingActionAnimationTotalProgress =
+                ourLiveObject->pendingActionAnimationProgress;
 
             ourLiveObject->pendingActionAnimationStartTime = 
                 game_getCurrentTime();
@@ -12926,7 +12991,7 @@ void LivingLifePage::step() {
         // AND animation has played for a bit
         // AND server agrees with our position
         if( ! ourLiveObject->inMotion && 
-            ourLiveObject->pendingActionAnimationProgress > 0.25 &&
+            ourLiveObject->pendingActionAnimationTotalProgress > 0.25 &&
             ourLiveObject->xd == ourLiveObject->xServer &&
             ourLiveObject->yd == ourLiveObject->yServer ) {
             
@@ -12936,6 +13001,13 @@ void LivingLifePage::step() {
             // queued action waiting for our move to end
             sendToServerSocket( nextActionMessageToSend );
             
+            // reset the timer, because we've gotten some information
+            // back from the server about our action
+            // so it doesn't seem like we're experiencing a dropped-message
+            // bug just yet.
+            ourLiveObject->pendingActionAnimationStartTime = 
+                game_getCurrentTime();
+
 
             if( nextActionEating ) {
                 // don't play eating sound here until 
@@ -13919,12 +13991,16 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         inMapX >= 0 && inMapX < mMapD ) {
         
         int destID = mMap[ inMapY * mMapD + inMapX ];
+        int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
         
         
         // TODO: import biome definitions and create a function
         // that checks them for blockingness and add it as a conditional here
         // to stop the janky walking interruption
         if( destID > 0 && getObject( destID )->blocksWalking ) {
+            return true;
+            }
+        else if( destBiome == waterBiome ) {
             return true;
             }
         else {
@@ -14018,16 +14094,22 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
     if( ourLiveObject->heldByAdultID != -1 ) {
         // click from a held baby
-        
-        // send dummy move message right away to make baby jump out of arms
 
-        // we don't need to use baby's true position here... they are
-        // in arms
-        char *moveMessage = autoSprintf( "MOVE %d %d 1 0#",
-                                         ourLiveObject->xd,
-                                         ourLiveObject->yd );
-        sendToServerSocket( moveMessage );
-        delete [] moveMessage;
+        // only send once, even on multiple clicks
+        if( ! ourLiveObject->jumpOutOfArmsSent ) {    
+            // send dummy move message right away to make baby jump out of arms
+            
+            // we don't need to use baby's true position here... they are
+            // in arms
+            char *moveMessage = autoSprintf( "MOVE %d %d 1 0#",
+                                             ourLiveObject->xd,
+                                             ourLiveObject->yd );
+            sendToServerSocket( moveMessage );
+            delete [] moveMessage;
+            
+            ourLiveObject->jumpOutOfArmsSent = true;
+            }
+        
         return;
         }
     
@@ -14084,6 +14166,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
     int destID = 0;
     int floorDestID = 0;
+    int destBiome = -1;
     
     int destNumContained = 0;
     
@@ -14158,6 +14241,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         mapX >= 0 && mapX < mMapD ) {
         
         destID = mMap[ mapY * mMapD + mapX ];
+        destBiome = mMapBiomes[ mapY * mMapD + mapX ];
         floorDestID = mMapFloors[ mapY * mMapD + mapX ];
         
         destNumContained = mMapContainedStacks[ mapY * mMapD + mapX ].size();
@@ -14315,7 +14399,9 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         // clicked on empty space near an object
         
-        if( ! getObject( destID )->blocksWalking ) {
+        if( ! getObject( destID )->blocksWalking && 
+            destBiome != waterBiome
+        ) {
             
             // object in this space not blocking
             
@@ -14351,7 +14437,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
                         if( oID == 0 
                             ||
-                            ( oID > 0 && ! getObject( oID )->blocksWalking ) ) {
+                            ( oID > 0 && ! getObject( oID )->blocksWalking &&
+                            destBiome != waterBiome ) ) {
 
 
                             double d2 = distance2( p, clickP );
@@ -14693,7 +14780,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     if( mMap[ mapI ] == 0
                         ||
                         ( mMap[ mapI ] != -1 && 
-                          ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                          ! getObject( mMap[ mapI ] )->blocksWalking &&
+                          destBiome != waterBiome ) ) {
                         
                         int emptyX = clickDestX + nDX[n];
                         int emptyY = clickDestY + nDY[n];
@@ -14906,7 +14994,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         ourLiveObject->xd = moveDestX;
         ourLiveObject->yd = moveDestY;
-        
+        ourLiveObject->destTruncated = false;
+
         ourLiveObject->inMotion = true;
 
 
@@ -14931,6 +15020,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
             // adjust move to closest possible
             ourLiveObject->xd = ourLiveObject->closestDestIfPathFailedX;
             ourLiveObject->yd = ourLiveObject->closestDestIfPathFailedY;
+            ourLiveObject->destTruncated = false;
             
             if( ourLiveObject->xd == oldXD && ourLiveObject->yd == oldYD ) {
                 // completely blocked in, no path at all toward dest

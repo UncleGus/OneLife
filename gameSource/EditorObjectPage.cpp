@@ -3316,11 +3316,11 @@ void EditorObjectPage::draw( doublePair inViewCenter,
 
     // draw overlay to show foot-cross-over point
 
-    doublePair footRecPos = { 0, -96 };
+    doublePair footRecPos = { 0, -80 };
     
     setDrawColor( 0, 0, 0, 0.1 );
     
-    drawRect( footRecPos, 192, 32 );
+    drawRect( footRecPos, 192, 16 );
     
 
     
@@ -4221,10 +4221,13 @@ void EditorObjectPage::step() {
         mFlipHButton.setVisible( false );
         }
 
-    if( mPersonAgeSlider.isVisible() || 
+    // pretty sure using sound should be visible for all objects now
+    if( true ||
+        mPersonAgeSlider.isVisible() || 
         mSlotSizeField.isVisible() ||
         anyClothingToggled() ||
         mCheckboxes[1]->getToggled() ||
+        mNumUsesField.getInt() > 1 || 
         mFloorCheckbox.getToggled() ) {
         
         mUsingSoundWidget.setVisible( true );

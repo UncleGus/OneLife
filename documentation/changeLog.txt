@@ -5,9 +5,59 @@ http://onehouronelife.com/updateLog.php
 
 
 
-Version 102   ???
+
+Server Fixes:
+
+--Fixed so that useChance applies in last transition back to parent object
+  (example:  refilling last step of pond should have 1/5 chance of taking pond
+  to full state, when before it had 1/1 chance, allowing for an infinite water
+  exploit).  Thanks Eve, YAHG, and Rebel.
+
+--Support for NOT dying when riding over a deadly object (like a rattlesnake)
+  on a vehicle (like a horse), but support for transitions to the ridden object
+  (dead horse or tipped horse cart).
+
+--Fixed so that creation sound not played for items dropped on the ground when
+  held container shrinks.
+
+
+
+
+Version 105   2018-June-1
+
+--Fixed crash in transition bank pattern code.  Thanks Enforcerke and Jookia.
+
+--Fixed spurious client BUG reports by resetting timer when we receive a
+  move-done message in the middle of waiting for a move-and-do cycle to
+  complete.  Thanks Sarah V.
+
+--Fixed bouncing-forever bug caused by path truncation.  Thanks Malo T.
+
+
+
+
+
+Version 102   2018-May-31
 
 --Fixed scene editor to display behind floor hugging objects correctly.
+
+--Fixed bug in client sending multiple jump-out-of-arms move messages due to
+  rapid clickly by held-baby-player, resulting in the server registering false
+  moves after the jump-out-of-arms, and a bouncing-forever bug as a result.
+  Thanks Gabriel G.
+
+--Fixed overlap of foot bar with gui in object editor.
+
+--Widget for Using Sound visible for all objects in object editor.
+
+--Fixed sound-doubling issues (dumping water into empty pond, grabbing
+  second-to-last stone from stone pile).
+
+--Fixed so that comment (after # text) is hidden from eaten food description.
+
+--Fixed code for generic transition filling to handle case where an object has
+  both regular and last use generic transition defined.
+
 
 
 

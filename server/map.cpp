@@ -170,7 +170,6 @@ static double gapIntScale = 1000000.0;
 static int numBiomes;
 static int *biomes;
 static double *biomeBiases;
-static int *biomeBlockers;
 
 typedef enum direction {
 	NORTH,
@@ -182,7 +181,8 @@ typedef enum direction {
 
 
 // these will all be read in from a file
-static int waterBiome = -1;
+static int waterBiome = -100;
+static int waterScale = 1;
 static int waterSpawnId = -1;
 static int waterSouthToNorth = -1;
 static int waterWestToEast = -1;
@@ -692,12 +692,19 @@ static int computeMapBiomeIndex( int inX, int inY,
         
         setXYRandomSeed( biome * 263 + 723 );
 
+        double thisScale = 0.83332 + 0.08333 * numBiomes;
+        thisScale += 0.5;
+        if( biome == waterBiome ) {
+            thisScale *= waterScale;
+        }
         double randVal = getXYFractal(  inX,
                                         inY,
                                         0.55, 
-                                        0.83332 + 0.08333 * numBiomes );
+                                        thisScale );
 
         
+        randVal += biomeBiases[i];
+
         if( randVal > maxValue ) {
             // a new first place
             
@@ -948,7 +955,7 @@ static int getBaseMap( int inX, int inY ) {
         // on non-water biomes, so if the second place biome
         // is water, implying that the first place is not,
         // then we don't want water biome objects to be spawned
-        if( biomeBlockers[secondPlace] == 1 ) {
+        if( secondPlace == waterBiome ) {
             secondPlace = pickedBiome;
         }
 
@@ -1100,8 +1107,8 @@ void outputMapImage() {
     
     // output a chunk of the map as an image
 
-    int w =  500;
-    int h = 500;
+    int w =  1000;
+    int h = 1000;
     
     Image objIm( w, h, 3, true );
     Image biomeIm( w, h, 3, true );
@@ -2320,7 +2327,6 @@ void initMap() {
     // first, find all biomes
     SimpleVector<int> biomeList;
     SimpleVector<double> biomeBiasList;
-    SimpleVector<int> biomeBlockingList;
     
     for( int i=0; i<numObjects; i++ ) {
         ObjectRecord *o = allObjects[i];
@@ -2385,31 +2391,23 @@ void initMap() {
         FILE *biomeFile = fopen( fileName, "r" );
                 
         double biomeBias = 0.0;
-        int biomeBlocking = 0;
 
         if( biomeFile == NULL ) {
             biomeBiasList.push_back( 0.0 );
-            biomeBlockingList.push_back( 0 );
         } else {
-            int numRead = fscanf( biomeFile, "%lf %d", &biomeBias, &biomeBlocking );
+            int numRead = fscanf( biomeFile, "%lf", &biomeBias );
             if( numRead >= 1 ) {
                 biomeBiasList.push_back( biomeBias );
             } else {
                 biomeBiasList.push_back( 0.0 );
             }
-            if( numRead >= 2 ) {
-                biomeBlockingList.push_back( biomeBlocking );
-            } else {
-                biomeBlockingList.push_back( 0 );
-            }
             fclose( biomeFile );
         }
     }
     biomeBiases = biomeBiasList.getElementArray();
-    biomeBlockers = biomeBlockingList.getElementArray();
 
     for( int i=0; i<numBiomes; i++ ) {
-        AppLog::infoF( "Biome %d: bias %f blocking %d", biomes[i], biomeBiases[i], biomeBlockers[i] );
+        AppLog::infoF( "Biome %d: bias %f", biomes[i], biomeBiases[i] );
     }
 
     for( int j=0; j<numBiomes; j++ ) {    
@@ -2424,6 +2422,7 @@ void initMap() {
     FILE *waterFile = fopen( "ground/water.txt", "r" );
         if( waterFile != NULL ) {
             int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+            numRead += fscanf( waterFile, "waterScale=%d\n", &waterScale );
             numRead += fscanf( waterFile, "waterSpawnId=%d\n", &waterSpawnId );
             numRead += fscanf( waterFile, "waterSouthToNorth=%d\n", &waterSouthToNorth );
             numRead += fscanf( waterFile, "waterWestToEast=%d\n", &waterWestToEast );
@@ -2445,12 +2444,12 @@ void initMap() {
             numRead += fscanf( waterFile, "waterWestToLake=%d\n", &waterWestToLake );
             numRead += fscanf( waterFile, "waterNorthToLake=%d\n", &waterNorthToLake );
             numRead += fscanf( waterFile, "waterEastToLake=%d\n", &waterEastToLake );
-            if( numRead != 22 ) {
-                waterBiome = -1;
-                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 22 required lines found", numRead );
+            if( numRead != 23 ) {
+                waterBiome = -100;
+                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 23 required lines found", numRead );
             }
             AppLog::infoF( "waterBiome=%d", waterBiome );
-            AppLog::infoF( "waterBiome=%d", waterBiome );
+            AppLog::infoF( "waterScale=%d", waterScale );
             AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
             AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
             AppLog::infoF( "waterWestToEast=%d", waterWestToEast );
@@ -2472,10 +2471,10 @@ void initMap() {
             AppLog::infoF( "waterWestToLake=%d", waterWestToLake );
             AppLog::infoF( "waterNorthToLake=%d", waterNorthToLake );
             AppLog::infoF( "waterEastToLake=%d", waterEastToLake );
+            fclose( waterFile );
         } else {
             AppLog::infoF( "Problem reading water file from ground/water.txt" );
         }
-    fclose( waterFile );
 
 
     int totalSetCount = cleanMap();
@@ -2614,9 +2613,9 @@ void initMap() {
     
     // for debugging the map
     // printBiomeSamples();
-    //outputMapImage();
+    // outputMapImage();
 
-    //outputBiomeFractals();
+    // outputBiomeFractals();
     }
 
 
@@ -4315,10 +4314,6 @@ int getMapBiome( int inX, int inY ) {
     return biomes[getMapBiomeIndex( inX, inY )];
     }
 
-int getMapBlocking( int inX, int inY ) {
-    return biomeBlockers[getMapBiomeIndex( inX, inY )];
-    }
-
 void mapCacheInsertFake( int inX, int inY, int id ) {
     printf( "I would be creating a %d at %d, %d\n", id, inX, inY );
 }
@@ -4455,14 +4450,8 @@ void placeWaterTile( int inX, int inY, direction oldDirection, direction newDire
     }
 }
 
-char isWaterBiomeCell( int inX, int inY ) {
-    if( getMapBlocking( inX, inY ) == 1 ) {
-        // AppLog::infoF( "%d, %d is a water biome cell", inX, inY );
-        return true;
-    } else {
-        // AppLog::infoF( "%d, %d is not a water biome cell", inX, inY );
-        return false;
-    }
+char isWaterBiome( int inX, int inY ) {
+    return getMapBiome( inX, inY ) == waterBiome;
 }
 
 char isWaterObjectCell( int inX, int inY ) {
@@ -4528,7 +4517,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
             
             chunk[cI] = getMapObject( x, y );
 
-            if( chunk[cI] == waterSpawnId && waterBiome > -1 ) {
+            if( chunk[cI] == waterSpawnId && waterBiome > -100 ) {
                 // remove object at x, y
                 AppLog::infoF( "Removing initial spawn trigger object at %d, %d", x, y );
                 setMapObject( x, y, 0);
@@ -4632,7 +4621,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                         }
                         // AppLog::infoF( " in cell %d, %d", checkX, checkY);
                         // if this new cell is not a water cell and does not already contain a water tile
-                        if( !isWaterBiomeCell( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
                             newCellDirection = checkOrder[checkIndex];
                             // AppLog::infoF( "Found a suitable cell" );
                         } else {

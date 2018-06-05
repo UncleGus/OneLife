@@ -86,6 +86,12 @@ typedef struct LiveObject {
         char lastHeldByRawPosSet;
         doublePair lastHeldByRawPos;
         
+        // track this so that we only send one jump message even if
+        // the player clicks more than once before the server registers the
+        // jump
+        char jumpOutOfArmsSent;
+        
+
         
         // usually 0, but used to slide into and out of riding position
         doublePair ridingOffset;
@@ -172,6 +178,9 @@ typedef struct LiveObject {
         int xd;
         int yd;
         
+        // true if xd,yd set based on a truncated PM from the server
+        char destTruncated;
+        
         
         // use a waypoint along the way during pathfinding.
         // path must pass through this point on its way to xd,yd
@@ -231,6 +240,7 @@ typedef struct LiveObject {
 
         char pendingAction;
         float pendingActionAnimationProgress;
+        float pendingActionAnimationTotalProgress;
         double pendingActionAnimationStartTime;
         
         
