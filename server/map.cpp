@@ -4674,6 +4674,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                         // we couldn't find a new cell to place a water tile in,
                         // finish the stream here
                         // AppLog::infoF( "Dead end" );
+                        newCellDirection = oldCellDirection;
                         streamLength = 0;
                     }
                 }
