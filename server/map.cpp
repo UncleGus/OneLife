@@ -2448,13 +2448,13 @@ void initMap() {
             numRead += fscanf( waterFile, "waterWestToLake=%d\n", &waterWestToLake );
             numRead += fscanf( waterFile, "waterNorthToLake=%d\n", &waterNorthToLake );
             numRead += fscanf( waterFile, "waterEastToLake=%d\n", &waterEastToLake );
-            if( numRead != 24 ) {
+            if( numRead != 25 ) {
                 waterBiome = -100;
-                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 24 required lines found", numRead );
+                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 25 required lines found", numRead );
             }
             AppLog::infoF( "waterBiome=%d", waterBiome );
             AppLog::infoF( "waterScale=%d", waterScale );
-            AppLog::infoF( "biomeScale=%d", biomeScale );
+            AppLog::infoF( "biomeScale=%lf", biomeScale );
             AppLog::infoF( "waterLength=%d", waterLength );
             AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
             AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
@@ -4430,18 +4430,18 @@ void placeWaterTile( int inX, int inY, direction oldDirection, direction newDire
             switch( newDirection ) {
                 case NORTH:
                     AppLog::infoF( "Placing tile id %d at %d, %d waterNorthToLake", waterNorthToLake, inX, inY );
-                    setMapObject( inX, inY, waterNorthToEast);
-                    mapCacheInsert( inX, inY, waterNorthToEast);
+                    setMapObject( inX, inY, waterNorthToLake);
+                    mapCacheInsert( inX, inY, waterNorthToLake);
                 break;
                 case SOUTH:
                     AppLog::infoF( "Placing tile id %d at %d, %d waterSouthToLake", waterSouthToLake, inX, inY );
-                    setMapObject( inX, inY, waterSouthToEast);
-                    mapCacheInsert( inX, inY, waterSouthToEast);
+                    setMapObject( inX, inY, waterSouthToLake);
+                    mapCacheInsert( inX, inY, waterSouthToLake);
                 break;
                 case WEST:
                     AppLog::infoF( "Placing tile id %d at %d, %d waterWestToLake", waterWestToLake, inX, inY );
-                    setMapObject( inX, inY, waterWestToEast);
-                    mapCacheInsert( inX, inY, waterWestToEast);
+                    setMapObject( inX, inY, waterWestToLake);
+                    mapCacheInsert( inX, inY, waterWestToLake);
                 break;
                 case EAST:
                     AppLog::infoF( "Placing tile id %d at %d, %d waterEastToLake", waterEastToLake, inX, inY );
@@ -4460,6 +4460,31 @@ char isWaterBiome( int inX, int inY ) {
     return getMapBiome( inX, inY ) == waterBiome;
 }
 
+char isOccupiedByWideObject( int inX, int inY ) {
+    int maxWideRadius = getMaxWideRadius();
+    for( int ii=1; ii<=maxWideRadius; ii++ ) {
+        int objId = getMapObject( inX+ii, inY );
+        if( objId < 1 ) {
+            continue;
+        }
+        ObjectRecord *obj = getObject( objId );
+        if( obj->leftBlockingRadius >= ii ) {
+            return true;
+        }
+    }
+    for( int ii=0; ii<=maxWideRadius; ii++ ) {
+        int objId = getMapObject( inX-ii, inY );
+        if( objId < 1 ) {
+            continue;
+        }
+        ObjectRecord *obj = getObject( objId );
+        if( obj->leftBlockingRadius >= ii ) {
+            return true;
+        }
+    }
+    return false;
+}
+ 
 char isWaterObjectCell( int inX, int inY ) {
     int cellObject = getMapObject( inX, inY );
     if ( cellObject == waterSouthToNorth ||
@@ -4591,7 +4616,9 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                                 // AppLog::infoF( "UNKNOWN" );
                             break;
                         }
-                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY ) &&
+                            !isOccupiedByWideObject( checkX, checkY )
+                        ) {
                             newCellDirection = dominantDirection;
                             // AppLog::infoF( "Found a suitable cell" );
                         }
