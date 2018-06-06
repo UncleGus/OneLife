@@ -90,3 +90,9 @@ This will create an image of the biome generation for a small block. The width a
 block is defined in lines 1110 and 1111 of map.cpp:
     int w = 1000;
     int h = 1000;
+
+If you want to reduce the number of streams spawned, create another object to spawn in the water biome
+and set its mapChance according to how much you want to reduce the streams by. E.g. to spawn a quarter
+of the number of streams, set the stream spawner object's mapChance to 1 and the other object's to 3
+You can make the other object invisible, or have it decay to nothing after 1 second to make it
+"invisible" to the player.
