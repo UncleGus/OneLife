@@ -183,6 +183,7 @@ typedef enum direction {
 // these will all be read in from a file
 static int waterBiome = -100;
 static int waterScale = 1;
+static double biomeScale = 0.83332;
 static int waterLength = -1;
 static int waterSpawnId = -1;
 static int waterSouthToNorth = -1;
@@ -693,8 +694,7 @@ static int computeMapBiomeIndex( int inX, int inY,
         
         setXYRandomSeed( biome * 263 + 723 );
 
-        double thisScale = 0.83332 + 0.08333 * numBiomes;
-        thisScale += 0.5;
+        double thisScale = biomeScale + ( biomeScale / 10 * numBiomes );
         if( biome == waterBiome ) {
             thisScale *= waterScale;
         }
@@ -1109,7 +1109,7 @@ void outputMapImage() {
     
     // output a chunk of the map as an image
 
-    int w =  1000;
+    int w = 1000;
     int h = 1000;
     
     Image objIm( w, h, 3, true );
@@ -2425,6 +2425,7 @@ void initMap() {
         if( waterFile != NULL ) {
             int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
             numRead += fscanf( waterFile, "waterScale=%d\n", &waterScale );
+            numRead += fscanf( waterFile, "biomeScale=%lf\n", &biomeScale );
             numRead += fscanf( waterFile, "waterLength=%d\n", &waterLength );
             numRead += fscanf( waterFile, "waterSpawnId=%d\n", &waterSpawnId );
             numRead += fscanf( waterFile, "waterSouthToNorth=%d\n", &waterSouthToNorth );
@@ -2453,6 +2454,7 @@ void initMap() {
             }
             AppLog::infoF( "waterBiome=%d", waterBiome );
             AppLog::infoF( "waterScale=%d", waterScale );
+            AppLog::infoF( "biomeScale=%d", biomeScale );
             AppLog::infoF( "waterLength=%d", waterLength );
             AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
             AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
@@ -4589,7 +4591,7 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                                 // AppLog::infoF( "UNKNOWN" );
                             break;
                         }
-                        if( !isWaterBiomeCell( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
                             newCellDirection = dominantDirection;
                             // AppLog::infoF( "Found a suitable cell" );
                         }
