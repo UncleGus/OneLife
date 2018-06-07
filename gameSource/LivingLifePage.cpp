@@ -14567,9 +14567,86 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
             }
     
         }
+
+    // true if we're too far away to stun BUT we should execute
+    // stun
+    // if we're close enough to stun, we'll stun from where we're standing
+    // and return
+    char stunLater = false;
     
 
-    if( ! killLater &&
+    if( destID == 0 &&
+        modClick && ourLiveObject->holdingID > 0 &&
+        getObject( ourLiveObject->holdingID )->stunDistance > 0 ) {
+        
+        // special case
+
+        // check for possible stun attempt at a distance
+
+        // if it fails (target too far away or no person near),
+        // then we resort to standard drop code below
+
+
+        double d = sqrt( ( clickDestX - ourLiveObject->xd ) * 
+                         ( clickDestX - ourLiveObject->xd )
+                         +
+                         ( clickDestY - ourLiveObject->yd ) * 
+                         ( clickDestY - ourLiveObject->yd ) );
+
+        doublePair targetPos = { (double)clickDestX, (double)clickDestY };
+        
+
+
+        for( int i=0; i<gameObjects.size(); i++ ) {
+        
+            LiveObject *o = gameObjects.getElement( i );
+            
+            if( o->id != ourID ) {
+                if( distance( targetPos, o->currentPos ) < 1 ) {
+                    // clicked on someone
+                    
+                    if( getObject( ourLiveObject->holdingID )->stunDistance 
+                        >= d ) {
+                        // close enough to use stunning object right now
+
+                        
+                        if( nextActionMessageToSend != NULL ) {
+                            delete [] nextActionMessageToSend;
+                            nextActionMessageToSend = NULL;
+                            }
+            
+                        nextActionMessageToSend = 
+                            autoSprintf( "STUN %d %d#",
+                                         sendX( clickDestX ), 
+                                         sendY( clickDestY ) );
+                        
+                        
+                        playerActionTargetX = clickDestX;
+                        playerActionTargetY = clickDestY;
+                        
+                        playerActionTargetNotAdjacent = true;
+                        
+                        printf( "STUN with target player %d\n", o->id );
+
+                        return;
+                        }
+                    else {
+                        // too far away, but try to stun later,
+                        // once we walk there, using standard path-to-adjacent
+                        // code below
+                        stunLater = true;
+                        
+                        break;
+                        }
+                    }
+                }
+            }
+    
+        }
+
+
+
+    if( ! killLater && ! stunLater &&
         destID != 0 &&
         ! modClick &&
         ourLiveObject->holdingID > 0 &&
@@ -14621,12 +14698,13 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
     // and return
     char useOnBabyLater = false;
     
-    if( !killLater &&
+    if( !killLater && ! stunLater &&
         p.hitOtherPerson &&
         ! modClick && 
         destID == 0 &&
         ourLiveObject->holdingID > 0 &&
         getObject( ourLiveObject->holdingID )->deadlyDistance == 0 &&
+        getObject( ourLiveObject->holdingID )->stunDistance == 0 &&
         ( getObject( ourLiveObject->holdingID )->clothing != 'n' ||
           getObject( ourLiveObject->holdingID )->foodValue > 0 ) ) {
 
@@ -14857,6 +14935,14 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                 
                 if( killLater ) {
                     action = "KILL";
+                    }
+
+                // special case:  we're too far away to stun someone
+                // but we've right clicked on them from a distance
+                // walk up and execute STUN once we get there.
+
+                else if( stunLater ) {
+                    action = "STUN";
                     }
                 else {
                     // check for other special case
