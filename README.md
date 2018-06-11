@@ -10,3 +10,7 @@ solo griefers.
 There is one variable set in server/settings:
 
 stunTime: (default 20) the amount of time a player will be in the hidden stunned state
+
+To define an object as a stunning weapon, give it the property stunDistance, e.g.
+
+stunDistance=1
