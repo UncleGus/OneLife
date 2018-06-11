@@ -1436,6 +1436,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mSaveFaces = true;
             mFacesStep = 0;
             mFacesOrigAge = mPersonAgeSlider.getValue();
+            // clear so that this layer doesn't appear in each face picture
+            mPickedObjectLayer = -1;
             }
         else {
             actionPerformed( &mClearObjectButton );
@@ -1581,6 +1583,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mSaveFaces = true;
             mFacesStep = 0;
             mFacesOrigAge = mPersonAgeSlider.getValue();
+            // clear so that this layer doesn't appear in each face picture
+            mPickedObjectLayer = -1;
             }
         else {
             actionPerformed( &mClearObjectButton );
@@ -1817,6 +1821,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                                 mCurrentObject.numSprites,
                                 mCurrentObject.sprites,
                                 mCurrentObject.spritePos,
+                                mCurrentObject.spriteRot,
                                 mCurrentObject.spriteHFlip );
         
         spritePickable.usePickable( newID );
@@ -2445,9 +2450,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
         
         mSimUseSlider.setVisible( false );
         mSimUseCheckbox.setToggled( false );
-        mSimUseCheckbox.setVisible( false );
         
-        mUseChanceField.setVisible( false );
         
         
         char rightClick;
@@ -3314,11 +3317,11 @@ void EditorObjectPage::draw( doublePair inViewCenter,
 
     // draw overlay to show foot-cross-over point
 
-    doublePair footRecPos = { 0, -96 };
+    doublePair footRecPos = { 0, -80 };
     
     setDrawColor( 0, 0, 0, 0.1 );
     
-    drawRect( footRecPos, 192, 32 );
+    drawRect( footRecPos, 192, 16 );
     
 
     
@@ -4219,10 +4222,13 @@ void EditorObjectPage::step() {
         mFlipHButton.setVisible( false );
         }
 
-    if( mPersonAgeSlider.isVisible() || 
+    // pretty sure using sound should be visible for all objects now
+    if( true ||
+        mPersonAgeSlider.isVisible() || 
         mSlotSizeField.isVisible() ||
         anyClothingToggled() ||
         mCheckboxes[1]->getToggled() ||
+        mNumUsesField.getInt() > 1 || 
         mFloorCheckbox.getToggled() ) {
         
         mUsingSoundWidget.setVisible( true );

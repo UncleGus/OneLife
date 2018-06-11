@@ -153,6 +153,7 @@ tabHint "[TAB]"
 
 
 your "YOUR"
+of "OF"
 
 mother "MOTHER"
 son "SON"
@@ -244,6 +245,14 @@ okay "OK"
 quit "QUIT"
 
 reborn "GET REBORN"
+
+
+
+bugMessage1 "WILD BUG APPEARED!####AFTER THIS LIFE IS OVER,##PLEASE QUIT AND EMAIL YOUR STDOUT.TXT TO:"
+
+
+bugMessage2 "PRESS [%] TO CONTINUE PLAYING"
+
 
 
 

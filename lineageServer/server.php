@@ -155,6 +155,9 @@ else if( $action == "front_page" ) {
 else if( $action == "character_page" ) {
     ls_characterPage();
     }
+else if( $action == "character_dump" ) {
+    ls_characterDump();
+    }
 else if( $action == "ls_setup" ) {
     global $setup_header, $setup_footer;
     echo $setup_header; 
@@ -334,7 +337,11 @@ function ls_setupDatabase() {
             // -1 if not set yet
             // 0 for Eve
             // the Eve of this family line
-            "eve_life_id INT NOT NULL );";
+            "eve_life_id INT NOT NULL,".
+            // both -1 if not set
+            // 0 if set and empty
+            "deepest_descendant_generation INT NOT NULL,".
+            "deepest_descendant_life_id INT NOT NULL );";
 
         $result = ls_queryDatabase( $query );
 
@@ -931,21 +938,6 @@ function ls_getLifeID( $inServerID, $inPlayerID ) {
     }
 
 
-function ls_getPlayerID( $inLifeID ) {
-    global $tableNamePrefix;
-    
-    $query = "SELECT player_id FROM $tableNamePrefix"."lives ".
-        "WHERE id = '$inLifeID';";
-    $result = ls_queryDatabase( $query );
-
-    $numRows = mysqli_num_rows( $result );
-
-    if( $numRows < 1 ) {
-        return -1;
-        }
-
-    return ls_mysqli_result( $result, 0, "player_id" );
-    }
 
 
 
@@ -967,22 +959,6 @@ function ls_getMale( $inLifeID ) {
 
 
 
-// gets life_id of one child
-function ls_getOneChild( $inParentID ) {
-    global $tableNamePrefix;
-    
-    $query = "SELECT id FROM $tableNamePrefix"."lives ".
-        "WHERE parent_id = '$inParentID';";
-    $result = ls_queryDatabase( $query );
-
-    $numRows = mysqli_num_rows( $result );
-
-    if( $numRows < 1 ) {
-        return -1;
-        }
-
-    return ls_mysqli_result( $result, 0, "id" );
-    }
 
 
 
@@ -1054,12 +1030,12 @@ function ls_getDisplayID( $inLifeID ) {
 
 
 // gets life_id of one child
-function ls_getAllChildren( $inParentID ) {
+function ls_getAllChildren( $inServerID, $inParentID ) {
     global $tableNamePrefix;
 
     // order by birth time
     $query = "SELECT id FROM $tableNamePrefix"."lives ".
-        "WHERE parent_id = '$inParentID' ".
+        "WHERE server_id = '$inServerID' AND parent_id = '$inParentID' ".
         "ORDER BY DATE_SUB( ".
         "  death_time, INTERVAL floor( age * 60 ) SECOND ) ASC;";
     
@@ -1213,13 +1189,96 @@ function ls_logLife() {
         "male = '$male', ".
         // double-quotes, because ' is an allowed character
         "last_words = \"$last_words\", ".
-        "generation = '$generation'," .
-        "eve_life_id = '$eve_life_id';";
+        "generation = '$generation', " .
+        "eve_life_id = '$eve_life_id', ".
+        "deepest_descendant_generation = -1, ".
+        "deepest_descendant_life_id = -1;";
 
     ls_queryDatabase( $query );
+
+    $life_id = ls_getLifeID( $server_id, $player_id );
+    $deepestInfo = ls_computeDeepestGeneration( $life_id );
+
+
+    $deepest_descendant_generation = $deepestInfo[0];
+    $deepest_descendant_life_id = $deepestInfo[1];
+
+    if( $deepest_descendant_generation <= 0 ) {
+
+        $deepest_descendant_generation = ls_getGeneration( $life_id );
+        $deepest_descendant_life_id = $life_id;
+        }
+    
+    
+    if( $deepest_descendant_generation > 0 ) {
+        // have generation info for this person
+
+        // walk up and set deepest generation for all ancestors
+
+        $parentLifeID = ls_getParentLifeID( $life_id );
+
+        if( $parentLifeID != -1 ) {
+            ls_setDeepestGenerationUp( $parentLifeID,
+                                       $deepest_descendant_generation,
+                                       $deepest_descendant_life_id );
+            }
+        }
     
     
     echo "OK";
+    }
+
+
+
+
+function ls_setDeepestGenerationUp( $inID,
+                                    $in_deepest_descendant_generation,
+                                    $in_deepest_descendant_life_id ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT parent_id, deepest_descendant_generation, ".
+        "deepest_descendant_life_id ".
+        "FROM $tableNamePrefix"."lives WHERE id=$inID;";
+    
+    $result = ls_queryDatabase( $query );
+    
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows == 0 ) {
+        return;
+        }
+
+    $deepest_descendant_generation =
+        ls_mysqli_result( $result, 0, "deepest_descendant_generation" );
+
+    $deepest_descendant_life_id =
+        ls_mysqli_result( $result, 0, "deepest_descendant_life_id" );
+
+    if( $in_deepest_descendant_generation > $deepest_descendant_generation ) {
+        // even deeper than last known
+
+        // set it
+
+        $query = "UPDATE $tableNamePrefix"."lives ".
+            "SET ".
+            "deepest_descendant_generation = ".
+            "  $in_deepest_descendant_generation, ".
+            "deepest_descendant_life_id = ".
+            "  $in_deepest_descendant_life_id ".
+            "WHERE id = $inID;";
+        
+        ls_queryDatabase( $query );
+
+        // propagate it up
+        $parentLifeID = ls_getParentLifeID( $inID );
+
+        if( $parentLifeID != -1 ) {
+            ls_setDeepestGenerationUp( $parentLifeID,
+                                       $in_deepest_descendant_generation,
+                                       $in_deepest_descendant_life_id );
+            }
+        }
+    
     }
 
 
@@ -1265,7 +1324,7 @@ function ls_frontPage() {
     $filter = "";
     
     if( $emailFilter != "" ) {
-        $filterClause = " WHERE users.email LIKE '%$emailFilter%' ";
+        $filterClause = " WHERE users.email = '$emailFilter' ";
         $filter = $emailFilter;
         }
     else if( $nameFilter != "" ) {
@@ -1634,7 +1693,10 @@ function ls_getRelName( $inFromID, $inToID, $inLimit ) {
         }
 
     if( $sharedFromIndex == -1 && $sharedToIndex == -1 &&
-        ls_getParentID( $inFromID ) == ls_getParentID( $inToID ) ) {
+        ls_getParentID( $inFromID ) == ls_getParentID( $inToID )&&
+        ls_getServerIDForLife( $inFromID ) ==
+        ls_getServerIDForLife( $inToID ) ) {
+
         // same parent, but parent not dead yet
         $sharedFromIndex = 1;
         $sharedToIndex = 1;
@@ -1758,21 +1820,37 @@ function ls_getPrevGen( $inFromID ) {
 // returns array of siblings
 function ls_getSiblings( $inFromID ) {
     $parentID = ls_getParentID( $inFromID );
+    $serverID = ls_getServerIDForLife( $inFromID );
 
     if( $parentID == -1 ) {
         return array( $inFromID );
         }
 
-    return ls_getAllChildren( $parentID );
+    return ls_getAllChildren( $serverID, $parentID );
     }
 
 
 
 // returns array of next generation
 function ls_getNextGen( $inFromID ) {
-    $playerID = ls_getPlayerID( $inFromID );
 
-    return ls_getAllChildren( $playerID );
+    global $tableNamePrefix;
+    
+    $query = "SELECT server_id, player_id FROM $tableNamePrefix"."lives ".
+        "WHERE id = '$inFromID';";
+    $result = ls_queryDatabase( $query );
+
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows < 1 ) {
+        return array();
+        }
+
+    $server_id = ls_mysqli_result( $result, 0, "server_id" );
+    $player_id = ls_mysqli_result( $result, 0, "player_id" );
+    
+
+    return ls_getAllChildren( $server_id, $player_id );
     }
 
 
@@ -1871,7 +1949,7 @@ function ls_displayPerson( $inID, $inRelID, $inFullWords ) {
         $deathHTML = $deathCause;
 
         if( $deathHTML == "" ) {
-            $deathHTML = ls_getDeathHTML( $inID );
+            $deathHTML = ls_getDeathHTML( $inID, $inRelID );
             }
 
         if( $deathHTML != "" ) {
@@ -1947,10 +2025,10 @@ function ls_displayGenRow( $inGenArray, $inCenterID, $inRelID, $inFullWords ) {
 
 
 
-function ls_getDeathHTML( $inID ) {
+function ls_getDeathHTML( $inID, $inRelID ) {
     global $tableNamePrefix;
     
-    $query = "SELECT age, killer_id, death_cause ".
+    $query = "SELECT age, killer_id, server_id, death_cause ".
         "FROM $tableNamePrefix"."lives WHERE id=$inID;";
     
     $result = ls_queryDatabase( $query );
@@ -1969,12 +2047,14 @@ function ls_getDeathHTML( $inID ) {
 
 
     $killer_id = ls_mysqli_result( $result, 0, "killer_id" );
+    $server_id = ls_mysqli_result( $result, 0, "server_id" );
     $age = ls_mysqli_result( $result, 0, "age" );
     
     
     if( $killer_id > 0 ) {
         $query = "SELECT id, name ".
-            "FROM $tableNamePrefix"."lives WHERE player_id=$killer_id;";
+            "FROM $tableNamePrefix"."lives WHERE player_id=$killer_id ".
+            "AND server_id=$server_id;";
         
         $result = ls_queryDatabase( $query );
         
@@ -1988,7 +2068,7 @@ function ls_getDeathHTML( $inID ) {
         $name = ls_mysqli_result( $result, 0, "name" );        
 
         return "Killed by <a href='server.php?action=character_page&".
-            "id=$id'>$name</a>";
+            "id=$id&rel_id=$inRelID'>$name</a>";
         }
     else if( $killer_id <= -1 ) {
 
@@ -2044,6 +2124,70 @@ function ls_getDeathHTML( $inID ) {
 
 
 
+// walks down tree
+// returns array  of
+// { deepest_descendant_generation, deepest_descendant_life_id }
+function ls_computeDeepestGeneration( $inID ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT deepest_descendant_generation, ".
+        "deepest_descendant_life_id ".
+        "FROM $tableNamePrefix"."lives WHERE id=$inID;";
+    
+    $result = ls_queryDatabase( $query );
+    
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows == 0 ) {
+        return array( -1, -1 );
+        }
+
+    $deepest_descendant_generation =
+        ls_mysqli_result( $result, 0, "deepest_descendant_generation" );
+
+    $deepest_descendant_life_id =
+        ls_mysqli_result( $result, 0, "deepest_descendant_life_id" );
+
+    if( $deepest_descendant_generation == -1 ) {
+
+        $deepest_descendant_generation = 0;
+        $deepest_descendant_life_id = 0;
+        
+        $nextGen = ls_getNextGen( $inID );
+
+        $numNext = count( $nextGen );
+
+        
+        if( $numNext > 0 ) {
+            $deepest_descendant_generation = ls_getGeneration( $nextGen[0] );
+            $deepest_descendant_life_id = $nextGen[0];
+            }
+        
+        for( $i=0; $i<$numNext; $i++ ) {
+            $next = $nextGen[$i];
+
+            $nextDeep = ls_computeDeepestGeneration( $next );
+
+            if( $nextDeep[0] > $deepest_descendant_generation ) {
+                $deepest_descendant_generation = $nextDeep[0];
+                $deepest_descendant_life_id = $nextDeep[1];
+                }
+            }
+
+        $query = "UPDATE $tableNamePrefix"."lives ".
+            "SET ".
+            "deepest_descendant_generation = $deepest_descendant_generation, ".
+            "deepest_descendant_life_id = $deepest_descendant_life_id ".
+            "WHERE id = $inID;";
+        
+        ls_queryDatabase( $query );  
+        }
+    
+    return array( $deepest_descendant_generation, $deepest_descendant_life_id );
+    }
+
+
+
 
 function ls_getParentLifeID( $inID ) {
     global $tableNamePrefix;
@@ -2059,8 +2203,14 @@ function ls_getParentLifeID( $inID ) {
         return -1;
         }
 
+    $parent_id = ls_mysqli_result( $result, 0, "parent_id" );
+
+    if( $parent_id == -1 ) {
+        return -1;
+        }
+    
     return ls_getLifeID( ls_mysqli_result( $result, 0, "server_id" ),
-                         ls_mysqli_result( $result, 0, "parent_id" ) );
+                         $parent_id );
     }
 
 
@@ -2084,6 +2234,44 @@ function ls_getParentID( $inID ) {
 
 
 
+function ls_getServerIDForLife( $inLifeID ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT server_id ".
+        "FROM $tableNamePrefix"."lives WHERE id=$inLifeID;";
+    
+    $result = ls_queryDatabase( $query );
+    
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows == 0 ) {
+        return -1;
+        }
+
+    return ls_mysqli_result( $result, 0, "server_id" );
+    }
+
+
+
+
+function ls_getLifeExists( $inID ) {
+    global $tableNamePrefix;
+    
+    $query = "SELECT id ".
+        "FROM $tableNamePrefix"."lives WHERE id=$inID;";
+    
+    $result = ls_queryDatabase( $query );
+    
+    $numRows = mysqli_num_rows( $result );
+
+    if( $numRows == 0 ) {
+        return false;
+        }
+    return true;
+    }
+
+
+
 
 function ls_characterPage() {
 
@@ -2095,6 +2283,10 @@ function ls_characterPage() {
         $rel_id = $id;
         }
 
+
+    
+    
+    
     //echo "ID = $id and relID = $rel_id<br>";
     
     global $header, $footer;
@@ -2103,7 +2295,16 @@ function ls_characterPage() {
 
     echo "<center>\n";
 
+    if( ! ls_getLifeExists( $id )
+        ||
+        ( $rel_id != $id && ! ls_getLifeExists( $rel_id ) ) ) {
 
+        echo "Not found";
+        echo "</center>\n";
+        eval( $footer );
+        return;
+        }
+    
     $parent = ls_getParentLifeID( $id );
     $ancestor = ls_getEveID( $id );
 
@@ -2132,11 +2333,100 @@ function ls_characterPage() {
     // no one needs to be in center of next gen
     ls_displayGenRow( $nextGen, -1, $rel_id, false );
 
+
+    if( count( $nextGen ) > 0 ) {
+        $gen = ls_getGeneration( $nextGen[0] );
+    
+        $deepestGenInfo = ls_computeDeepestGeneration( $id );
+        
+        $deepest_descendant_generation = $deepestGenInfo[0];
+        $deepest_descendant_life_id = $deepestGenInfo[1];
+        
+        if( $deepest_descendant_generation > 0 &&
+            $deepest_descendant_generation > $gen ) {
+
+            if( $deepest_descendant_generation > $gen + 1 ) {    
+                echo "<font size=5>...</font>\n";
+                }
+            
+            $deep_sibs = ls_getSiblings( $deepest_descendant_life_id );
+            // target in center and display full words for target
+            ls_displayGenRow( $deep_sibs, -1, $rel_id, false );
+            }
+        }
+    
+
+    
     echo "</center>\n";
 
     eval( $footer );    
     }
 
+
+
+
+
+function ls_characterDump() {
+    global $tableNamePrefix;
+    
+    $id = ls_requestFilter( "id", "/[0-9]+/i", "0" );
+
+
+    if( $id > 0 ) {
+        $query = "SELECT * FROM $tableNamePrefix"."lives ".
+            "WHERE id = $id;";
+
+        $result = ls_queryDatabase( $query );
+
+        $numRows = mysqli_num_rows( $result );
+
+        if( $numRows == 1 ) {
+
+            $death_time = ls_mysqli_result( $result, 0, "death_time" );
+            $server_id = ls_mysqli_result( $result, 0, "server_id" );
+
+            $parent_id = ls_mysqli_result( $result, 0, "parent_id" );
+
+            $parentLifeID = -1;
+
+            if( $parent_id != -1 ) {
+                $parentLifeID = ls_getLifeID( $server_id, $parent_id );
+                }
+
+            $killer_id = ls_mysqli_result( $result, 0, "killer_id" );
+
+            $killerLifeID = -1;
+
+            if( $killer_id > 0 ) {
+                $killerLifeID = ls_getLifeID( $server_id, $killer_id );
+                }
+            
+            $death_cause = ls_mysqli_result( $result, 0, "death_cause" );
+
+            $display_id = ls_mysqli_result( $result, 0, "display_id" );
+
+            $name = ls_mysqli_result( $result, 0, "name" );
+
+            $age = ls_mysqli_result( $result, 0, "age" );
+            $last_words = ls_mysqli_result( $result, 0, "last_words" );
+            
+            $male = ls_mysqli_result( $result, 0, "male" );
+
+            $serverName = ls_getServerName( $server_id );
+
+            echo "death_time = $death_time\n";
+            echo "server_name = $serverName\n";
+            echo "parent_id = $parentLifeID\n";
+            echo "killer_id = $killerLifeID\n";
+            echo "death_cause = $death_cause\n";
+            echo "display_id = $display_id\n";
+            echo "name = $name\n";
+            echo "age = $age\n";
+            echo "last_words = $last_words\n";
+            echo "male = $male";
+            }        
+        }    
+    }
 
 
 

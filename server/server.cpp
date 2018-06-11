@@ -256,6 +256,12 @@ typedef struct LiveObject {
         char heldOriginValid;
         int heldOriginX;
         int heldOriginY;
+        
+
+        // track origin of held separate to use when placing a grave
+        int heldGraveOriginX;
+        int heldGraveOriginY;
+        
 
         // if held object was created by a transition on a target, what is the
         // object ID of the target from the transition?
@@ -380,6 +386,21 @@ typedef struct LiveObject {
 
 
 SimpleVector<LiveObject> players;
+
+
+
+
+typedef struct GraveInfo {
+        GridPos pos;
+        int playerID;
+    } GraveInfo;
+
+
+typedef struct GraveMoveInfo {
+        GridPos posStart;
+        GridPos posEnd;
+    } GraveMoveInfo;
+
 
 
 
@@ -1413,10 +1434,6 @@ double computeMoveSpeed( LiveObject *inPlayer ) {
     */
 
 
-    // never move at 0 speed, divide by 0 errors for eta times
-    if( speed < 0.1 ) {
-        speed = 0.1;
-        }
 
     // apply character's speed mult
     speed *= getObject( inPlayer->displayID )->speedMult;
@@ -1450,6 +1467,12 @@ double computeMoveSpeed( LiveObject *inPlayer ) {
                 }
             }
         }
+
+    // never move at 0 speed, divide by 0 errors for eta times
+    if( speed < 0.01 ) {
+        speed = 0.01;
+        }
+
     
     // after all multipliers, make sure it's a whole number of pixels per frame
 
@@ -2296,6 +2319,7 @@ char findDropSpot( int inX, int inY, int inSourceX, int inSourceY,
 // drops an object held by a player at target x,y location
 // doesn't check for adjacency (so works for thrown drops too)
 // if target spot blocked, will search for empty spot to throw object into
+// if inPlayerIndicesToSendUpdatesAbout is NULL, it is ignored
 void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
                  SimpleVector<int> *inPlayerIndicesToSendUpdatesAbout ) {
     
@@ -2392,8 +2416,11 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
                             computeFoodDecrementTimeSeconds( babyO );
                         }
                     
-                    inPlayerIndicesToSendUpdatesAbout->push_back( 
-                        getLiveObjectIndex( babyID ) );
+                    if( inPlayerIndicesToSendUpdatesAbout != NULL ) {    
+                        inPlayerIndicesToSendUpdatesAbout->push_back( 
+                            getLiveObjectIndex( babyID ) );
+                        }
+                    
                     }
                 
                 }
@@ -2428,7 +2455,15 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
             babyO->ys = targetY;
             
             babyO->heldByOther = false;
-
+            
+            // force baby pos
+            // baby can wriggle out of arms in same server step that it was
+            // picked up.  In that case, the clients will never get the
+            // message that the baby was picked up.  The baby client could
+            // be in the middle of a client-side move, and we need to force
+            // them back to their true position.
+            babyO->posForced = true;
+            
             if( isFertileAge( inDroppingPlayer ) ) {    
                 // reset food decrement time
                 babyO->foodDecrementETASeconds =
@@ -2436,8 +2471,10 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
                     computeFoodDecrementTimeSeconds( babyO );
                 }
 
-            inPlayerIndicesToSendUpdatesAbout->push_back( 
-                getLiveObjectIndex( babyID ) );
+            if( inPlayerIndicesToSendUpdatesAbout != NULL ) {
+                inPlayerIndicesToSendUpdatesAbout->push_back( 
+                    getLiveObjectIndex( babyID ) );
+                }
             }
         
         inDroppingPlayer->holdingID = 0;
@@ -2473,8 +2510,11 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
             
     ObjectRecord *droppedObject = getObject( oldHoldingID );
    
-    handleMapChangeToPaths( targetX, targetY, droppedObject,
-                            inPlayerIndicesToSendUpdatesAbout );
+    if( inPlayerIndicesToSendUpdatesAbout != NULL ) {    
+        handleMapChangeToPaths( targetX, targetY, droppedObject,
+                                inPlayerIndicesToSendUpdatesAbout );
+        }
+    
     
     }
 
@@ -3376,6 +3416,10 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.heldOriginValid = 0;
     newObject.heldOriginX = 0;
     newObject.heldOriginY = 0;
+
+    newObject.heldGraveOriginX = 0;
+    newObject.heldGraveOriginY = 0;
+
     newObject.heldTransitionSourceID = -1;
     newObject.numContained = 0;
     newObject.containedIDs = NULL;
@@ -3973,9 +4017,75 @@ static void handleHoldingChange( LiveObject *inPlayer, int inNewHeldID ) {
         nextPlayer->holdingID );
     
     if( newHeldSlots < oldContained ) {
+        // new container can hold less
         // truncate
-        nextPlayer->numContained
-            = newHeldSlots;
+                            
+        GridPos dropPos = 
+            computePartialMoveSpot( inPlayer );
+                            
+        // offset to counter-act offsets built into
+        // drop code
+        dropPos.x += 1;
+        dropPos.y += 1;
+        
+        char found = false;
+        GridPos spot;
+        
+        if( getMapObject( dropPos.x, dropPos.y ) == 0 ) {
+            spot = dropPos;
+            found = true;
+            }
+        else {
+            found = findDropSpot( 
+                dropPos.x, dropPos.y,
+                dropPos.x, dropPos.y,
+                &spot );
+            }
+        
+        
+        if( found ) {
+            
+            // throw it on map temporarily
+            handleDrop( 
+                spot.x, spot.y, 
+                inPlayer,
+                // only temporary, don't worry about blocking players
+                // with this drop
+                NULL );
+                                
+
+            // responsible player for stuff thrown on map by shrink
+            setResponsiblePlayer( inPlayer->id );
+
+            // shrink contianer on map
+            shrinkContainer( spot.x, spot.y, 
+                             newHeldSlots );
+            
+            setResponsiblePlayer( -1 );
+            
+
+            // pick it back up
+            nextPlayer->holdingEtaDecay = 
+                getEtaDecay( spot.x, spot.y );
+                                    
+            FullMapContained f =
+                getFullMapContained( spot.x, spot.y );
+
+            setContained( inPlayer, f );
+            
+            nextPlayer->holdingID = inNewHeldID;
+
+            clearAllContained( spot.x, spot.y );
+            setMapObject( spot.x, spot.y, 0 );
+            }
+        else {
+            // no spot to throw it
+            // cannot leverage map's container-shrinking
+            // just truncate held container directly
+            
+            // truncated contained items will be lost
+            inPlayer->numContained = newHeldSlots;
+            }
         }
     
     if( newHeldSlots > 0 && 
@@ -4441,8 +4551,8 @@ int main() {
         SettingsManager::getIntSetting( "nextPlayerID", 2 );
 
 
-    // make backup and delete old backup every two days
-    AppLog::setLog( new FileLog( "log.txt", 172800 ) );
+    // make backup and delete old backup every day
+    AppLog::setLog( new FileLog( "log.txt", 86400 ) );
 
     AppLog::setLoggingLevel( Log::DETAIL_LEVEL );
     AppLog::printAllMessages( true );
@@ -5265,6 +5375,9 @@ int main() {
 
         SimpleVector<int> playerIndicesToSendDyingAbout;
 
+        SimpleVector<GraveInfo> newGraves;
+        SimpleVector<GraveMoveInfo> newGraveMoves;
+
 
         SimpleVector<UpdateRecord> newUpdates;
         SimpleVector<ChangePosition> newUpdatesPos;
@@ -5311,7 +5424,15 @@ int main() {
                 
                 ObjectRecord *curOverObj = getObject( curOverID );
                 
-                if( curOverObj->permanent && curOverObj->deadlyDistance > 0 ) {
+                char riding = false;
+                
+                if( nextPlayer->holdingID > 0 && 
+                    getObject( nextPlayer->holdingID )->rideable ) {
+                    riding = true;
+                    }
+
+                if( !riding &&
+                    curOverObj->permanent && curOverObj->deadlyDistance > 0 ) {
                     
                     setDeathReason( nextPlayer, 
                                     "killed",
@@ -5332,6 +5453,22 @@ int main() {
                         }
                     continue;
                     }
+                else if( riding && 
+                         curOverObj->permanent && 
+                         curOverObj->deadlyDistance > 0 ) {
+                    // rode over something deadly
+                    // see if it affects what we're riding
+
+                    TransRecord *r = 
+                        getPTrans( nextPlayer->holdingID, curOverID );
+                    
+                    if( r != NULL ) {
+                        handleHoldingChange( nextPlayer,
+                                             r->newActor );
+                        nextPlayer->heldTransitionSourceID = curOverID;
+                        playerIndicesToSendUpdatesAbout.push_back( i );
+                        }
+                    }                
                 }
             
             
@@ -5494,6 +5631,23 @@ int main() {
                         
                         // drop them and ignore rest of their move
                         // request, until they click again
+                        }
+                    else if( m.type == MOVE && nextPlayer->holdingID > 0 &&
+                             getObject( nextPlayer->holdingID )->
+                             speedMult == 0 ) {
+                        // next player holding something that prevents
+                        // movement entirely
+                        printf( "  Processing move, "
+                                "but player holding a speed-0 object, "
+                                "ending now\n" );
+                        nextPlayer->xd = nextPlayer->xs;
+                        nextPlayer->yd = nextPlayer->ys;
+                        
+                        nextPlayer->posForced = true;
+                        
+                        // send update about them to end the move
+                        // right now
+                        playerIndicesToSendUpdatesAbout.push_back( i );
                         }
                     else if( m.type == MOVE ) {
                         //Thread::staticSleep( 1000 );
@@ -6288,6 +6442,14 @@ int main() {
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
+                        // track whether this USE resulted in something
+                        // new on the ground in case of placing a grave
+                        int newGroundObject = -1;
+                        GridPos newGroundObjectOrigin =
+                            { nextPlayer->heldGraveOriginX,
+                              nextPlayer->heldGraveOriginY };
+                        
+
                         char distanceUseAllowed = false;
                         
                         if( nextPlayer->holdingID > 0 ) {
@@ -6426,13 +6588,19 @@ int main() {
                                     // moving from actor into new target
                                     // (and hand left empty)
                                     setResponsiblePlayer( - nextPlayer->id );
+                                    
                                     setMapObject( m.x, m.y, r->newTarget );
+                                    newGroundObject = r->newTarget;
+                                    
                                     setResponsiblePlayer( -1 );
                                     
                                     transferHeldContainedToMap( nextPlayer,
                                                                 m.x, m.y );
                                     handleHoldingChange( nextPlayer,
                                                          r->newActor );
+
+                                    nextPlayer->heldGraveOriginX = m.x;
+                                    nextPlayer->heldGraveOriginY = m.y;
                                     }
                                 else if( r != NULL &&
                                     // are we old enough to handle
@@ -6468,7 +6636,9 @@ int main() {
                                     if( ! defaultTrans ) {    
                                         handleHoldingChange( nextPlayer,
                                                              r->newActor );
-                                        
+                                        nextPlayer->heldGraveOriginX = m.x;
+                                        nextPlayer->heldGraveOriginY = m.y;
+                                    
                                         if( r->target > 0 ) {    
                                             nextPlayer->heldTransitionSourceID =
                                                 r->target;
@@ -6553,6 +6723,7 @@ int main() {
                                         }
                                     else {    
                                         setMapObject( m.x, m.y, r->newTarget );
+                                        newGroundObject = r->newTarget;
                                         }
                                     
                                     
@@ -6598,6 +6769,9 @@ int main() {
                                     
                                     nextPlayer->holdingID = target;
                                     
+                                    nextPlayer->heldGraveOriginX = m.x;
+                                    nextPlayer->heldGraveOriginY = m.y;
+
                                     nextPlayer->heldOriginValid = 1;
                                     nextPlayer->heldOriginX = m.x;
                                     nextPlayer->heldOriginY = m.y;
@@ -6770,6 +6944,9 @@ int main() {
                                                 }
                                             handleHoldingChange( nextPlayer,
                                                                  r->newActor );
+                                            
+                                            nextPlayer->heldGraveOriginX = m.x;
+                                            nextPlayer->heldGraveOriginY = m.y;
                                             }
                                         else {
                                             // changing floor to non-floor
@@ -6789,7 +6966,11 @@ int main() {
                                                 handleHoldingChange( 
                                                     nextPlayer,
                                                     r->newActor );
-                                            
+                                                nextPlayer->
+                                                    heldGraveOriginX = m.x;
+                                                nextPlayer->
+                                                    heldGraveOriginY = m.y;
+                                    
                                                 usedOnFloor = true;
                                                 }
                                             }
@@ -6842,7 +7023,9 @@ int main() {
                                         }
                                     
                                     if( canPlace ) {
-
+                                        nextPlayer->heldTransitionSourceID =
+                                            nextPlayer->holdingID;
+                                        
                                         if( nextPlayer->numContained > 0 &&
                                             r->newActor == 0 &&
                                             r->newTarget > 0 &&
@@ -6859,8 +7042,11 @@ int main() {
 
                                             setResponsiblePlayer( 
                                                 - nextPlayer->id );
+
                                             setMapObject( m.x, m.y, 
                                                           r->newTarget );
+                                            newGroundObject = r->newTarget;
+
                                             setResponsiblePlayer( -1 );
                                     
                                             transferHeldContainedToMap( 
@@ -6868,11 +7054,17 @@ int main() {
                                             
                                             handleHoldingChange( nextPlayer,
                                                                  r->newActor );
+                                            
+                                            nextPlayer->heldGraveOriginX = m.x;
+                                            nextPlayer->heldGraveOriginY = m.y;
                                             }
                                         else {
                                             handleHoldingChange( nextPlayer,
                                                                  r->newActor );
-                                        
+                                            
+                                            nextPlayer->heldGraveOriginX = m.x;
+                                            nextPlayer->heldGraveOriginY = m.y;
+                                    
                                             setResponsiblePlayer( 
                                                 - nextPlayer->id );
                                             
@@ -6886,6 +7078,7 @@ int main() {
                                             else {    
                                                 setMapObject( m.x, m.y, 
                                                               r->newTarget );
+                                                newGroundObject = r->newTarget;
                                                 }
                                             
                                             setResponsiblePlayer( -1 );
@@ -6897,6 +7090,22 @@ int main() {
                                             }
                                         }
                                     }
+                                }
+                            }
+
+
+                        if( newGroundObject > 0 ) {
+
+                            ObjectRecord *o = getObject( newGroundObject );
+                            
+                            if( strstr( o->description, "origGrave" ) 
+                                != NULL ) {
+                                
+                                GraveMoveInfo g = { newGroundObjectOrigin.x,
+                                                    newGroundObjectOrigin.y,
+                                                    m.x,
+                                                    m.y };
+                                newGraveMoves.push_back( g );
                                 }
                             }
                         }
@@ -8012,6 +8221,10 @@ int main() {
                                       deathID );
                         setResponsiblePlayer( -1 );
                         
+                        GraveInfo graveInfo = { dropPos, nextPlayer->id };
+                        newGraves.push_back( graveInfo );
+                        
+
                         ObjectRecord *deathObject = getObject( deathID );
                         
                         int roomLeft = deathObject->numSlots;
@@ -8199,84 +8412,10 @@ int main() {
                     if( t != NULL ) {
 
                         int newID = t->newTarget;
-                    
-                        int oldSlots = nextPlayer->numContained;
                         
-                        int newSlots = getNumContainerSlots( newID );
-                    
-                        if( newSlots < oldSlots ) {
-                            // new container can hold less
-                            // truncate
-                            
-                            GridPos dropPos = 
-                                computePartialMoveSpot( nextPlayer );
-                            
-                            // offset to counter-act offsets built into
-                            // drop code
-                            dropPos.x += 1;
-                            dropPos.y += 1;
-
-                            char found = false;
-                            GridPos spot;
-                            
-                            if( getMapObject( dropPos.x, dropPos.y ) == 0 ) {
-                                spot = dropPos;
-                                found = true;
-                                }
-                            else {
-                                found = findDropSpot( 
-                                    dropPos.x, dropPos.y,
-                                    dropPos.x, dropPos.y,
-                                    &spot );
-                                }
-                            
-                            
-                            if( found ) {
-                                
-                                // throw it on map temporarily
-                                handleDrop( 
-                                    spot.x, spot.y, 
-                                    nextPlayer,
-                                    &playerIndicesToSendUpdatesAbout );
-                                
-                                
-                                // shrink contianer on map
-                                shrinkContainer( spot.x, spot.y, 
-                                                 newSlots );
-
-                                // pick it back up
-                                nextPlayer->holdingEtaDecay = 
-                                    getEtaDecay( spot.x, spot.y );
-                                    
-                                FullMapContained f =
-                                    getFullMapContained( spot.x, spot.y );
-
-                                setContained( nextPlayer, f );
-                                
-                                clearAllContained( spot.x, spot.y );
-                                setMapObject( spot.x, spot.y, 0 );
-                                }
-                            else {
-                                // no spot to throw it
-                                // cannot leverage map's container-shrinking
-                                // just truncate held container directly
-                                
-                                // truncated contained items will be lost
-                                nextPlayer->numContained = newSlots;
-                                }
-                            }
+                        handleHoldingChange( nextPlayer, newID );
                         
-                        nextPlayer->holdingID = newID;
                         nextPlayer->heldTransitionSourceID = -1;
-                    
-                        setFreshEtaDecayForHeld( nextPlayer );
-                    
-                        if( nextPlayer->numContained > 0 ) {    
-                            restretchDecays( nextPlayer->numContained,
-                                             nextPlayer->containedEtaDecays,
-                                             oldID, newID );
-                            }
-                    
                         
                         ObjectRecord *newObj = getObject( newID );
                         ObjectRecord *oldObj = getObject( oldID );
@@ -8877,6 +9016,29 @@ int main() {
             }
         
 
+        if( playerIndicesToSendUpdatesAbout.size() > 0 ) {
+            
+            SimpleVector<char> updateList;
+        
+            for( int i=0; i<playerIndicesToSendUpdatesAbout.size(); i++ ) {
+                LiveObject *nextPlayer = players.getElement( 
+                    playerIndicesToSendUpdatesAbout.getElementDirect( i ) );
+                
+                char *playerString = autoSprintf( "%d, ", nextPlayer->id );
+                updateList.appendElementString( playerString );
+                
+                delete [] playerString;
+                }
+            
+            char *updateListString = updateList.getElementString();
+            
+            AppLog::infoF( "Need to send updates about these %d players: %s",
+                           playerIndicesToSendUpdatesAbout.size(),
+                           updateListString );
+            delete [] updateListString;
+            }
+        
+
         
         for( int i=0; i<playerIndicesToSendUpdatesAbout.size(); i++ ) {
             LiveObject *nextPlayer = players.getElement( 
@@ -9259,6 +9421,29 @@ int main() {
             nextPlayer->updateGlobal = false;
             }
         
+        
+
+        if( newUpdates.size() > 0 ) {
+            
+            SimpleVector<char> trueUpdateList;
+            
+            
+            for( int i=0; i<newUpdates.size(); i++ ) {
+                char *s = autoSprintf( 
+                    "%d, ", newUpdatePlayerIDs.getElementDirect( i ) );
+                trueUpdateList.appendElementString( s );
+                delete [] s;
+                }
+            
+            char *updateListString = trueUpdateList.getElementString();
+            
+            AppLog::infoF( "Sending updates about these %d players: %s",
+                           newUpdatePlayerIDs.size(),
+                           updateListString );
+            delete [] updateListString;
+            }
+        
+        
 
         
         SimpleVector<ChangePosition> movesPos;        
@@ -9274,39 +9459,6 @@ int main() {
 
 
 
-        unsigned char *outOfRangeMessage = NULL;
-        int outOfRangeMessageLength = 0;
-        
-        if( newUpdatePlayerIDs.size() > 0 ) {
-            SimpleVector<char> messageChars;
-            
-            messageChars.appendElementString( "PO\n" );
-            
-            for( int i=0; i<newUpdatePlayerIDs.size(); i++ ) {
-                char buffer[20];
-                sprintf( buffer, "%d\n",
-                         newUpdatePlayerIDs.getElementDirect( i ) );
-                
-                messageChars.appendElementString( buffer );
-                }
-            messageChars.push_back( '#' );
-
-            char *outOfRangeMessageText = messageChars.getElementString();
-
-            outOfRangeMessageLength = strlen( outOfRangeMessageText );
-
-            if( outOfRangeMessageLength < maxUncompressedSize ) {
-                outOfRangeMessage = (unsigned char*)outOfRangeMessageText;
-                }
-            else {
-                // compress for all players once here
-                outOfRangeMessage = makeCompressedMessage( 
-                    outOfRangeMessageText, 
-                    outOfRangeMessageLength, &outOfRangeMessageLength );
-                
-                delete [] outOfRangeMessageText;
-                }
-            }
         
 
         
@@ -9501,6 +9653,10 @@ int main() {
         
         // send moves and updates to clients
         
+        
+        SimpleVector<int> playersReceivingPlayerUpdate;
+        
+
         for( int i=0; i<numLive; i++ ) {
             
             LiveObject *nextPlayer = players.getElement(i);
@@ -9733,7 +9889,56 @@ int main() {
                     
                     delete [] monMessage;
                     }
+                
 
+                // everyone gets all grave messages
+                if( newGraves.size() > 0 ) {
+                    
+                    // compose GV messages for this player
+                    
+                    for( int u=0; u<newGraves.size(); u++ ) {
+                        GraveInfo *g = newGraves.getElement( u );
+                        
+                        char *graveMessage = 
+                            autoSprintf( "GV\n%d %d %d\n#", 
+                                         g->pos.x -
+                                         nextPlayer->birthPos.x, 
+                                         g->pos.y -
+                                         nextPlayer->birthPos.y,
+                                         g->playerID );
+                        
+                        sendMessageToPlayer( nextPlayer, graveMessage,
+                                             strlen( graveMessage ) );
+                        delete [] graveMessage;
+                        }
+                    }
+
+
+                // everyone gets all grave move messages
+                if( newGraveMoves.size() > 0 ) {
+                    
+                    // compose GM messages for this player
+                    
+                    for( int u=0; u<newGraveMoves.size(); u++ ) {
+                        GraveMoveInfo *g = newGraveMoves.getElement( u );
+                        
+                        char *graveMessage = 
+                            autoSprintf( "GM\n%d %d %d %d\n#", 
+                                         g->posStart.x -
+                                         nextPlayer->birthPos.x,
+                                         g->posStart.y -
+                                         nextPlayer->birthPos.y,
+                                         g->posEnd.x -
+                                         nextPlayer->birthPos.x,
+                                         g->posEnd.y -
+                                         nextPlayer->birthPos.y );
+                        
+                        sendMessageToPlayer( nextPlayer, graveMessage,
+                                             strlen( graveMessage ) );
+                        delete [] graveMessage;
+                        }
+                    }
+                
                 
 
                 int playerXD = nextPlayer->xd;
@@ -9939,6 +10144,10 @@ int main() {
 
                     double minUpdateDist = maxDist2 * 2;
                     
+                    // greater than maxDis but within maxDist2
+                    SimpleVector<int> middleDistancePlayerIDs;
+                    
+
                     for( int u=0; u<newUpdatesPos.size(); u++ ) {
                         ChangePosition *p = newUpdatesPos.getElement( u );
                         
@@ -9954,6 +10163,10 @@ int main() {
                     
                             if( d < minUpdateDist ) {
                                 minUpdateDist = d;
+                                }
+                            if( d > maxDist && d <= maxDist2 ) {
+                                middleDistancePlayerIDs.push_back(
+                                    newUpdatePlayerIDs.getElementDirect( u ) );
                                 }
                             }
                         }
@@ -10012,6 +10225,8 @@ int main() {
                             }
 
                         if( updateMessage != NULL ) {
+                            playersReceivingPlayerUpdate.push_back( 
+                                nextPlayer->id );
                             
                             int numSent = 
                                 nextPlayer->sock->send( 
@@ -10030,17 +10245,59 @@ int main() {
                                 }
                             }
                         }
-                    else if( minUpdateDist <= maxDist2 && 
-                             outOfRangeMessage != NULL ) {
-                        // everyone in the PU is out of range
-                        // but some of them are in middle range 
+                    
+
+                    if( middleDistancePlayerIDs.size() > 0 ) {
+
+                        unsigned char *outOfRangeMessage = NULL;
+                        int outOfRangeMessageLength = 0;
+        
+                        if( middleDistancePlayerIDs.size() > 0 ) {
+                            SimpleVector<char> messageChars;
+            
+                            messageChars.appendElementString( "PO\n" );
+            
+                            for( int i=0; 
+                                 i<middleDistancePlayerIDs.size(); i++ ) {
+                                char buffer[20];
+                                sprintf( 
+                                    buffer, "%d\n",
+                                    middleDistancePlayerIDs.
+                                    getElementDirect( i ) );
+                                
+                                messageChars.appendElementString( buffer );
+                                }
+                            messageChars.push_back( '#' );
+
+                            char *outOfRangeMessageText = 
+                                messageChars.getElementString();
+
+                            outOfRangeMessageLength = 
+                                strlen( outOfRangeMessageText );
+
+                            if( outOfRangeMessageLength < 
+                                maxUncompressedSize ) {
+                                outOfRangeMessage = 
+                                    (unsigned char*)outOfRangeMessageText;
+                                }
+                            else {
+                                // compress 
+                                outOfRangeMessage = makeCompressedMessage( 
+                                    outOfRangeMessageText, 
+                                    outOfRangeMessageLength, 
+                                    &outOfRangeMessageLength );
+                
+                                delete [] outOfRangeMessageText;
+                                }
+                            }
                         
-                        // send short PO instead
                         int numSent = 
                             nextPlayer->sock->send( 
                                 outOfRangeMessage, 
                                 outOfRangeMessageLength, 
                                 false, false );
+                        
+                        delete [] outOfRangeMessage;
 
                         if( numSent != outOfRangeMessageLength ) {
                             setDeathReason( nextPlayer, "disconnected" );
@@ -10421,14 +10678,35 @@ int main() {
             }
 
 
-        if( outOfRangeMessage != NULL ) {
-            delete [] outOfRangeMessage;
-            }
 
         for( int u=0; u<mapChanges.size(); u++ ) {
             MapChangeRecord *r = mapChanges.getElement( u );
             delete [] r->formatString;
             }
+
+        if( newUpdates.size() > 0 ) {
+            
+            SimpleVector<char> playerList;
+            
+            for( int i=0; i<playersReceivingPlayerUpdate.size(); i++ ) {
+                char *playerString = 
+                    autoSprintf( 
+                        "%d, ",
+                        playersReceivingPlayerUpdate.getElementDirect( i ) );
+                playerList.appendElementString( playerString );
+                delete [] playerString;
+                }
+            
+            char *playerListString = playerList.getElementString();
+
+            AppLog::infoF( "%d/%d players were sent part of a %d-line PU: %s",
+                           playersReceivingPlayerUpdate.size(),
+                           numLive, newUpdates.size(),
+                           playerListString );
+            
+            delete [] playerListString;
+            }
+        
 
         for( int u=0; u<newUpdates.size(); u++ ) {
             UpdateRecord *r = newUpdates.getElement( u );

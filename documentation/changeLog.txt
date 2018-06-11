@@ -3,6 +3,183 @@ This file only list changes to game code.  Changes to content can be found here:
 http://onehouronelife.com/updateLog.php
 
 
+Server Fixes:
+
+--Added work-around for non-clean shutdown that can leave dummy objects in map
+  that may be interpreted as new category objects after restart.  Category
+  objects removed from map during map cleaning process.
+
+--Added cron job for game servers that clears bug log files older than four
+  days to conserve disk space.
+
+
+
+Version 107    2018-June-8
+
+--No longer using ancestor test to determine if creation sound should play for
+  objects marked with creationSoundInitialOnly.  Exclusively using sprite
+  subset test.
+
+--Was waiting 166ms for bouncing animation to start a bit before sending our
+  action message.  This prevents weird insta-response on fast connections
+  (where we get the grabbed item in our hand even before really moving toward
+  it).  However, on slow connections, this 166ms adds to perceived latency,
+  because we still need to wait for the message round trip after that.  Now we
+  measure most recent round trip time and use it to decrease this bouncing
+  start time before sending our action message.  If round trip is slow enough
+  (>166ms), we don't need to wait at all before sending our action message to
+  the server.  If round trip time is 80 ms, for example, we'd only wait/bounce
+  for 86ms before sending our message.
+
+--Added support for rotated sprites when baking in object editor.
+
+
+
+
+
+Server Fixes:
+
+--Fixed so that useChance applies in last transition back to parent object
+  (example:  refilling last step of pond should have 1/5 chance of taking pond
+  to full state, when before it had 1/1 chance, allowing for an infinite water
+  exploit).  Thanks Eve, YAHG, and Rebel.
+
+--Support for NOT dying when riding over a deadly object (like a rattlesnake)
+  on a vehicle (like a horse), but support for transitions to the ridden object
+  (dead horse or tipped horse cart).
+
+--Fixed so that creation sound not played for items dropped on the ground when
+  held container shrinks.
+
+--Fixed heldTransitionSourceID after use-on-ground transitions.
+
+
+
+Version 105   2018-June-1
+
+--Fixed crash in transition bank pattern code.  Thanks Enforcerke and Jookia.
+
+--Fixed spurious client BUG reports by resetting timer when we receive a
+  move-done message in the middle of waiting for a move-and-do cycle to
+  complete.  Thanks Sarah V.
+
+--Fixed bouncing-forever bug caused by path truncation.  Thanks Malo T.
+
+
+
+
+
+Version 102   2018-May-31
+
+--Fixed scene editor to display behind floor hugging objects correctly.
+
+--Fixed bug in client sending multiple jump-out-of-arms move messages due to
+  rapid clickly by held-baby-player, resulting in the server registering false
+  moves after the jump-out-of-arms, and a bouncing-forever bug as a result.
+  Thanks Gabriel G.
+
+--Fixed overlap of foot bar with gui in object editor.
+
+--Widget for Using Sound visible for all objects in object editor.
+
+--Fixed sound-doubling issues (dumping water into empty pond, grabbing
+  second-to-last stone from stone pile).
+
+--Fixed so that comment (after # text) is hidden from eaten food description.
+
+--Fixed code for generic transition filling to handle case where an object has
+  both regular and last use generic transition defined.
+
+
+
+
+
+Server Fixes:
+
+--Fixed one source of bouncing-forever bug where baby move arrives in same
+  server step as parent's pick-up action.  Thanks Lynne C.
+
+
+
+
+Version 100   2018-May-25
+
+--Support for marking categories as patterns.
+
+--Support for auto-generated transitions based on new pattern categories.
+  Example:  define transition web for pink roses, and then set the pink rose
+  objects as the pattern for all white and red rose objects (seeds, sprouts,
+  etc.)  Wherever a transition involves at least two objects that are both part
+  of a pattern of the same size, the transition is replicated for all the other
+  members of that pattern.  Unlike other categories, which never appear in the
+  game and are just abstract placeholders to be filled in by member objects,
+  pattern categories have a real object as their parent (example:  pink rose
+  seed, with children red and white rose seeds).
+
+
+
+
+
+
+Version 99    2018-May-24
+
+--Label for a grave of a known person now moves with bone pile.
+
+--Fixed editor use chance and sim GUI elements disappearing with object picker
+  cleared.
+
+--Fixed so that non-permanent objects on ground are drawn in front of permanent
+  objects.  Thus, hand cart handle sticks out in front of well.
+
+--Fixed so that walls drawn in front of other tiles in row, improving overlaps
+  for trees, carts, and other overhanging objects.
+
+--Client detects largest message time gaps between server messages to prevent
+  it from sending BUG report messages to server during true network outages.
+
+--Fixed wayward chat sheet pop-up.  Thanks Yuyu.
+
+--Client now informs player when BUG report sent to server, and asks them to
+  email stdout.txt, if stdout.txt exists.
+
+--Face portrait output in editor fixed to clear picked layer first (or else
+  picked layer appears in every age portrait).
+
+
+
+
+Server Fixes:
+
+--Bug reports off again until better client-side differentiation in place.
+
+--log.txt backed up and cleared every 24 hours instead of 48 to save disk space.
+
+--Fixed bugs in lineage server triggered by playerIDs that are the same between
+  servers.
+
+--Fixed player invisibility bug.  Thanks Yuyu.
+
+--Fixed various edge cases in random family member picking code.
+
+
+
+
+
+Version 97    2018-May-18
+
+--Adding missing case to used object transition generation.  Thank Fernando GBR.
+
+--Fixed bug in the way time values were recorded in recordedGames.
+
+--Fixed bugs in wall hugging code for floors that was screwing up multi-layer
+  floors that used multiplicative blending (ancient floors).
+
+--Undisturbed grave now marked with known person's name and relationship.
+
+
+
+
+
 
 Server Fixes:
 
@@ -27,6 +204,25 @@ Server Fixes:
 --Server now sends non-human death-source ID to lineage server (snake, etc).
 
 --Lineage server displays a variety of death reasons.
+
+--Lineage server tracks and displays deepest descendant generation at bottom
+  of family tree display.
+
+--Added character_dump api call to lineage server.
+
+--Fixed lineage server behavior on IDs that don't exist.
+
+--Turned on bug reporting again, trying to catch bouncing lag bug.
+
+--Fixed bug in out-of-range player PO message.
+
+--Added extra server logging about player update messages to catch bouncing
+  lag bug.
+
+--Clicking on killer's name shows their relationship to you in family tree.
+
+--Family tree Email search now only matches exact email addresses, to thwart
+  brute-force email harvesting through trial and error.  Thanks Brian R.
 
 
 
