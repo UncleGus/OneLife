@@ -1351,8 +1351,11 @@ char isFertileAge( LiveObject *inPlayer ) {
     double timeSinceBreastFeed = Time::getCurrentTime() - inPlayer->lastBreastFeedTimeSeconds;
                     
     char f = getFemale( inPlayer );
+
+    double breastFeedingInhibitTime = 
+        SettingsManager::getFloatSetting( "breastFeedingInhibitTime", 30.0 );
                     
-    if( age >= 14 && age <= 40 && f && timeSinceBreastFeed > 30) {
+    if( age >= 14 && age <= 40 && f && timeSinceBreastFeed > breastFeedingInhibitTime ) {
         return true;
         }
     else {

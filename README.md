@@ -1,11 +1,4 @@
-Forked from jasonrohrer/OneLife
+This mod implements breastfeeding as a contraceptive
 
-master branch is the foundation for all of the other mod branches:
-
-breastfeed: breastfeeding prevents pregnancy
-
-father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
-
-restrain: allows players to team up to overcome a lone opponent
-
-water: adds a water biome and procedurally generated streams
+The amount of time that breastfeeding will inhibit pregnancy is defined in server/settings/breastFeedingInhibitTime.ini
+It will default to 30 seconds if unset
