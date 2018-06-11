@@ -16,6 +16,18 @@ gameSource/testUser/*
 gameSource/testUser2/*
 gameSource/recordedGames/*
 gameSource/screenShots/*
+gameSource/EditOneLife
+gameSource/animations
+gameSource/categories
+gameSource/dataVersionNumber.txt
+gameSource/ground
+gameSource/music
+gameSource/objects
+gameSource/overlays
+gameSource/scenes
+gameSource/sounds
+gameSource/sprites
+gameSource/transitions
 
 server/OneLifeServer
 server/log.txt
@@ -28,3 +40,8 @@ server/lifeLog/
 server/categories
 server/objects
 server/transitions
+server/dataVersionNumber.txt
+server/ground
+server/mapBiomeOut.tga
+server/mapOut.tga
+server/serverCodeVersionNumber.txt
