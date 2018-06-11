@@ -7021,11 +7021,10 @@ int main() {
                                             // object
                                             canPlace = false;
                                             }
-                                        if( isWaterBiomeCell( m.x, m.y ) !=
-                                            getObject( r->newTarget )-> waterObject ) {
+                                        if( isWaterBiomeCell( m.x, m.y ) &&
+                                            !getObject( r->newTarget )-> waterObject ) {
 
-                                            // can't place water object on land or
-                                            // vice versa
+                                            // can't place non-water object on water
                                             canPlace = false;
                                             }
                                         }
@@ -7719,6 +7718,11 @@ int main() {
                         
                         if( nextPlayer->holdingID > 0 &&
                             getObject( nextPlayer->holdingID )->permanent ) {
+                            canDrop = false;
+                            }
+
+                        if( nextPlayer->holdingID > 0 &&
+                            isWaterBiomeCell( m.x, m.y ) && !getObject( nextPlayer->holdingID )->waterObject ) {
                             canDrop = false;
                             }
 
