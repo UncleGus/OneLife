@@ -7021,6 +7021,13 @@ int main() {
                                             // object
                                             canPlace = false;
                                             }
+                                        if( isWaterBiomeCell( m.x, m.y ) !=
+                                            getObject( r->newTarget )-> waterObject ) {
+
+                                            // can't place water object on land or
+                                            // vice versa
+                                            canPlace = false;
+                                            }
                                         }
                                     
                                     if( canPlace ) {

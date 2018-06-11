@@ -37,6 +37,9 @@ biome on the left. This is why these objects are used:
  - North to Lake
  - West to Lake
  - East to Lake
+By default, all objects will be disallowed from being placed/created on the water biome. If you
+want any objects to be allowed in the water biome, add waterObject=1 after the mapChance line in
+the object txt file.
 
 2) Create the water biome in the usual way
 This is done by adding a ground_#.tga file in the ground folder of the data, and by
