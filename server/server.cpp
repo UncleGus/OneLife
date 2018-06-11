@@ -6454,7 +6454,7 @@ int main() {
                     else if( m.type == STUN ) {
                         // send update even if action fails (to let them
                         // know that action is over)
-                        AppLog::info("GOT A STUN MESSAGE\n");
+                        // AppLog::info("GOT A STUN MESSAGE\n");
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
                         if( nextPlayer->holdingID > 0 &&
@@ -6477,7 +6477,7 @@ int main() {
                                 getObject( nextPlayer->holdingID );
                             
                             if( heldObj->stunDistance > 0 ) {
-                                AppLog::info("HOLDING A STUNNING WEAPON\n");
+                                // AppLog::info("HOLDING A STUNNING WEAPON\n");
                                 // it's stunning
 
                                 GridPos targetPos = { m.x, m.y };
@@ -6492,7 +6492,7 @@ int main() {
                                                          targetPos ) ) {
                                     // target is close enough
                                     // and no blocking objects along the way
-                                    AppLog::info("TARGET IS IN RANGE\n");
+                                    // AppLog::info("TARGET IS IN RANGE\n");
                                     // is anyone there?
                                     LiveObject *hitPlayer = 
                                         getHitPlayer( m.x, m.y, true );
@@ -6500,7 +6500,7 @@ int main() {
                                     if( hitPlayer != NULL && 
                                         hitPlayer->stunPerpID != nextPlayer->id
                                         ) {
-                                        AppLog::info("THERE IS A VALID TARGET\n");
+                                        // AppLog::info("THERE IS A VALID TARGET\n");
                                         // set them to a stunned state for a
                                         // certain amount of time
 
@@ -6508,7 +6508,7 @@ int main() {
 
                                         // if not already stunned
                                         if( ! hitPlayer->stunned ) {
-                                            AppLog::info("TARGET IS NOT ALREADY STUNNED\n");
+                                            // AppLog::info("TARGET IS NOT ALREADY STUNNED\n");
 
                                             hitPlayer->stunSourceID =
                                                 nextPlayer->holdingID;
@@ -6536,7 +6536,7 @@ int main() {
                                         // otherwise if not already stunned by this player
                                         // second stun will kill them
                                         else if( hitPlayer->stunPerpID != nextPlayer->id ) {
-                                            AppLog::info("TARGET ALREADY STUNNED BY SOMEONE ELSE\n");
+                                            // AppLog::info("TARGET ALREADY STUNNED BY SOMEONE ELSE\n");
 
                                             hitPlayer->dying = true;
                                             hitPlayer->dyingETA = 
