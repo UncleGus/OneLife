@@ -2590,10 +2590,6 @@ char isMapSpotBlocking( int inX, int inY ) {
             }
         }
 
-    if( isWaterBiomeCell( inX, inY ) ) {
-        return true;
-    }
-    
     // not directly blocked
     // need to check for wide objects to left and right
     int maxR = getMaxWideRadius();
@@ -5953,12 +5949,33 @@ int main() {
                                 // down through objects in our cell that are
                                 // blocking us
                                 char currentBlocked = false;
+                                ObjectRecord *heldObject;
+                                if( nextPlayer->holdingID > 0 ) {
+                                    heldObject = getObject( nextPlayer->holdingID );
+                                }
                                 
                                 if( isMapSpotBlocking( lastValidPathStep.x,
                                                        lastValidPathStep.y ) ) {
                                     currentBlocked = true;
+
+                                // check if the cell is a water biome cell
+                                } else if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
+
+                                    // if the player isn't riding anything, they cannot walk on the water
+                                    if( heldObject->heldInHand < 2 ) {
+                                        currentBlocked = true;
+
+                                    // if the object the player is riding is not a water object,
+                                    // they cannot ride on the water
+                                    } else if( !heldObject->waterObject ) {
+                                        currentBlocked = true;
                                     }
-                                
+                                    
+                                // this is a land cell, if the player is riding a water object (boat)
+                                // then they cannot move onto land
+                                } else if( heldObject->heldInHand == 2 && heldObject->waterObject ) {
+                                    currentBlocked = true;
+                                }
 
                                 for( int p=0; 
                                      p<unfilteredPath.size(); p++ ) {
