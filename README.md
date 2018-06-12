@@ -7,6 +7,9 @@ will be killed or incapacitated, depending on a server setting. The second stun 
 must be by a different player, so this can only be utilised by more than one person.
 The intention is to make it easier to overpower solo griefers.
 
+This mod includes changes to the client, so that will need to be compiled and provided
+to players, otherwise they will not be able to use stun weapons.
+
 There are two variables set in server/settings:
 
 stunTime: (default 20) the amount of time a player will be in the hidden stunned state
