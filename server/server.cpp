@@ -6010,7 +6010,32 @@ int main() {
                                         truncated = 1;
                                         break;
                                         }
+
+                                    // make sure it's not an invalid cell due to water
+
+                                    if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
+
+                                        // if the player isn't riding anything, they cannot walk on the water
+                                        if( heldObject->heldInHand < 2 ) {
+                                            truncated = 1;
+                                            break;
+                                            }
+
+                                        // if the object the player is riding is not a water object,
+                                        // they cannot ride on the water
+                                        if( !heldObject->waterObject ) {
+                                            truncated = 1;
+                                            break;
+                                            }
+                                        }
                                     
+                                    // this is a land cell, if the player is riding a water object (boat)
+                                    // then they cannot move onto land
+                                    if( heldObject->heldInHand == 2 && heldObject->waterObject ) {
+                                        truncated = 1;
+                                        break;
+                                        }
+
                                     // no blockage, no gaps, add this step
                                     validPath.push_back( pos );
                                     lastValidPathStep = pos;
