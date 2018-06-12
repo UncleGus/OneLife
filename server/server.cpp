@@ -308,7 +308,10 @@ typedef struct LiveObject {
         // wall clock time when they will be dead
         double dyingETA;
 
-        char stunned;
+        // 0 = normal
+        // 1 = hit once, partially stunned
+        // 2 = hit twice, completely stunned
+        int stunned;
         // wall clock time when they will be no longer stunned
         double stunnedETA;
 
@@ -3454,7 +3457,7 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.dying = false;
     newObject.dyingETA = 0;
 
-    newObject.stunned = false;
+    newObject.stunned = 0;
     newObject.stunnedETA = 0;
     
     newObject.error = false;
@@ -5633,11 +5636,11 @@ int main() {
                 else if( ( nextPlayer->xs == nextPlayer->xd &&
                       nextPlayer->ys == nextPlayer->yd ) 
                     ||
-                    m.type == MOVE ||
+                    ( m.type == MOVE && nextPlayer->stunned < 2 ) ||
                     m.type == SAY ) {
                     
 
-                    if( m.type == MOVE && nextPlayer->heldByOther ) {
+                    if( m.type == MOVE && nextPlayer->heldByOther && nextPlayer->stunned < 2 ) {
                         // baby wiggling out of parent's arms
                         handleForcedBabyDrop( 
                             nextPlayer,
@@ -5653,6 +5656,20 @@ int main() {
                         // movement entirely
                         printf( "  Processing move, "
                                 "but player holding a speed-0 object, "
+                                "ending now\n" );
+                        nextPlayer->xd = nextPlayer->xs;
+                        nextPlayer->yd = nextPlayer->ys;
+                        
+                        nextPlayer->posForced = true;
+                        
+                        // send update about them to end the move
+                        // right now
+                        playerIndicesToSendUpdatesAbout.push_back( i );
+                        }
+                    else if( m.type == MOVE && nextPlayer->stunned == 2 ) {
+                        // next player has been stunned twice
+                        printf( "  Processing move, "
+                                "but player has been stunned twice, "
                                 "ending now\n" );
                         nextPlayer->xd = nextPlayer->xs;
                         nextPlayer->yd = nextPlayer->ys;
@@ -6200,7 +6217,7 @@ int main() {
 
                         newSpeechPos.push_back( p );
                         }
-                    else if( m.type == KILL ) {
+                    else if( m.type == KILL && nextPlayer->stunned < 2 ) {
                         // send update even if action fails (to let them
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
@@ -6451,7 +6468,7 @@ int main() {
                                 }
                             }
                         }
-                    else if( m.type == STUN ) {
+                    else if( m.type == STUN && nextPlayer->stunned < 2 ) {
                         // send update even if action fails (to let them
                         // know that action is over)
                         // AppLog::info("GOT A STUN MESSAGE\n");
@@ -6507,7 +6524,7 @@ int main() {
                                         
 
                                         // if not already stunned
-                                        if( ! hitPlayer->stunned ) {
+                                        if( hitPlayer->stunned == 0 ) {
                                             // AppLog::info("TARGET IS NOT ALREADY STUNNED\n");
 
                                             hitPlayer->stunSourceID =
@@ -6520,7 +6537,7 @@ int main() {
                                                 SettingsManager::getIntSetting(
                                                     "stunTime", 20 );
 
-                                            hitPlayer->stunned = true;
+                                            hitPlayer->stunned = 1;
                                             hitPlayer->stunnedETA = 
                                                 Time::getCurrentTime() + 
                                                 stunTime; 
@@ -6534,47 +6551,75 @@ int main() {
                                         
                                             }
                                         // otherwise if not already stunned by this player
-                                        // second stun will kill them
+                                        // second stun will completely stun them or kill them
                                         else if( hitPlayer->stunPerpID != nextPlayer->id ) {
                                             // AppLog::info("TARGET ALREADY STUNNED BY SOMEONE ELSE\n");
 
-                                            hitPlayer->dying = true;
-                                            hitPlayer->dyingETA = 
-                                                Time::getCurrentTime();
-                                            playerIndicesToSendDyingAbout.
-                                                push_back( 
-                                                    getLiveObjectIndex( 
-                                                        hitPlayer->id ) );
-                                        
-                                            hitPlayer->errorCauseString =
-                                                "Player killed by other players";
-                                        
-                                            logDeath( hitPlayer->id,
-                                                      hitPlayer->email,
-                                                      hitPlayer->isEve,
-                                                      computeAge( hitPlayer ),
-                                                      getSecondsPlayed( 
-                                                          hitPlayer ),
-                                                      ! getFemale( hitPlayer ),
-                                                      m.x, m.y,
-                                                      players.size() - 1,
-                                                      false,
-                                                      nextPlayer->id,
-                                                      nextPlayer->email );
-                                            
-                                            if( shutdownMode ) {
-                                                handleShutdownDeath( 
-                                                    hitPlayer, m.x, m.y );
-                                                }
+                                            if( SettingsManager::getIntSetting( "killOnStun", 0 ) ) {
 
-                                            hitPlayer->deathLogged = true;
+
+                                                hitPlayer->dying = true;
+                                                hitPlayer->dyingETA = 
+                                                    Time::getCurrentTime();
+                                                playerIndicesToSendDyingAbout.
+                                                    push_back( 
+                                                        getLiveObjectIndex( 
+                                                            hitPlayer->id ) );
+                                            
+                                                hitPlayer->errorCauseString =
+                                                    "Player killed by other players";
+                                            
+                                                logDeath( hitPlayer->id,
+                                                        hitPlayer->email,
+                                                        hitPlayer->isEve,
+                                                        computeAge( hitPlayer ),
+                                                        getSecondsPlayed( 
+                                                            hitPlayer ),
+                                                        ! getFemale( hitPlayer ),
+                                                        m.x, m.y,
+                                                        players.size() - 1,
+                                                        false,
+                                                        nextPlayer->id,
+                                                        nextPlayer->email );
+                                                
+                                                if( shutdownMode ) {
+                                                    handleShutdownDeath( 
+                                                        hitPlayer, m.x, m.y );
+                                                    }
+
+                                                hitPlayer->deathLogged = true;
+                                                }
+                                            else {
+                                                hitPlayer->stunSourceID =
+                                                    nextPlayer->holdingID;
+                                                
+                                                hitPlayer->stunPerpID =
+                                                    nextPlayer->id;
+
+                                                int stunTime = 
+                                                    SettingsManager::getIntSetting(
+                                                        "stunTime", 20 );
+
+                                                hitPlayer->stunned = 2;
+                                                hitPlayer->stunnedETA = 
+                                                    Time::getCurrentTime() + 
+                                                    stunTime; 
+                                                playerIndicesToSendDyingAbout.
+                                                    push_back( 
+                                                        getLiveObjectIndex( 
+                                                            hitPlayer->id ) );
+                                            
+                                                hitPlayer->errorCauseString =
+                                                    "Player stunned by other player";
+                                            
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    else if( m.type == USE ) {
+                    else if( m.type == USE && nextPlayer->stunned < 2 ) {
                         // send update even if action fails (to let them
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
@@ -7246,7 +7291,7 @@ int main() {
                                 }
                             }
                         }
-                    else if( m.type == BABY ) {
+                    else if( m.type == BABY && nextPlayer->stunned < 2 ) {
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
                         if( computeAge( nextPlayer ) >= minPickupBabyAge 
@@ -7394,7 +7439,7 @@ int main() {
                                 }
                             }
                         }
-                    else if( m.type == SELF || m.type == UBABY ) {
+                    else if( ( m.type == SELF || m.type == UBABY ) && nextPlayer->stunned < 2 ) {
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
                         char holdingFood = false;
@@ -7424,7 +7469,7 @@ int main() {
                             // don't allow this action through
                             // keep targetPlayer NULL
                             }
-                        else if( m.type == SELF ) {
+                        else if( m.type == SELF && nextPlayer->stunned < 2 ) {
                             if( m.x == nextPlayer->xd &&
                                 m.y == nextPlayer->yd ) {
                                 
@@ -7432,7 +7477,7 @@ int main() {
                                 targetPlayer = nextPlayer;
                                 }
                             }
-                        else if( m.type == UBABY ) {
+                        else if( m.type == UBABY && nextPlayer->stunned < 2 ) {
                             
                             if( isGridAdjacent( m.x, m.y,
                                                 nextPlayer->xd, 
@@ -7837,7 +7882,7 @@ int main() {
                                 }
                             }
                         }                    
-                    else if( m.type == DROP ) {
+                    else if( m.type == DROP && nextPlayer->stunned < 2 ) {
                         //Thread::staticSleep( 2000 );
                         
                         // send update even if action fails (to let them
@@ -8010,7 +8055,7 @@ int main() {
                                 }
                             }
                         }
-                    else if( m.type == REMV ) {
+                    else if( m.type == REMV && nextPlayer->stunned < 2 ) {
                         // send update even if action fails (to let them
                         // know that action is over)
                         playerIndicesToSendUpdatesAbout.push_back( i );
@@ -8018,7 +8063,7 @@ int main() {
                         removeFromContainerToHold( nextPlayer,
                                                    m.x, m.y, m.i );
                         }                        
-                    else if( m.type == SREMV ) {
+                    else if( m.type == SREMV && nextPlayer->stunned < 2 ) {
                         playerIndicesToSendUpdatesAbout.push_back( i );
                         
                         // remove contained object from clothing
@@ -8139,10 +8184,10 @@ int main() {
                 nextPlayer->error = true;
                 }
             
-            if( nextPlayer->stunned && ! nextPlayer->error &&
+            if( nextPlayer->stunned > 0 && ! nextPlayer->error &&
                 curTime >= nextPlayer->stunnedETA ) {
                 // recovered from being stunned
-                nextPlayer->stunned = false;
+                nextPlayer->stunned = 0;
                 nextPlayer->stunSourceID = 0;
                 nextPlayer->stunPerpID = 0;
                 }
