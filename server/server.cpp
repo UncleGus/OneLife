@@ -6514,9 +6514,7 @@ int main() {
                                     LiveObject *hitPlayer = 
                                         getHitPlayer( m.x, m.y, true );
                                     
-                                    if( hitPlayer != NULL && 
-                                        hitPlayer->stunPerpID != nextPlayer->id
-                                        ) {
+                                    if( hitPlayer != NULL ) {
                                         // AppLog::info("THERE IS A VALID TARGET\n");
                                         // set them to a stunned state for a
                                         // certain amount of time
@@ -6552,12 +6550,12 @@ int main() {
                                             }
                                         // otherwise if not already stunned by this player
                                         // second stun will completely stun them or kill them
-                                        else if( hitPlayer->stunPerpID != nextPlayer->id ) {
+                                        else if( hitPlayer->stunned == 1 && hitPlayer->stunPerpID != nextPlayer->id ) {
                                             // AppLog::info("TARGET ALREADY STUNNED BY SOMEONE ELSE\n");
 
                                             if( SettingsManager::getIntSetting( "killOnStun", 0 ) ) {
 
-
+                                                // two stuns is a kill
                                                 hitPlayer->dying = true;
                                                 hitPlayer->dyingETA = 
                                                     Time::getCurrentTime();
@@ -6590,6 +6588,8 @@ int main() {
                                                 hitPlayer->deathLogged = true;
                                                 }
                                             else {
+                                                
+                                                // two stuns incapacitates
                                                 hitPlayer->stunSourceID =
                                                     nextPlayer->holdingID;
                                                 
@@ -6604,15 +6604,28 @@ int main() {
                                                 hitPlayer->stunnedETA = 
                                                     Time::getCurrentTime() + 
                                                     stunTime; 
-                                                playerIndicesToSendDyingAbout.
-                                                    push_back( 
-                                                        getLiveObjectIndex( 
-                                                            hitPlayer->id ) );
-                                            
                                                 hitPlayer->errorCauseString =
-                                                    "Player stunned by other player";
+                                                    "Player stunned by other players";
                                             
                                                 }
+                                            } else if( hitPlayer->stunned == 2 ) {
+                                                // player is already incapacitated, restart their timer
+                                                hitPlayer->stunSourceID =
+                                                    nextPlayer->holdingID;
+                                                
+                                                hitPlayer->stunPerpID =
+                                                    nextPlayer->id;
+
+                                                int stunTime = 
+                                                    SettingsManager::getIntSetting(
+                                                        "stunTime", 20 );
+
+                                                hitPlayer->stunnedETA = 
+                                                    Time::getCurrentTime() + 
+                                                    stunTime; 
+                                                hitPlayer->errorCauseString =
+                                                    "Player stunned by other players";
+                                            
                                             }
                                         }
                                     }
