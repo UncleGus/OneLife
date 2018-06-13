@@ -14026,10 +14026,24 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         if( destID > 0 && getObject( destID )->blocksWalking ) {
             return true;
             }
+        ObjectRecord *heldObject;
+        if( getOurLiveObject()->holdingID > 0 ) {
+            heldObject = getObject( getOurLiveObject()->holdingID );
+        }
         if( destBiome == waterBiome ) {
-            return true;
+            if( getOurLiveObject()->holdingID == 0 || heldObject->heldInHand != 2 ) {
+                // not riding anything, cannot go on water
+                return true;
             }
-        else {
+            if( !heldObject->waterObject ) {
+                // not riding a water object (boat), cannot go on water
+                return true;
+            }
+        } else if( getOurLiveObject()->holdingID > 0 && heldObject->heldInHand == 2 &&
+            heldObject->waterObject ) {
+            // riding a water object (boat), cannot go on land
+            return true;
+        } else {
             // check for wide neighbors
             
             int r = getMaxWideRadius();
@@ -14425,9 +14439,29 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         // clicked on empty space near an object
         
-        if( ! getObject( destID )->blocksWalking && 
-            destBiome != waterBiome
-        ) {
+        char blocked = false;
+        if( getObject( destID )->blocksWalking ) {
+            // object in this space blocks walking
+            blocked = true;
+        } else if ( destBiome == waterBiome ) {
+            // this is a water cell
+            if( ourLiveObject->holdingID == 0 ) {
+                // not holding or riding anything
+                blocked = true;
+            } else if ( getObject( ourLiveObject->holdingID )->heldInHand < 2 ) {
+                // not riding anything that might allow movement on water
+                blocked = true;
+            } else if ( !getObject( ourLiveObject->holdingID )->waterObject ) {
+                // ridden object is not allowed on water
+                blocked = true;
+            }
+        } else if( ourLiveObject->holdingID > 0 && getObject( ourLiveObject->holdingID )->heldInHand == 2 && 
+            getObject( ourLiveObject->holdingID )->waterObject ) {
+                // cannot ride a water object (boat) onto a land space
+                blocked = true;
+            }
+        
+        if( ! blocked ) {
             
             // object in this space not blocking
             

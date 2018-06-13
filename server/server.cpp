@@ -5962,7 +5962,7 @@ int main() {
                                 } else if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
 
                                     // if the player isn't riding anything, they cannot walk on the water
-                                    if( heldObject->heldInHand < 2 ) {
+                                    if( nextPlayer->holdingID == 0 || heldObject->heldInHand != 2 ) {
                                         currentBlocked = true;
 
                                     // if the object the player is riding is not a water object,
@@ -5973,7 +5973,8 @@ int main() {
                                     
                                 // this is a land cell, if the player is riding a water object (boat)
                                 // then they cannot move onto land
-                                } else if( heldObject->heldInHand == 2 && heldObject->waterObject ) {
+                                } else if( nextPlayer->holdingID > 0 && heldObject->heldInHand == 2 &&
+                                    heldObject->waterObject ) {
                                     currentBlocked = true;
                                 }
 
@@ -6016,7 +6017,7 @@ int main() {
                                     if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
 
                                         // if the player isn't riding anything, they cannot walk on the water
-                                        if( heldObject->heldInHand < 2 ) {
+                                        if( nextPlayer->holdingID == 0 || heldObject->heldInHand != 2 ) {
                                             truncated = 1;
                                             break;
                                             }
@@ -6031,7 +6032,8 @@ int main() {
                                     
                                     // this is a land cell, if the player is riding a water object (boat)
                                     // then they cannot move onto land
-                                    if( heldObject->heldInHand == 2 && heldObject->waterObject ) {
+                                    if( nextPlayer->holdingID > 0 && heldObject->heldInHand == 2 &&
+                                        heldObject->waterObject ) {
                                         truncated = 1;
                                         break;
                                         }
