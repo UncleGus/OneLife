@@ -1221,6 +1221,7 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                     getObject( getOurLiveObject()->holdingID )->waterObject ) {
                     // riding a water object (boat), cannot move onto land
                     blockedMap[ y * pathFindingD + x ] = true;
+                    }
                 }
             }
         }
