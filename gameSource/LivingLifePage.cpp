@@ -1203,14 +1203,24 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 int mapI = mapY * mMapD + mapX;
             
                 // note that unknowns (-1) count as blocked too
-                if( mMapBiomes[ mapI ] != waterBiome && (
-                    mMap[ mapI ] == 0
-                    ||
-                    ( mMap[ mapI ] != -1 && 
-                      ! getObject( mMap[ mapI ] )->blocksWalking ) ) ) {
-                    
-                    blockedMap[ y * pathFindingD + x ] = false;
+                blockedMap[ y * pathFindingD + x ] = false;
+
+                if( mMap[ mapI ] == -1 || getObject( mMap[ mapI ] )->blocksWalking ) {
+                    blockedMap[ y * pathFindingD + x ] = true;
                     }
+
+                if( mMapBiomes[ mapI ] == waterBiome ) {
+                    if( getOurLiveObject()->holdingID == 0 || getObject( getOurLiveObject()->holdingID )->heldInHand != 2 ) {
+                        // not riding anything, cannot move onto water
+                        blockedMap[ y * pathFindingD + x ] = true;
+                    } else if ( !getObject( getOurLiveObject()->holdingID )->waterObject ) {
+                        // not riding a water object (boat), cannot move onto water
+                        blockedMap[ y * pathFindingD + x ] = true;
+                        }
+                } else if(getOurLiveObject()->holdingID > 0 && getObject( getOurLiveObject()->holdingID )->heldInHand == 2 &&
+                    getObject( getOurLiveObject()->holdingID )->waterObject ) {
+                    // riding a water object (boat), cannot move onto land
+                    blockedMap[ y * pathFindingD + x ] = true;
                 }
             }
         }
