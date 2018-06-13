@@ -23,4 +23,5 @@ To define an object as a stunning weapon, give it the property stunDistance, e.g
 stunDistance=1
 
 If running in incapacitate mode, once a player is incapacitated, only one player is required
-to use a stun weapon on them to keep them incapacitated.
+to use a stun weapon on them to keep them incapacitated. When a player is incapacitated,
+they will drop whatever object they are holding.
