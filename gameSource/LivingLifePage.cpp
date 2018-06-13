@@ -1205,7 +1205,7 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 // note that unknowns (-1) count as blocked too
                 blockedMap[ y * pathFindingD + x ] = false;
 
-                if( mMap[ mapI ] == -1 || getObject( mMap[ mapI ] )->blocksWalking ) {
+                if( mMap[ mapI ] == -1 || ( mMap[ mapI ] > 0 && getObject( mMap[ mapI ] )->blocksWalking ) ) {
                     blockedMap[ y * pathFindingD + x ] = true;
                     }
 
@@ -1221,6 +1221,7 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                     getObject( getOurLiveObject()->holdingID )->waterObject ) {
                     // riding a water object (boat), cannot move onto land
                     blockedMap[ y * pathFindingD + x ] = true;
+                    }
                 }
             }
         }
