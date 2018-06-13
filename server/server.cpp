@@ -6608,14 +6608,8 @@ int main() {
                                                     "Player stunned by other players";
                                             
                                                 }
-                                            } else if( hitPlayer->stunned == 2 ) {
-                                                // player is already incapacitated, restart their timer
-                                                hitPlayer->stunSourceID =
-                                                    nextPlayer->holdingID;
-                                                
-                                                hitPlayer->stunPerpID =
-                                                    nextPlayer->id;
-
+                                            } else {
+                                                // restart their timer
                                                 int stunTime = 
                                                     SettingsManager::getIntSetting(
                                                         "stunTime", 20 );
@@ -6623,8 +6617,6 @@ int main() {
                                                 hitPlayer->stunnedETA = 
                                                     Time::getCurrentTime() + 
                                                     stunTime; 
-                                                hitPlayer->errorCauseString =
-                                                    "Player stunned by other players";
                                             
                                             }
                                         }
