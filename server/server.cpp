@@ -6606,7 +6606,20 @@ int main() {
                                                     stunTime; 
                                                 hitPlayer->errorCauseString =
                                                     "Player stunned by other players";
-                                            
+
+                                                if( hitPlayer->holdingID != 0 &&
+                                                    ! hitPlayer->holdingWound ) {
+                                                    handleDrop( 
+                                                        m.x, m.y, 
+                                                        hitPlayer,
+                                                        &playerIndicesToSendUpdatesAbout );
+                                                    }
+                                                hitPlayer->holdingID = 0;
+                                                
+                                                playerIndicesToSendUpdatesAbout.
+                                                    push_back( 
+                                                        getLiveObjectIndex( 
+                                                            hitPlayer->id ) );
                                                 }
                                             } else {
                                                 // restart their timer
