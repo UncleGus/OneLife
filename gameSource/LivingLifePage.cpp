@@ -1205,7 +1205,8 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 // note that unknowns (-1) count as blocked too
                 blockedMap[ y * pathFindingD + x ] = false;
 
-                if( mMap[ mapI ] == -1 || ( mMap[ mapI ] > 0 && getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                if( mMap[ mapI ] == -1 || ( mMap[ mapI ] > 0 && getObject( mMap[ mapI ] )->blocksWalking ) || 
+                    getCellBlocksWaterWalking( mapX, mapY, getOurLiveObject()->holdingID ) ) {
                     blockedMap[ y * pathFindingD + x ] = true;
                     }
 
@@ -14049,9 +14050,6 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
         
         
-        // TODO: import biome definitions and create a function
-        // that checks them for blockingness and add it as a conditional here
-        // to stop the janky walking interruption
         if( destID > 0 && getObject( destID )->blocksWalking ) {
             return true;
             }
@@ -14109,7 +14107,34 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         }
     }
 
-
+char LivingLifePage::getCellBlocksWaterWalking( int inMapX, int inMapY, int inHoldingID ) {
+    if( inMapY >= 0 && inMapY < mMapD &&
+        inMapX >= 0 && inMapX < mMapD ) {
+        
+        int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
+        
+        
+        ObjectRecord *heldObject;
+        if( inHoldingID > 0 ) {
+            heldObject = getObject( inHoldingID );
+        }
+        if( destBiome == waterBiome ) {
+            if( inHoldingID == 0 || heldObject->heldInHand != 2 || !heldObject->waterObject ) {
+                // not riding a water object, cannot go on water
+                return true;
+            }
+        } else if( inHoldingID > 0 && heldObject->heldInHand == 2 &&
+            heldObject->waterObject ) {
+            // riding a water object (boat), cannot go on land
+            return true;
+        }
+        return false;
+        }
+    else {
+        // off map blocks
+        return true;
+        }
+    }
 
 
 void LivingLifePage::pointerDown( float inX, float inY ) {
@@ -14235,7 +14260,6 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
     int destID = 0;
     int floorDestID = 0;
-    int destBiome = -1;
     
     int destNumContained = 0;
     
@@ -14251,7 +14275,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
         // watch out for case where they mouse over a blocked spot by accident
         
-        if( getCellBlocksWalking( mapX, mapY ) ) {
+        if( getCellBlocksWalking( mapX, mapY ) || 
+            getCellBlocksWaterWalking( mapX, mapY, getOurLiveObject()->holdingID ) ) {
             printf( "Blocked at cont move click dest %d,%d\n",
                     clickDestX, clickDestY );
             
@@ -14269,7 +14294,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     }
 
                 for( int xd=step; xd != limit; xd += step ) {
-                    if( ! getCellBlocksWalking( mapX + xd, mapY ) ) {
+                    if( ! getCellBlocksWalking( mapX + xd, mapY ) &&
+                        ! getCellBlocksWaterWalking( mapX + xd, mapY, getOurLiveObject()->holdingID ) ) {
                         // found
                         clickDestX += xd;
                         break;
@@ -14284,7 +14310,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     }
 
                 for( int yd=step; yd != limit; yd += step ) {
-                    if( ! getCellBlocksWalking( mapX, mapY + yd ) ) {
+                    if( ! getCellBlocksWalking( mapX, mapY + yd ) &&
+                        ! getCellBlocksWaterWalking( mapX, mapY + yd, getOurLiveObject()->holdingID ) ) {
                         // found
                         clickDestY += yd;
                         break;
@@ -14310,7 +14337,6 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         mapX >= 0 && mapX < mMapD ) {
         
         destID = mMap[ mapY * mMapD + mapX ];
-        destBiome = mMapBiomes[ mapY * mMapD + mapX ];
         floorDestID = mMapFloors[ mapY * mMapD + mapX ];
         
         destNumContained = mMapContainedStacks[ mapY * mMapD + mapX ].size();
@@ -14468,29 +14494,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         // clicked on empty space near an object
         
-        char blocked = false;
-        if( getObject( destID )->blocksWalking ) {
-            // object in this space blocks walking
-            blocked = true;
-        } else if ( destBiome == waterBiome ) {
-            // this is a water cell
-            if( ourLiveObject->holdingID == 0 ) {
-                // not holding or riding anything
-                blocked = true;
-            } else if ( getObject( ourLiveObject->holdingID )->heldInHand < 2 ) {
-                // not riding anything that might allow movement on water
-                blocked = true;
-            } else if ( !getObject( ourLiveObject->holdingID )->waterObject ) {
-                // ridden object is not allowed on water
-                blocked = true;
-            }
-        } else if( ourLiveObject->holdingID > 0 && getObject( ourLiveObject->holdingID )->heldInHand == 2 && 
-            getObject( ourLiveObject->holdingID )->waterObject ) {
-                // cannot ride a water object (boat) onto a land space
-                blocked = true;
-            }
-        
-        if( ! blocked ) {
+        if( !getObject( destID )->blocksWalking && 
+            !getCellBlocksWaterWalking( mapY, mapX, getOurLiveObject()->holdingID ) ) {
             
             // object in this space not blocking
             
@@ -14527,7 +14532,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                         if( oID == 0 
                             ||
                             ( oID > 0 && ! getObject( oID )->blocksWalking &&
-                            destBiome != waterBiome ) ) {
+                            ! getCellBlocksWaterWalking( mapPY, mapPX, getOurLiveObject()->holdingID ) ) ) {
 
 
                             double d2 = distance2( p, clickP );
@@ -14870,7 +14875,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                         ||
                         ( mMap[ mapI ] != -1 && 
                           ! getObject( mMap[ mapI ] )->blocksWalking &&
-                          destBiome != waterBiome ) ) {
+                          ! getCellBlocksWaterWalking( x, y, getOurLiveObject()->holdingID ) ) ) {
                         
                         int emptyX = clickDestX + nDX[n];
                         int emptyY = clickDestY + nDY[n];

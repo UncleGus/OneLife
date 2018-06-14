@@ -2631,7 +2631,43 @@ char isMapSpotBlocking( int inX, int inY ) {
     }
 
 
+char isMapSpotWaterBlocking( int inX, int inY, int inHoldingID ) {
+    if( isWaterBiomeCell( inX, inY ) ) {
 
+        // if the player isn't riding anything, they cannot walk on the water
+        if( inHoldingID == 0 ) {
+            return true;
+        }
+
+        ObjectRecord *heldObject = getObject( inHoldingID );
+
+        if( heldObject->heldInHand != 2 ) {
+            return true;
+        }
+
+        // if the object the player is riding is not a water object,
+        // they cannot ride on the water
+        if( !heldObject->waterObject ) {
+            return true;
+        }
+        return false;
+    }
+        
+    // this is a land cell, if the player is riding a water object (boat)
+    // then they cannot move onto land
+    if( inHoldingID == 0 ) {
+        return false;
+    }
+    
+    ObjectRecord *heldObject = getObject( inHoldingID );
+    
+    if( heldObject->heldInHand == 2 &&
+        heldObject->waterObject ) {
+        return true;
+    }
+
+    return false;
+}
 
 
 
@@ -5949,34 +5985,13 @@ int main() {
                                 // down through objects in our cell that are
                                 // blocking us
                                 char currentBlocked = false;
-                                ObjectRecord *heldObject;
-                                if( nextPlayer->holdingID > 0 ) {
-                                    heldObject = getObject( nextPlayer->holdingID );
-                                }
                                 
                                 if( isMapSpotBlocking( lastValidPathStep.x,
-                                                       lastValidPathStep.y ) ) {
+                                                       lastValidPathStep.y ) ||
+                                    isMapSpotWaterBlocking( lastValidPathStep.x,
+                                                       lastValidPathStep.y, nextPlayer->holdingID ) ) {
                                     currentBlocked = true;
-
-                                // check if the cell is a water biome cell
-                                } else if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
-
-                                    // if the player isn't riding anything, they cannot walk on the water
-                                    if( nextPlayer->holdingID == 0 || heldObject->heldInHand != 2 ) {
-                                        currentBlocked = true;
-
-                                    // if the object the player is riding is not a water object,
-                                    // they cannot ride on the water
-                                    } else if( !heldObject->waterObject ) {
-                                        currentBlocked = true;
                                     }
-                                    
-                                // this is a land cell, if the player is riding a water object (boat)
-                                // then they cannot move onto land
-                                } else if( nextPlayer->holdingID > 0 && heldObject->heldInHand == 2 &&
-                                    heldObject->waterObject ) {
-                                    currentBlocked = true;
-                                }
 
                                 for( int p=0; 
                                      p<unfilteredPath.size(); p++ ) {
@@ -5984,7 +5999,8 @@ int main() {
                                     GridPos pos = 
                                         unfilteredPath.getElementDirect(p);
 
-                                    if( isMapSpotBlocking( pos.x, pos.y ) ) {
+                                    if( isMapSpotBlocking( pos.x, pos.y ) ||
+                                        isMapSpotWaterBlocking( pos.x, pos.y, nextPlayer->holdingID ) ) {
                                         // blockage in middle of path
                                         // terminate path here
                                         truncated = 1;
@@ -6012,31 +6028,6 @@ int main() {
                                         break;
                                         }
 
-                                    // make sure it's not an invalid cell due to water
-
-                                    if( isWaterBiomeCell( lastValidPathStep.x, lastValidPathStep.y ) ) {
-
-                                        // if the player isn't riding anything, they cannot walk on the water
-                                        if( nextPlayer->holdingID == 0 || heldObject->heldInHand != 2 ) {
-                                            truncated = 1;
-                                            break;
-                                            }
-
-                                        // if the object the player is riding is not a water object,
-                                        // they cannot ride on the water
-                                        if( !heldObject->waterObject ) {
-                                            truncated = 1;
-                                            break;
-                                            }
-                                        }
-                                    
-                                    // this is a land cell, if the player is riding a water object (boat)
-                                    // then they cannot move onto land
-                                    if( nextPlayer->holdingID > 0 && heldObject->heldInHand == 2 &&
-                                        heldObject->waterObject ) {
-                                        truncated = 1;
-                                        break;
-                                        }
 
                                     // no blockage, no gaps, add this step
                                     validPath.push_back( pos );
@@ -6535,9 +6526,12 @@ int main() {
 
                         if( distanceUseAllowed 
                             ||
-                            isGridAdjacent( m.x, m.y,
+                            ( isGridAdjacent( m.x, m.y,
                                             nextPlayer->xd, 
-                                            nextPlayer->yd ) 
+                                            nextPlayer->yd ) &&
+                             ( ! getObject( getMapObject( m.x, m.y ) )->waterObject &&
+                             getObject( getMapObject( m.x, m.y ) )->heldInHand != 2)
+                            )
                             ||
                             ( m.x == nextPlayer->xd &&
                               m.y == nextPlayer->yd ) ) {
@@ -10962,4 +10956,3 @@ void startOutputAllFrames() {
 
 void stopOutputAllFrames() {
     }
-
