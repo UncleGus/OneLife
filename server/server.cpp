@@ -2632,40 +2632,62 @@ char isMapSpotBlocking( int inX, int inY ) {
 
 
 char isMapSpotWaterBlocking( int inX, int inY, int inHoldingID ) {
+    // printf("Checking %d, %d for blocking due to water\n", inX, inY);
     if( isWaterBiomeCell( inX, inY ) ) {
-
+        // printf("This is a water cell\n");
         // if the player isn't riding anything, they cannot walk on the water
         if( inHoldingID == 0 ) {
-            return true;
+            // printf("The player is not holding/riding anything\n");
+            int targetObjectID = getMapObject( inX, inY );
+            if( targetObjectID == 0 ) {
+                // printf("There is nothing in the water cell for the player to stand on, so this cell is blocked\n");
+                return true;
+            } else {
+                ObjectRecord *targetObject = getObject( targetObjectID );
+                if( targetObject->rideable && targetObject->waterObject ) {
+                    // printf("There is a rideable object that goes on water here, so this cell is not blocked\n");
+                    return false;
+                } else {
+                    // printf("There is an object here but it is either not rideable or not a water object, so this cell is blocked\n");
+                    return true;
+                }
+            }
         }
 
         ObjectRecord *heldObject = getObject( inHoldingID );
 
-        if( heldObject->heldInHand != 2 ) {
+        if( !heldObject->rideable ) {
+            // printf("The player is holding something (%d), not riding anything, so this cell is blocked\n", inHoldingID);
             return true;
         }
 
         // if the object the player is riding is not a water object,
         // they cannot ride on the water
         if( !heldObject->waterObject ) {
+            // printf("The player is riding something (%d) but not something that goes on water, so this cell is blocked\n", inHoldingID);
             return true;
         }
+        // printf("The player is riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
         return false;
     }
         
     // this is a land cell, if the player is riding a water object (boat)
     // then they cannot move onto land
+    // printf("This is a land cell\n");
     if( inHoldingID == 0 ) {
+        // printf("The player is not holding/riding anything, so this cell is not blocked\n");
         return false;
     }
     
     ObjectRecord *heldObject = getObject( inHoldingID );
     
-    if( heldObject->heldInHand == 2 &&
+    if( heldObject->rideable &&
         heldObject->waterObject ) {
+        // printf("The player is riding an object that goes on water (%d), so this cell is blocked\n", inHoldingID);
         return true;
     }
 
+    // printf("The player is not riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
     return false;
 }
 
@@ -6529,8 +6551,8 @@ int main() {
                             ( isGridAdjacent( m.x, m.y,
                                             nextPlayer->xd, 
                                             nextPlayer->yd ) &&
-                             ( ! getObject( getMapObject( m.x, m.y ) )->waterObject &&
-                             getObject( getMapObject( m.x, m.y ) )->heldInHand != 2)
+                             ( ! getObject( getMapObject( m.x, m.y ) )->waterObject ||
+                             ! getObject( getMapObject( m.x, m.y ) )->rideable )
                             )
                             ||
                             ( m.x == nextPlayer->xd &&
@@ -7777,9 +7799,11 @@ int main() {
 
                         if( canDrop 
                             &&
-                            ( isGridAdjacent( m.x, m.y,
+                            ( ( isGridAdjacent( m.x, m.y,
                                               nextPlayer->xd, 
-                                              nextPlayer->yd ) 
+                                              nextPlayer->yd ) &&
+                                ( !getObject( nextPlayer->holdingID )->waterObject || 
+                                !getObject( nextPlayer->holdingID )->rideable ) )
                               ||
                               ( m.x == nextPlayer->xd &&
                                 m.y == nextPlayer->yd )  ) ) {
@@ -7875,10 +7899,12 @@ int main() {
                                                  ! targetObj->permanent 
                                                  &&
                                                  targetObj->minPickupAge <=
-                                                 computeAge( nextPlayer ) ) {
+                                                 computeAge( nextPlayer ) && 
+                                                 ( ! targetObj->rideable ||
+                                                 ! targetObj->waterObject ) ) {
                                             // drop onto a spot where
                                             // something exists, and it's
-                                            // not a container
+                                            // not a container or a boat
 
                                             // swap what we're holding for
                                             // target

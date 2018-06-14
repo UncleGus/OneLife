@@ -448,7 +448,9 @@ float initObjectBankStep() {
                     int waterObjectRead = 0;
                     sscanf( lines[next], "waterObject=%d", &( waterObjectRead ) );
                     
-                    r->waterObject = waterObjectRead;
+                    if( waterObjectRead == 1 ) {
+                        r->waterObject = true;
+                    }
                     
                     next++;
                     }

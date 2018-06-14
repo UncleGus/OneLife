@@ -1209,20 +1209,6 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                     getCellBlocksWaterWalking( mapX, mapY, getOurLiveObject()->holdingID ) ) {
                     blockedMap[ y * pathFindingD + x ] = true;
                     }
-
-                if( mMapBiomes[ mapI ] == waterBiome ) {
-                    if( getOurLiveObject()->holdingID == 0 || getObject( getOurLiveObject()->holdingID )->heldInHand != 2 ) {
-                        // not riding anything, cannot move onto water
-                        blockedMap[ y * pathFindingD + x ] = true;
-                    } else if ( !getObject( getOurLiveObject()->holdingID )->waterObject ) {
-                        // not riding a water object (boat), cannot move onto water
-                        blockedMap[ y * pathFindingD + x ] = true;
-                        }
-                } else if(getOurLiveObject()->holdingID > 0 && getObject( getOurLiveObject()->holdingID )->heldInHand == 2 &&
-                    getObject( getOurLiveObject()->holdingID )->waterObject ) {
-                    // riding a water object (boat), cannot move onto land
-                    blockedMap[ y * pathFindingD + x ] = true;
-                    }
                 }
             }
         }
@@ -14047,28 +14033,9 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         inMapX >= 0 && inMapX < mMapD ) {
         
         int destID = mMap[ inMapY * mMapD + inMapX ];
-        int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
         
         
         if( destID > 0 && getObject( destID )->blocksWalking ) {
-            return true;
-            }
-        ObjectRecord *heldObject;
-        if( getOurLiveObject()->holdingID > 0 ) {
-            heldObject = getObject( getOurLiveObject()->holdingID );
-        }
-        if( destBiome == waterBiome ) {
-            if( getOurLiveObject()->holdingID == 0 || heldObject->heldInHand != 2 ) {
-                // not riding anything, cannot go on water
-                return true;
-            }
-            if( !heldObject->waterObject ) {
-                // not riding a water object (boat), cannot go on water
-                return true;
-            }
-        } else if( getOurLiveObject()->holdingID > 0 && heldObject->heldInHand == 2 &&
-            heldObject->waterObject ) {
-            // riding a water object (boat), cannot go on land
             return true;
         } else {
             // check for wide neighbors
@@ -14108,33 +14075,65 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
     }
 
 char LivingLifePage::getCellBlocksWaterWalking( int inMapX, int inMapY, int inHoldingID ) {
-    if( inMapY >= 0 && inMapY < mMapD &&
-        inMapX >= 0 && inMapX < mMapD ) {
-        
-        int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
-        
-        
-        ObjectRecord *heldObject;
-        if( inHoldingID > 0 ) {
-            heldObject = getObject( inHoldingID );
-        }
-        if( destBiome == waterBiome ) {
-            if( inHoldingID == 0 || heldObject->heldInHand != 2 || !heldObject->waterObject ) {
-                // not riding a water object, cannot go on water
+    // printf("Checking %d, %d for blocking due to water; ", inMapX, inMapY);
+    int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
+    if( destBiome == waterBiome ) {
+        // printf("This is a water cell; ");
+        // if the player isn't riding anything, they cannot walk on the water
+        if( inHoldingID == 0 ) {
+            // printf("The player is not holding/riding anything; ");
+            int targetObjectID = mMap[ inMapY * mMapD + inMapX ];
+            if( targetObjectID == 0 ) {
+                // printf("There is nothing in the water cell for the player to stand on, so this cell is blocked\n");
                 return true;
+            } else {
+                ObjectRecord *targetObject = getObject( targetObjectID );
+                if( targetObject->rideable && targetObject->waterObject ) {
+                    // printf("There is a rideable object (%d) that goes on water here, so this cell is not blocked\n", targetObjectID);
+                    return false;
+                } else {
+                    // printf("There is an object here (%d) but it is either not rideable or not a water object, so this cell is blocked\n", targetObjectID);
+                    return true;
+                }
             }
-        } else if( inHoldingID > 0 && heldObject->heldInHand == 2 &&
-            heldObject->waterObject ) {
-            // riding a water object (boat), cannot go on land
+        }
+
+        ObjectRecord *heldObject = getObject( inHoldingID );
+
+        if( !heldObject->rideable ) {
+            // printf("The player is holding something (%d), not riding anything, so this cell is blocked\n", inHoldingID);
             return true;
         }
+
+        // if the object the player is riding is not a water object,
+        // they cannot ride on the water
+        if( !heldObject->waterObject ) {
+            // printf("The player is riding something (%d) but not something that goes on water, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+        // printf("The player is riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
         return false;
-        }
-    else {
-        // off map blocks
-        return true;
-        }
     }
+        
+    // this is a land cell, if the player is riding a water object (boat)
+    // then they cannot move onto land
+    // printf("This is a land cell; ");
+    if( inHoldingID == 0 ) {
+        // printf("The player is not holding/riding anything, so this cell is not blocked\n");
+        return false;
+    }
+    
+    ObjectRecord *heldObject = getObject( inHoldingID );
+    
+    if( heldObject->rideable &&
+        heldObject->waterObject ) {
+        // printf("The player is riding an object that goes on water (%d), so this cell is blocked\n", inHoldingID);
+        return true;
+    }
+
+    // printf("The player is not riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
+    return false;
+}
 
 
 void LivingLifePage::pointerDown( float inX, float inY ) {
