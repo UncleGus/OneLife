@@ -14079,23 +14079,18 @@ char LivingLifePage::getCellBlocksWaterWalking( int inMapX, int inMapY, int inHo
     int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
     if( destBiome == waterBiome ) {
         // printf("This is a water cell; ");
-        // if the player isn't riding anything, they cannot walk on the water
-        if( inHoldingID == 0 ) {
-            // printf("The player is not holding/riding anything; ");
-            int targetObjectID = mMap[ inMapY * mMapD + inMapX ];
-            if( targetObjectID == 0 ) {
-                // printf("There is nothing in the water cell for the player to stand on, so this cell is blocked\n");
-                return true;
-            } else {
-                ObjectRecord *targetObject = getObject( targetObjectID );
-                if( targetObject->rideable && targetObject->waterObject ) {
-                    // printf("There is a rideable object (%d) that goes on water here, so this cell is not blocked\n", targetObjectID);
-                    return false;
-                } else {
-                    // printf("There is an object here (%d) but it is either not rideable or not a water object, so this cell is blocked\n", targetObjectID);
-                    return true;
-                }
+        int targetObjectID = mMap[ inMapY * mMapD + inMapX ];
+        if( targetObjectID > 0 ) {
+            ObjectRecord *targetObject = getObject( targetObjectID );
+            if( targetObject->rideable && targetObject->waterObject ) {
+                // printf("There is a rideable object (%d) that goes on water here, so this cell is not blocked\n", targetObjectID);
+                return false;
             }
+        }
+
+        if( inHoldingID <= 0 ) {
+            // printf("The player is not holding or riding anything, so this cell is blocked\n", inHoldingID);
+            return true;
         }
 
         ObjectRecord *heldObject = getObject( inHoldingID );
@@ -14118,7 +14113,7 @@ char LivingLifePage::getCellBlocksWaterWalking( int inMapX, int inMapY, int inHo
     // this is a land cell, if the player is riding a water object (boat)
     // then they cannot move onto land
     // printf("This is a land cell; ");
-    if( inHoldingID == 0 ) {
+    if( inHoldingID <= 0 ) {
         // printf("The player is not holding/riding anything, so this cell is not blocked\n");
         return false;
     }
