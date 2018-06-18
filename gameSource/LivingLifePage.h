@@ -32,6 +32,7 @@
 
 #define NUM_HOME_ARROWS 8
 
+#define NUM_YUM_SLIPS 4
 
 
 typedef struct LiveObject {
@@ -649,6 +650,19 @@ class LivingLifePage : public GamePage {
                                     SpriteHandle *inDashSprites,
                                     char inSkipBar,
                                     char inSkipDashes );
+        
+        
+        int mYumBonus;
+        SimpleVector<int> mOldYumBonus;
+        SimpleVector<float> mOldYumBonusFades;
+
+        int mYumMultiplier;
+
+        SpriteHandle mYumSlipSprites[ NUM_YUM_SLIPS ];
+        int mYumSlipNumberToShow[ NUM_YUM_SLIPS ];
+        doublePair mYumSlipHideOffset[ NUM_YUM_SLIPS ];
+        doublePair mYumSlipPosOffset[ NUM_YUM_SLIPS ];
+        doublePair mYumSlipPosTargetOffset[ NUM_YUM_SLIPS ];
         
 
         // the object that we're mousing over
