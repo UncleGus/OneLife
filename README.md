@@ -1,11 +1,10 @@
-Forked from jasonrohrer/OneLife
+birthcontrol mod
 
-master branch is the foundation for all of the other mod branches:
+This mod allows female players to decide when to have a baby. They are opted in to
+having a baby by default. They can opt out by saying one of the phrases in
+babyOptOutPhrases.ini and they can opt in by saying one of the phrases in
+babyOptInPhrases.ini
 
-breastfeed: breastfeeding prevents pregnancy
-
-father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
-
-restrain: allows players to team up to overcome a lone opponent
-
-water: adds a water biome and procedurally generated streams
+The simplest examples of these are
+BABY YES
+BABY NO
