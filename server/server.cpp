@@ -6611,12 +6611,9 @@ int main() {
 
                         if( distanceUseAllowed 
                             ||
-                            ( isGridAdjacent( m.x, m.y,
+                            isGridAdjacent( m.x, m.y,
                                             nextPlayer->xd, 
-                                            nextPlayer->yd ) &&
-                             ( ! getObject( getMapObject( m.x, m.y ) )->waterObject ||
-                             ! getObject( getMapObject( m.x, m.y ) )->rideable )
-                            )
+                                            nextPlayer->yd )
                             ||
                             ( m.x == nextPlayer->xd &&
                               m.y == nextPlayer->yd ) ) {
@@ -6636,6 +6633,7 @@ int main() {
                             // no diags
                             
                             int target = getMapObject( m.x, m.y );
+                            ObjectRecord *targetObject = getObject( target );
                             
                             int oldHolding = nextPlayer->holdingID;
                             
@@ -6686,9 +6684,32 @@ int main() {
                                     r = NULL;
                                     }
                                 
+                                // don't allow transitions when clicking on a boat that is
+                                // being stood next to
+                                char isColocatedBoat = false;
+                                
+                                if( targetObject->rideable && targetObject->waterObject &&
+                                    m.x == nextPlayer->xd && m.y == nextPlayer->yd ) {
+                                        isColocatedBoat = true;
+                                        AppLog::info("isColocatedBoat: true");
+                                    } else {
+                                        AppLog::info("isColocatedBoat: false");
+                                    }
+
+                                // don't allow pickups when clicking on a boat that is
+                                // not being stood next to
+                                char isAdjacentBoat = false;
+                                if( targetObject->rideable && targetObject->waterObject &&
+                                    ( m.x != nextPlayer->xd || m.y != nextPlayer->yd ) ) {
+                                        isAdjacentBoat = true;
+                                        AppLog::info("isAdjacentBoat: true\n");
+                                    } else {
+                                        AppLog::info("isAdjacentBoat: false\n");
+                                    }
+
 
                                 if( nextPlayer->holdingID >= 0 &&
-                                    heldCanBeUsed ) {
+                                    heldCanBeUsed && ! isColocatedBoat ) {
                                     // negative holding is ID of baby
                                     // which can't be used
                                     // (and no bare hand action available)
@@ -6743,7 +6764,7 @@ int main() {
                                     ( r->newActor == 0 || 
                                       getObject( r->newActor )->minPickupAge <= 
                                       computeAge( nextPlayer ) ) 
-                                    &&
+                                    && ! isColocatedBoat &&
                                     // does this create a blocking object?
                                     // only consider vertical-blocking
                                     // objects (like vertical walls and doors)
@@ -6881,7 +6902,8 @@ int main() {
                                 else if( nextPlayer->holdingID == 0 &&
                                          ! targetObj->permanent &&
                                          targetObj->minPickupAge <= 
-                                         computeAge( nextPlayer ) ) {
+                                         computeAge( nextPlayer ) &&
+                                         ! isAdjacentBoat ) {
                                     // no bare-hand transition applies to
                                     // this non-permanent target object
                                     

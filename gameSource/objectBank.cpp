@@ -2084,7 +2084,9 @@ int addObject( const char *inDescription,
         
         lines.push_back( autoSprintf( "mapChance=%f#biomes_%s", 
                                       inMapChance, inBiomes ) );
-        
+
+        lines.push_back( autoSprintf( "waterObject=%d", inWaterObject ) );
+
         lines.push_back( autoSprintf( "heatValue=%d", inHeatValue ) );
         lines.push_back( autoSprintf( "rValue=%f", inRValue ) );
 
