@@ -693,5 +693,9 @@ char bothSameUseParent( int inAObjectID, int inBObjectID );
 // hiding hidden variable object ids behind parent ID
 int hideIDForClient( int inObjectID );
 
+int getBookID();
+
+int getbookUniqueIdOffset();
+
 
 #endif

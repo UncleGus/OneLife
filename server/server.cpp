@@ -88,7 +88,8 @@ double remoteApocalypseCheckInterval = 30;
 double lastRemoteApocalypseCheckTime = 0;
 WebRequest *apocalypseRequest = NULL;
 
-
+static int bookID;
+static int maxBookID;
 
 char monumentCallPending = false;
 int monumentCallX = 0;
@@ -4774,6 +4775,9 @@ int main() {
     int port = 
         SettingsManager::getIntSetting( "port", 5077 );
     
+
+    bookID = getBookID();
+    maxBookID = getbookUniqueIdOffset();
     
     SocketPoll sockPoll;
     
@@ -6665,8 +6669,14 @@ int main() {
                                     // (and hand left empty)
                                     setResponsiblePlayer( - nextPlayer->id );
                                     
-                                    setMapObject( m.x, m.y, r->newTarget );
-                                    newGroundObject = r->newTarget;
+                                    if( r->newTarget == bookID ) {
+                                        setMapObject( m.x, m.y, maxBookID );
+                                        newGroundObject = maxBookID;
+                                        maxBookID++;
+                                    } else {
+                                        setMapObject( m.x, m.y, r->newTarget );
+                                        newGroundObject = r->newTarget;
+                                    }
                                     
                                     setResponsiblePlayer( -1 );
                                     

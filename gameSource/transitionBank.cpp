@@ -44,6 +44,7 @@ static int *depthMap = NULL;
 static int humanMadeMapSize = 0;
 static char *humanMadeMap = NULL;
 
+static int bookID;
 
 
 static FolderCache cache;
@@ -75,6 +76,8 @@ int initTransBankStart( char *outRebuildingCache,
 
 
     cache = initFolderCache( "transitions", outRebuildingCache );
+
+    bookID = getBookID();
 
     return cache.numFiles;
     }
@@ -1726,6 +1729,14 @@ void regenerateHumanMadeMap() {
 
 TransRecord *getTrans( int inActor, int inTarget, char inLastUseActor,
                        char inLastUseTarget ) {
+    if( inActor > mapSize ) {
+        inActor = bookID;
+    }
+
+    if( inTarget > mapSize ) {
+        inTarget = bookID;
+    }
+
     int mapIndex = inTarget;
     
     if( mapIndex < 0 ) {
@@ -1736,9 +1747,9 @@ TransRecord *getTrans( int inActor, int inTarget, char inLastUseActor,
         return NULL;
         }
 
-    if( mapIndex >= mapSize ) {
-        return NULL;
-        }
+    // if( mapIndex >= mapSize ) {
+    //     return NULL;
+    //     }
     
     int numRecords = usesMap[mapIndex].size();
     
@@ -2602,6 +2613,9 @@ const char *getObjName( int inObjectID ) {
     if( inObjectID > 0 ) {
         
         ObjectRecord *o = getObject( inObjectID );
+        if( inObjectID > mapSize ) {
+            o = getObject( bookID );
+        }
         
         if( o != NULL ) {
             return o->description;
