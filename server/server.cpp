@@ -3733,9 +3733,6 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.xd = cPos.x;
             newObject.yd = cPos.y;
             }
-        do {
-            getEvePosition( newObject.email, &startX, &startY );
-        } while( isWaterBiomeCell( startX, startY ) );
 
         // AppLog::infoF("Setting new object's father and mother IDs\n");
         // do not log babies that new Eve spawns next to as mothers
