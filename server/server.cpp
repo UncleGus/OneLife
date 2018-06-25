@@ -3222,6 +3222,14 @@ void processLoggedInPlayer( Socket *inSock,
         newObject.clothingEtaDecay[c] = 0;
         }
     
+    // this is to make people spawn with clothes, for testing of weapons and armour
+    newObject.clothing.hat = getObject( 199 );
+    newObject.clothing.tunic = getObject( 202 );
+    newObject.clothing.backpack = getObject( 198 );
+    newObject.clothing.bottom = getObject( 200 );
+    newObject.clothing.frontShoe = getObject( 203 );
+    newObject.clothing.backShoe = getObject( 203 );
+    
     newObject.xs = 0;
     newObject.ys = 0;
     newObject.xd = 0;
@@ -3496,13 +3504,6 @@ void processLoggedInPlayer( Socket *inSock,
                 double distance = sqrt( xdiff * xdiff + ydiff * ydiff );
 
                 // AppLog::infoF("Distance to %d is %d\n", f->id, distance);
-    // this is to make people spawn with clothes, for testing of weapons and armour
-    // newObject.clothing.hat = getObject( 199 );
-    // newObject.clothing.tunic = getObject( 202 );
-    // newObject.clothing.backpack = getObject( 198 );
-    // newObject.clothing.bottom = getObject( 200 );
-    // newObject.clothing.frontShoe = getObject( 203 );
-    // newObject.clothing.backShoe = getObject( 203 );
 
                 if( distance < SettingsManager::getIntSetting( "fatherMinDistance", 10 ) ) {
                     // within about a screen's distance, the chance is the same
@@ -7256,9 +7257,9 @@ int main() {
                                 if( targetObject->rideable && targetObject->waterObject &&
                                     m.x == nextPlayer->xd && m.y == nextPlayer->yd ) {
                                         isColocatedBoat = true;
-                                        AppLog::info("isColocatedBoat: true");
+                                        // AppLog::info("isColocatedBoat: true");
                                     } else {
-                                        AppLog::info("isColocatedBoat: false");
+                                        // AppLog::info("isColocatedBoat: false");
                                     }
 
                                 // don't allow pickups when clicking on a boat that is
@@ -7267,9 +7268,9 @@ int main() {
                                 if( targetObject->rideable && targetObject->waterObject &&
                                     ( m.x != nextPlayer->xd || m.y != nextPlayer->yd ) ) {
                                         isAdjacentBoat = true;
-                                        AppLog::info("isAdjacentBoat: true\n");
+                                        // AppLog::info("isAdjacentBoat: true\n");
                                     } else {
-                                        AppLog::info("isAdjacentBoat: false\n");
+                                        // AppLog::info("isAdjacentBoat: false\n");
                                     }
 
 
