@@ -15393,7 +15393,6 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         ! modClick && 
         destID == 0 &&
         canClickOnOtherForNonKill ) {
-        getObject( ourLiveObject->holdingID )->stunDistance == 0 &&
 
 
         doublePair targetPos = { (double)clickDestX, (double)clickDestY };
