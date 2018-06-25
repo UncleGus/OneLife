@@ -138,6 +138,8 @@ typedef struct ObjectRecord {
         // b = bottom
         // p = backpack
         char clothing;
+
+        float hitScalar;
         
         // offset of clothing from it's default location
         // (hats is slightly above head, shoes is centered on feet,
@@ -414,6 +416,7 @@ int addObject( const char *inDescription,
                float inSpeedMult,
                doublePair inHeldOffset,
                char inClothing,
+               float inHitScalar,
                doublePair inClothingOffset,
                int inDeadlyDistance,
                int inUseDistance,
