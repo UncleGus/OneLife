@@ -2666,7 +2666,7 @@ char isMapSpotBlocking( int inX, int inY ) {
             return true;
             }
         }
-    
+
     // not directly blocked
     // need to check for wide objects to left and right
     int maxR = getMaxWideRadius();
@@ -2708,7 +2708,60 @@ char isMapSpotBlocking( int inX, int inY ) {
     }
 
 
+char isMapSpotWaterBlocking( int inX, int inY, int inHoldingID ) {
+    // printf("Checking %d, %d for blocking due to water\n", inX, inY);
+    if( isWaterBiomeCell( inX, inY ) ) {
+        // printf("This is a water cell\n");
+        int targetObjectID = getMapObject( inX, inY );
+        if( targetObjectID > 0 ) {
+            ObjectRecord *targetObject = getObject( targetObjectID );
+            if( targetObject->rideable && targetObject->waterObject ) {
+                // printf("There is a rideable object that goes on water here, so this cell is not blocked\n");
+                return false;
+            }
+        }
 
+        if( inHoldingID <= 0 ) {
+            // printf("The player is not holding or riding anything, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+
+        ObjectRecord *heldObject = getObject( inHoldingID );
+
+        if( !heldObject->rideable ) {
+            // printf("The player is holding something (%d), not riding anything, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+
+        // if the object the player is riding is not a water object,
+        // they cannot ride on the water
+        if( !heldObject->waterObject ) {
+            // printf("The player is riding something (%d) but not something that goes on water, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+        // printf("The player is riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
+        return false;
+    }
+        
+    // this is a land cell, if the player is riding a water object (boat)
+    // then they cannot move onto land
+    // printf("This is a land cell\n");
+    if( inHoldingID <= 0 ) {
+        // printf("The player is not holding/riding anything, so this cell is not blocked\n");
+        return false;
+    }
+    
+    ObjectRecord *heldObject = getObject( inHoldingID );
+    
+    if( heldObject->rideable &&
+        heldObject->waterObject ) {
+        // printf("The player is riding an object that goes on water (%d), so this cell is blocked\n", inHoldingID);
+        return true;
+    }
+
+    // printf("The player is not riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
+    return false;
+}
 
 
 
@@ -3476,7 +3529,9 @@ void processLoggedInPlayer( Socket *inSock,
     else {
         // else starts at civ outskirts (lone Eve)
         int startX, startY;
-        getEvePosition( newObject.email, &startX, &startY );
+        do {
+            getEvePosition( newObject.email, &startX, &startY );
+        } while( isWaterBiomeCell( startX, startY ) );
 
         if( SettingsManager::getIntSetting( "forceEveLocation", 0 ) ) {
 
@@ -6183,10 +6238,11 @@ int main() {
                                 char currentBlocked = false;
                                 
                                 if( isMapSpotBlocking( lastValidPathStep.x,
-                                                       lastValidPathStep.y ) ) {
+                                                       lastValidPathStep.y ) ||
+                                    isMapSpotWaterBlocking( lastValidPathStep.x,
+                                                       lastValidPathStep.y, nextPlayer->holdingID ) ) {
                                     currentBlocked = true;
                                     }
-                                
 
                                 for( int p=0; 
                                      p<unfilteredPath.size(); p++ ) {
@@ -6194,7 +6250,8 @@ int main() {
                                     GridPos pos = 
                                         unfilteredPath.getElementDirect(p);
 
-                                    if( isMapSpotBlocking( pos.x, pos.y ) ) {
+                                    if( isMapSpotBlocking( pos.x, pos.y ) ||
+                                        isMapSpotWaterBlocking( pos.x, pos.y, nextPlayer->holdingID ) ) {
                                         // blockage in middle of path
                                         // terminate path here
                                         truncated = 1;
@@ -6221,7 +6278,8 @@ int main() {
                                         truncated = 1;
                                         break;
                                         }
-                                    
+
+
                                     // no blockage, no gaps, add this step
                                     validPath.push_back( pos );
                                     lastValidPathStep = pos;
@@ -7012,7 +7070,7 @@ int main() {
                             ||
                             isGridAdjacent( m.x, m.y,
                                             nextPlayer->xd, 
-                                            nextPlayer->yd ) 
+                                            nextPlayer->yd )
                             ||
                             ( m.x == nextPlayer->xd &&
                               m.y == nextPlayer->yd ) ) {
@@ -7032,6 +7090,7 @@ int main() {
                             // no diags
                             
                             int target = getMapObject( m.x, m.y );
+                            ObjectRecord *targetObject = getObject( target );
                             
                             int oldHolding = nextPlayer->holdingID;
                             
@@ -7082,9 +7141,32 @@ int main() {
                                     r = NULL;
                                     }
                                 
+                                // don't allow transitions when clicking on a boat that is
+                                // being stood next to
+                                char isColocatedBoat = false;
+                                
+                                if( targetObject->rideable && targetObject->waterObject &&
+                                    m.x == nextPlayer->xd && m.y == nextPlayer->yd ) {
+                                        isColocatedBoat = true;
+                                        AppLog::info("isColocatedBoat: true");
+                                    } else {
+                                        AppLog::info("isColocatedBoat: false");
+                                    }
+
+                                // don't allow pickups when clicking on a boat that is
+                                // not being stood next to
+                                char isAdjacentBoat = false;
+                                if( targetObject->rideable && targetObject->waterObject &&
+                                    ( m.x != nextPlayer->xd || m.y != nextPlayer->yd ) ) {
+                                        isAdjacentBoat = true;
+                                        AppLog::info("isAdjacentBoat: true\n");
+                                    } else {
+                                        AppLog::info("isAdjacentBoat: false\n");
+                                    }
+
 
                                 if( nextPlayer->holdingID >= 0 &&
-                                    heldCanBeUsed ) {
+                                    heldCanBeUsed && ! isColocatedBoat ) {
                                     // negative holding is ID of baby
                                     // which can't be used
                                     // (and no bare hand action available)
@@ -7139,7 +7221,7 @@ int main() {
                                     ( r->newActor == 0 || 
                                       getObject( r->newActor )->minPickupAge <= 
                                       computeAge( nextPlayer ) ) 
-                                    &&
+                                    && ! isColocatedBoat &&
                                     // does this create a blocking object?
                                     // only consider vertical-blocking
                                     // objects (like vertical walls and doors)
@@ -7277,7 +7359,8 @@ int main() {
                                 else if( nextPlayer->holdingID == 0 &&
                                          ! targetObj->permanent &&
                                          targetObj->minPickupAge <= 
-                                         computeAge( nextPlayer ) ) {
+                                         computeAge( nextPlayer ) &&
+                                         ! isAdjacentBoat ) {
                                     // no bare-hand transition applies to
                                     // this non-permanent target object
                                     
@@ -7556,6 +7639,12 @@ int main() {
                                             // standing
                                             // if it creates a blocking 
                                             // object
+                                            canPlace = false;
+                                            }
+                                        if( isWaterBiomeCell( m.x, m.y ) &&
+                                            !getObject( r->newTarget )-> waterObject ) {
+
+                                            // can't place non-water object on water
                                             canPlace = false;
                                             }
                                         }
@@ -8334,11 +8423,18 @@ int main() {
                             canDrop = false;
                             }
 
+                        if( nextPlayer->holdingID > 0 &&
+                            isWaterBiomeCell( m.x, m.y ) && !getObject( nextPlayer->holdingID )->waterObject ) {
+                            canDrop = false;
+                            }
+
                         if( canDrop 
                             &&
-                            ( isGridAdjacent( m.x, m.y,
+                            ( ( isGridAdjacent( m.x, m.y,
                                               nextPlayer->xd, 
-                                              nextPlayer->yd ) 
+                                              nextPlayer->yd ) &&
+                                ( !getObject( nextPlayer->holdingID )->waterObject || 
+                                !getObject( nextPlayer->holdingID )->rideable ) )
                               ||
                               ( m.x == nextPlayer->xd &&
                                 m.y == nextPlayer->yd )  ) ) {
@@ -8434,10 +8530,12 @@ int main() {
                                                  ! targetObj->permanent 
                                                  &&
                                                  targetObj->minPickupAge <=
-                                                 computeAge( nextPlayer ) ) {
+                                                 computeAge( nextPlayer ) && 
+                                                 ( ! targetObj->rideable ||
+                                                 ! targetObj->waterObject ) ) {
                                             // drop onto a spot where
                                             // something exists, and it's
-                                            // not a container
+                                            // not a container or a boat
 
                                             // swap what we're holding for
                                             // target
@@ -11648,4 +11746,3 @@ void startOutputAllFrames() {
 
 void stopOutputAllFrames() {
     }
-

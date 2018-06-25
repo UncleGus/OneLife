@@ -558,10 +558,12 @@ EditorObjectPage::EditorObjectPage()
     mCheckboxNames[0] = "Containable";
     mCheckboxNames[1] = "Permanent";
     mCheckboxNames[2] = "Person";
+    mCheckboxNames[3] = "Water";
     
     mCheckboxes[0]->addActionListener( this );
     mCheckboxes[1]->addActionListener( this );
     mCheckboxes[2]->addActionListener( this );
+    mCheckboxes[3]->addActionListener( this );
 
 
     addComponent( &mPersonNoSpawnCheckbox );
@@ -1370,6 +1372,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mDrawBehindPlayerCheckbox.getToggled(),
                    biomes,
                    mMapChanceField.getFloat(),
+                   mCheckboxes[3]->getToggled(),
+                //    false,
                    mHeatValueField.getInt(),
                    mRValueField.getFloat(),
                    mCheckboxes[2]->getToggled(),
@@ -1509,6 +1513,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mDrawBehindPlayerCheckbox.getToggled(),
                    biomes,
                    mMapChanceField.getFloat(),
+                   mCheckboxes[3]->getToggled(),
+                //    false,
                    mHeatValueField.getInt(),
                    mRValueField.getFloat(),
                    mCheckboxes[2]->getToggled(),
@@ -2779,6 +2785,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mCheckboxes[0]->setToggled( pickedRecord->containable );
             mCheckboxes[1]->setToggled( pickedRecord->permanent );
             mCheckboxes[2]->setToggled( pickedRecord->person );
+            mCheckboxes[3]->setToggled( pickedRecord->waterObject );
 
             if( mCheckboxes[0]->getToggled() ) {
                 showVertRotButtons();

@@ -440,6 +440,21 @@ float initObjectBankStep() {
 
                 next++;
 
+                r->waterObject = false;
+                
+                if( strstr( lines[next], "waterObject=" ) != NULL ) {
+                    // water object flag present
+                    
+                    int waterObjectRead = 0;
+                    sscanf( lines[next], "waterObject=%d", &( waterObjectRead ) );
+                    
+                    if( waterObjectRead == 1 ) {
+                        r->waterObject = true;
+                    }
+                    
+                    next++;
+                    }
+
 
                 r->heatValue = 0;                            
                 sscanf( lines[next], "heatValue=%d", 
@@ -1671,6 +1686,7 @@ int reAddObject( ObjectRecord *inObject,
                         inObject->drawBehindPlayer,
                         biomeString,
                         inObject->mapChance,
+                        inObject->waterObject,
                         inObject->heatValue,
                         inObject->rValue,
                         inObject->person,
@@ -1938,6 +1954,7 @@ int addObject( const char *inDescription,
                char inDrawBehindPlayer,
                char *inBiomes,
                float inMapChance,
+               char inWaterObject,
                int inHeatValue,
                float inRValue,
                char inPerson,
@@ -2084,7 +2101,9 @@ int addObject( const char *inDescription,
         
         lines.push_back( autoSprintf( "mapChance=%f#biomes_%s", 
                                       inMapChance, inBiomes ) );
-        
+
+        lines.push_back( autoSprintf( "waterObject=%d", inWaterObject ) );
+
         lines.push_back( autoSprintf( "heatValue=%d", inHeatValue ) );
         lines.push_back( autoSprintf( "rValue=%f", inRValue ) );
 
@@ -2350,7 +2369,9 @@ int addObject( const char *inDescription,
     
     
     r->mapChance = inMapChance;
-    
+
+    r->waterObject = inWaterObject;
+
     r->heatValue = inHeatValue;
     r->rValue = inRValue;
 
