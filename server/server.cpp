@@ -3205,14 +3205,9 @@ void processLoggedInPlayer( Socket *inSock,
 
     newObject.heldByOther = false;
     newObject.motherChainLength = 1;
-    newObject.foodStore = computeFoodCapacity( &newObject );
 
     newObject.heat = 0.5;
 
-    newObject.foodDecrementETASeconds =
-        Time::getCurrentTime() + 
-        computeFoodDecrementTimeSeconds( &newObject );
-                
     newObject.foodUpdate = true;
     newObject.lastAteID = 0;
     newObject.lastAteFillMax = 0;
@@ -3615,6 +3610,10 @@ void processLoggedInPlayer( Socket *inSock,
 
     // else player starts as newborn
     // start full up to capacity with food
+    newObject.foodStore = computeFoodCapacity( &newObject );
+    newObject.foodDecrementETASeconds =
+        Time::getCurrentTime() + 
+        computeFoodDecrementTimeSeconds( &newObject );
 
     if( ! newObject.isEve && ! newObject.isAdam ) {
         // AppLog::infoF("Spawning as a baby\n");
