@@ -594,6 +594,11 @@ float initObjectBankStep() {
                             
                 next++;
                 
+                r->stunDistance = 0;
+                sscanf( lines[next], "stunDistance=%d", 
+                        &( r->stunDistance ) );
+                            
+                next++;
                 
                 r->useDistance = 1;
                 
@@ -1683,6 +1688,7 @@ int reAddObject( ObjectRecord *inObject,
                         1.0,
                         inObject->clothingOffset,
                         inObject->deadlyDistance,
+                        inObject->stunDistance,
                         inObject->useDistance,
                         inObject->creationSound,
                         inObject->usingSound,
@@ -1949,6 +1955,7 @@ int addObject( const char *inDescription,
                float inHitScalar,
                doublePair inClothingOffset,
                int inDeadlyDistance,
+               int inStunDistance,
                int inUseDistance,
                SoundUsage inCreationSound,
                SoundUsage inUsingSound,
@@ -2112,6 +2119,9 @@ int addObject( const char *inDescription,
 
         lines.push_back( autoSprintf( "deadlyDistance=%d", 
                                       inDeadlyDistance ) );
+
+        lines.push_back( autoSprintf( "stunDistance=%d", 
+                                      inStunDistance ) );
 
         lines.push_back( autoSprintf( "useDistance=%d", 
                                       inUseDistance ) );
@@ -2366,6 +2376,7 @@ int addObject( const char *inDescription,
     r->hitScalar = inHitScalar;
     r->clothingOffset = inClothingOffset;
     r->deadlyDistance = inDeadlyDistance;
+    r->stunDistance = inStunDistance;
     r->useDistance = inUseDistance;
     r->creationSound = copyUsage( inCreationSound );
     r->usingSound = copyUsage( inUsingSound );
