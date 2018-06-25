@@ -23,12 +23,15 @@ gameSource/animations
 gameSource/categories
 gameSource/dataVersionNumber.txt
 gameSource/ground
+gameSource/groundTileCache
 gameSource/music
 gameSource/objects
 gameSource/overlays
+gameSource/reverbCache
 gameSource/scenes
 gameSource/sounds
 gameSource/sprites
+gameSource/spriteImportCache
 gameSource/transitions
 
 server/OneLifeServer
