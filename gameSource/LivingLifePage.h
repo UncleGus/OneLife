@@ -52,6 +52,8 @@ typedef struct LiveObject {
         double lastAgeSetTime;
         
         SimpleVector<int> lineage;
+        int fatherID;
+        int motherID;
         
         char outOfRange;
         char dying;
