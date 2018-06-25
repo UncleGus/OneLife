@@ -414,6 +414,7 @@ void EditorSpriteTrimPage::actionPerformed( GUIComponent *inTarget ) {
                        'n',
                        zeroOffset,
                        0,  // deadly distance
+                       0,  // stun distance
                        1,  // use distance
                        blankSoundUsage,
                        blankSoundUsage,
