@@ -56,6 +56,8 @@ typedef struct ObjectRecord {
         // (rideable overrides heldInHand)
         char rideable;
 
+        // true for objects that can only be placed in water (boats, etc.)
+        char waterObject;
         
         
         // true for objects that cannot be walked through
@@ -406,6 +408,7 @@ int addObject( const char *inDescription,
                char inDrawBehindPlayer,
                char *inBiomes,
                float inMapChance,
+               char inWaterObject,
                int inHeatValue,
                float inRValue,
                char inPerson,
