@@ -568,8 +568,16 @@ float initObjectBankStep() {
                             
                 next++;
                             
-                            
-                            
+
+                r->hitScalar = 0.0;
+                
+                if( strstr( lines[next], "hitScalar=" ) != NULL ) {
+                    sscanf( lines[next], "hitScalar=%f", 
+                            &( r->hitScalar ) );
+                    
+                    next++;
+                    }
+
                 r->clothingOffset.x = 0;
                 r->clothingOffset.y = 0;
                             
@@ -1682,6 +1690,7 @@ int reAddObject( ObjectRecord *inObject,
                         inObject->speedMult,
                         inObject->heldOffset,
                         inObject->clothing,
+                        1.0,
                         inObject->clothingOffset,
                         inObject->deadlyDistance,
                         inObject->stunDistance,
@@ -1948,6 +1957,7 @@ int addObject( const char *inDescription,
                float inSpeedMult,
                doublePair inHeldOffset,
                char inClothing,
+               float inHitScalar,
                doublePair inClothingOffset,
                int inDeadlyDistance,
                int inStunDistance,
@@ -2105,6 +2115,8 @@ int addObject( const char *inDescription,
                                       inHeldOffset.x, inHeldOffset.y ) );
 
         lines.push_back( autoSprintf( "clothing=%c", inClothing ) );
+
+        lines.push_back( autoSprintf( "hitScalar=%f", inHitScalar ) );
 
         lines.push_back( autoSprintf( "clothingOffset=%f,%f",
                                       inClothingOffset.x, 
@@ -2366,6 +2378,7 @@ int addObject( const char *inDescription,
     r->speedMult = inSpeedMult;
     r->heldOffset = inHeldOffset;
     r->clothing = inClothing;
+    r->hitScalar = inHitScalar;
     r->clothingOffset = inClothingOffset;
     r->deadlyDistance = inDeadlyDistance;
     r->stunDistance = inStunDistance;

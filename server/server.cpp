@@ -3290,6 +3290,13 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.yummyBonusStore = 0;
 
     newObject.clothing = getEmptyClothingSet();
+    // this is to make people spawn with clothes, for testing of weapons and armour
+    newObject.clothing.hat = getObject( 199 );
+    newObject.clothing.tunic = getObject( 202 );
+    newObject.clothing.backpack = getObject( 198 );
+    newObject.clothing.bottom = getObject( 200 );
+    newObject.clothing.frontShoe = getObject( 203 );
+    newObject.clothing.backShoe = getObject( 203 );
 
     for( int c=0; c<NUM_CLOTHING_PIECES; c++ ) {
         newObject.clothingEtaDecay[c] = 0;
@@ -6456,72 +6463,197 @@ int main() {
 
                                     if( hitPlayer != NULL ) {
                                         someoneHit = true;
-                                        // break the connection with 
-                                        // them, eventually
-                                        // let them stagger a bit first
 
-                                        hitPlayer->murderSourceID =
-                                            nextPlayer->holdingID;
-                                        
-                                        hitPlayer->murderPerpID =
-                                            nextPlayer->id;
-                                        
-                                        if( hitPlayer->murderPerpEmail 
-                                            != NULL ) {
-                                            delete [] 
-                                                hitPlayer->murderPerpEmail;
+                                        double totalPercentage = 0.0;
+
+                                        double headHit = 5.0;
+                                        if( nextPlayer->clothing.hat != NULL && nextPlayer->clothing.hat->hitScalar > 0.0 ) {
+                                            headHit *= nextPlayer->clothing.hat->hitScalar;
+                                            printf("Player is wearing a hat\n");
+                                        }
+                                        totalPercentage += headHit;
+
+                                        double chestHit = 35.0;
+                                        if( nextPlayer->clothing.tunic != NULL && nextPlayer->clothing.tunic->hitScalar > 0.0 ) {
+                                            chestHit *= nextPlayer->clothing.tunic->hitScalar;
+                                            printf("Player is wearing a tunic\n");
+                                        }
+                                        totalPercentage += chestHit;
+
+                                        double armsHit = 25.0;
+                                        if( nextPlayer->clothing.backpack != NULL && nextPlayer->clothing.backpack->hitScalar > 0.0 ) {
+                                            armsHit *= nextPlayer->clothing.backpack->hitScalar;
+                                            printf("Player is wearing a shield\n");
+                                        }
+                                        totalPercentage += armsHit;
+
+                                        double groinHit = 15.0;
+                                        if( nextPlayer->clothing.bottom != NULL && nextPlayer->clothing.bottom->hitScalar > 0.0 ) {
+                                            groinHit *= nextPlayer->clothing.bottom->hitScalar;
+                                            printf("Player is wearing faulds\n");
+                                        }
+                                        totalPercentage += groinHit;
+
+                                        double leftLegHit = 10.0;
+                                        if( nextPlayer->clothing.frontShoe != NULL && nextPlayer->clothing.frontShoe->hitScalar > 0.0 ) {
+                                            leftLegHit *= nextPlayer->clothing.frontShoe->hitScalar;
+                                            printf("Player is wearing a left shoe\n");
+                                        }
+                                        totalPercentage += leftLegHit;
+
+                                        double rightLegHit = 10.0;
+                                        if( nextPlayer->clothing.backShoe != NULL && nextPlayer->clothing.backShoe->hitScalar > 0.0 ) {
+                                            rightLegHit *= nextPlayer->clothing.backShoe->hitScalar;
+                                            printf("Player is wearing a right shoe\n");
+                                        }
+                                        totalPercentage += rightLegHit;
+
+                                        double hitRand = randSource.getRandomDouble() * totalPercentage;
+                                        ObjectRecord *hitArmour;
+                                        char hitLocation;
+
+                                        if( hitRand < headHit ) {
+                                            AppLog::info("Player is hit in the head\n");
+                                            hitArmour = hitPlayer->clothing.hat;
+                                            hitLocation = 'h';
+                                        } else if ( hitRand < headHit + chestHit ) {
+                                            AppLog::info("Player is hit in the chest\n");
+                                            hitArmour = hitPlayer->clothing.tunic;
+                                            hitLocation = 't';
+                                        } else if ( hitRand < headHit + chestHit + armsHit ) {
+                                            AppLog::info("Player is hit in the arms\n");
+                                            hitArmour = hitPlayer->clothing.backpack;
+                                            hitLocation = 'p';
+                                        } else if ( hitRand < headHit + chestHit + armsHit + groinHit ) {
+                                            AppLog::info("Player is hit in the groin\n");
+                                            hitArmour = hitPlayer->clothing.bottom;
+                                            hitLocation = 'b';
+                                        } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit ) {
+                                            AppLog::info("Player is hit in the left leg\n");
+                                            hitArmour = hitPlayer->clothing.frontShoe;
+                                            hitLocation = 'l';
+                                        } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit + rightLegHit ) {
+                                            AppLog::info("Player is hit in the right leg\n");
+                                            hitArmour = hitPlayer->clothing.backShoe;
+                                            hitLocation = 'r';
+                                        } else {
+                                            printf("Whoops, maths. hitRand is %f and total percentage is %f\n",
+                                                hitRand, totalPercentage );
+                                        }
+
+                                        char performKill = false;
+
+                                        // check if hitPlayer is wearing armour in hit location
+                                        if( hitArmour != NULL ) {
+                                            // check if there is a transition between the weapon and the armour
+                                            printf("Player is wearing a %s\n", hitArmour->description );
+                                            TransRecord *armourTrans = 
+                                                getPTrans( nextPlayer->holdingID, 
+                                                        hitArmour->id, false, false );
+                                            if( armourTrans != NULL ) {
+                                                // perform the transition
+                                                printf("This armour blocks this weapon\n");
+                                                nextPlayer->holdingID = armourTrans->newActor;
+                                                switch( hitLocation ) {
+                                                    case 'h':
+                                                        hitPlayer->clothing.hat = getObject( armourTrans->newTarget );
+                                                        break;
+                                                    case 't':
+                                                        hitPlayer->clothing.tunic = getObject( armourTrans->newTarget );
+                                                        break;
+                                                    case 'p':
+                                                        hitPlayer->clothing.backpack = getObject( armourTrans->newTarget );
+                                                        break;
+                                                    case 'b':
+                                                        hitPlayer->clothing.bottom = getObject( armourTrans->newTarget );
+                                                        break;
+                                                    case 'l':
+                                                        hitPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
+                                                        break;
+                                                    case 'r':
+                                                        hitPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
+                                                        break;
+                                                }
+                                            } else {
+                                                // proceed with the kill code
+                                                performKill = true;
                                             }
-                                        
-                                        hitPlayer->murderPerpEmail =
-                                            stringDuplicate( 
-                                                nextPlayer->email );
-                                        
+                                        } else {
+                                            // proceed with the kill code
+                                            performKill = true;
+                                        }
 
-                                        setDeathReason( hitPlayer, 
-                                                        "killed",
-                                                        nextPlayer->holdingID );
 
-                                        // if not already dying
-                                        if( ! hitPlayer->dying ) {
-                                            int staggerTime = 
-                                                SettingsManager::getIntSetting(
-                                                    "deathStaggerTime", 20 );
+                                        if( performKill ){
+                                            // break the connection with 
+                                            // them, eventually
+                                            // let them stagger a bit first
+
+                                            hitPlayer->murderSourceID =
+                                                nextPlayer->holdingID;
                                             
-                                            double currentTime = 
-                                                Time::getCurrentTime();
+                                            hitPlayer->murderPerpID =
+                                                nextPlayer->id;
                                             
-                                            hitPlayer->dying = true;
-                                            hitPlayer->dyingETA = 
-                                                currentTime + staggerTime;
+                                            if( hitPlayer->murderPerpEmail 
+                                                != NULL ) {
+                                                delete [] 
+                                                    hitPlayer->murderPerpEmail;
+                                                }
+                                            
+                                            hitPlayer->murderPerpEmail =
+                                                stringDuplicate( 
+                                                    nextPlayer->email );
+                                            
 
-                                            playerIndicesToSendDyingAbout.
-                                                push_back( 
-                                                    getLiveObjectIndex( 
-                                                        hitPlayer->id ) );
-                                        
-                                            hitPlayer->errorCauseString =
-                                                "Player killed by other player";
+                                            setDeathReason( hitPlayer, 
+                                                            "killed",
+                                                            nextPlayer->holdingID );
+
+                                            // if not already dying
+                                            if( ! hitPlayer->dying ) {
+                                                int staggerTime = 
+                                                    SettingsManager::getIntSetting(
+                                                        "deathStaggerTime", 20 );
+                                                
+                                                double currentTime = 
+                                                    Time::getCurrentTime();
+                                                
+                                                hitPlayer->dying = true;
+                                                hitPlayer->dyingETA = 
+                                                    currentTime + staggerTime;
+
+                                                playerIndicesToSendDyingAbout.
+                                                    push_back( 
+                                                        getLiveObjectIndex( 
+                                                            hitPlayer->id ) );
+                                            
+                                                hitPlayer->errorCauseString =
+                                                    "Player killed by other player";
+                                                }
+                                            else {
+                                                // already dying, 
+                                                // and getting attacked again
+                            
+                                                // halve their remaining 
+                                                // stagger time
+                                                double currentTime = 
+                                                    Time::getCurrentTime();
+                                                
+                                                double staggerTimeLeft = 
+                                                    nextPlayer->dyingETA - 
+                                                    currentTime;
+                            
+                                                if( staggerTimeLeft > 0 ) {
+                                                    staggerTimeLeft /= 2;
+                                                    nextPlayer->dyingETA = 
+                                                        currentTime + 
+                                                        staggerTimeLeft;
+                                                    }
+                                                }
+                                            } else {
+                                                printf("Player blocked attack\n");
                                             }
-                                         else {
-                                             // already dying, 
-                                             // and getting attacked again
-                        
-                                             // halve their remaining 
-                                             // stagger time
-                                             double currentTime = 
-                                                 Time::getCurrentTime();
-                                             
-                                             double staggerTimeLeft = 
-                                                 nextPlayer->dyingETA - 
-                                                 currentTime;
-                        
-                                             if( staggerTimeLeft > 0 ) {
-                                                 staggerTimeLeft /= 2;
-                                                 nextPlayer->dyingETA = 
-                                                     currentTime + 
-                                                     staggerTimeLeft;
-                                                 }
-                                             }
                                         }
                                     
                                     

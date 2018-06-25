@@ -412,6 +412,7 @@ void EditorSpriteTrimPage::actionPerformed( GUIComponent *inTarget ) {
                        1,
                        zeroOffset,
                        'n',
+                       1.0,
                        zeroOffset,
                        0,  // deadly distance
                        0,  // stun distance
