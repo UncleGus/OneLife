@@ -37,6 +37,7 @@ typedef struct Client {
         int x, y;
 
         char moving;
+        int nextMoveETA;
         char dead;
         char disconnected;
         
@@ -371,6 +372,7 @@ int main( int inNumArgs, char **inArgs ) {
                                 connections[i].x, 
                                 connections[i].y );
 
+                        connections[i].nextMoveETA = Time::getCurrentTime() + 10;
 
                         
                         for( int p=0; p<numLines; p++ ) {
@@ -400,8 +402,10 @@ int main( int inNumArgs, char **inArgs ) {
                     }
 
 
-                if( !connections[i].moving ) {
+                if( !connections[i].moving && connections[i].nextMoveETA < Time::getCurrentTime() ) {
                 
+                    connections[i].nextMoveETA = Time::getCurrentTime() + 10;
+                    
                     // make a move
 
                     connections[i].moving = true;

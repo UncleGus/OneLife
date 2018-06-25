@@ -104,6 +104,15 @@ static const char *bugEmail = "jason" "rohrer" "@" "fastmail.fm";
 
 
 
+// if true, pressing S key (capital S)
+// causes current speech and mask to be saved to the screenShots folder
+static char savingSpeechEnabled = false;
+static char savingSpeech = false;
+static char savingSpeechColor = false;
+static char savingSpeechMask = false;
+
+
+
 
 // most recent home at end
 
@@ -712,6 +721,7 @@ typedef enum messageType {
     NAMES,
     APOCALYPSE,
     DYING,
+    HEALED,
     MONUMENT_CALL,
     GRAVE,
     GRAVE_MOVE,
@@ -785,6 +795,9 @@ messageType getMessageType( char *inMessage ) {
         }
     else if( strcmp( copy, "DY" ) == 0 ) {
         returnValue = DYING;
+        }
+    else if( strcmp( copy, "HE" ) == 0 ) {
+        returnValue = HEALED;
         }
     else if( strcmp( copy, "MN" ) == 0 ) {
         returnValue = MONUMENT_CALL;
@@ -2291,7 +2304,25 @@ void LivingLifePage::drawChalkBackgroundString( doublePair inPos,
     else {
         setDrawColor( 1, 1, 1, inFade );
         }
+
+
+
+    char maskOnly = false;
+    char colorOnly = false;
     
+    if( savingSpeech && savingSpeechColor && inFade == 1.0 ) {
+        drawSquare( inPos, 512 );
+        colorOnly = true;
+        }
+    else if( savingSpeech && savingSpeechMask && inFade == 1.0 ) {
+        setDrawColor( 0, 0, 0, 1.0 );
+        drawSquare( inPos, 512 );
+        setDrawColor( 1, 1, 1, 1 );
+        maskOnly = true;
+        }
+
+
+
     // with a fixed seed
     JenkinsRandomSource blotRandSource( 0 );
         
@@ -2338,6 +2369,13 @@ void LivingLifePage::drawChalkBackgroundString( doublePair inPos,
         setDrawColor( 0, 0, 0, inFade );
         }
     
+
+    if( maskOnly ) {
+        // font should add to opacity of mask too
+        setDrawColor( 1, 1, 1, 1 );
+        }
+
+    
     for( int i=0; i<lines->size(); i++ ) {
         char *line = lines->getElementDirect( i );
         
@@ -2349,6 +2387,19 @@ void LivingLifePage::drawChalkBackgroundString( doublePair inPos,
         }
 
     delete lines;
+
+
+    if( colorOnly ) {
+        saveScreenShot( "speechColor" );
+        savingSpeechColor = false;
+        savingSpeechMask = true;
+        }
+    else if( maskOnly ) {
+        saveScreenShot( "speechMask" );
+        savingSpeechMask = false;
+        savingSpeech = false;
+        }
+        
     }
 
 
@@ -3399,6 +3450,19 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                 babyO->lastHeldByRawPosSet = true;
                 babyO->lastHeldByRawPos = worldHoldPos;
 
+                int hideClosestArmBaby = 0;
+                char hideAllLimbsBaby = false;
+
+                if( babyO->holdingID > 0 ) {
+                    ObjectRecord *babyHoldingObj = 
+                        getObject( babyO->holdingID );
+                    
+                    getArmHoldingParameters( babyHoldingObj, 
+                                             &hideClosestArmBaby,
+                                             &hideAllLimbsBaby );
+                    }
+                
+
                 returnPack =
                     drawObjectAnimPacked( 
                                 babyO->displayID, curHeldType, 
@@ -3416,9 +3480,8 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                                 false,
                                 inObj->holdingFlip,
                                 computeCurrentAge( babyO ),
-                                // don't hide baby's hands when it is held
-                                false,
-                                false,
+                                hideClosestArmBaby,
+                                hideAllLimbsBaby,
                                 false,
                                 babyO->clothing,
                                 babyO->clothingContained,
@@ -4898,6 +4961,19 @@ void LivingLifePage::draw( doublePair inViewCenter,
                 if( heldPack.inObjectID != -1 ) {
                     // holding something, not drawn yet
                     
+                    if( o->holdingID < 0 ) {
+                        LiveObject *babyO = getLiveObject( - o->holdingID );
+                        if( babyO != NULL 
+                            && babyO->dying && babyO->holdingID > 0  ) {
+                            // baby still holding something while dying,
+                            // likely a wound
+                            // add to pack to draw it on top of baby
+                            heldPack.additionalHeldID =
+                                babyO->holdingID;
+                            }
+                        }
+
+
                     if( ! o->heldPosOverride ) {
                         // not sliding into place
                         // draw it now
@@ -5792,10 +5868,6 @@ void LivingLifePage::draw( doublePair inViewCenter,
                     for( int i=0; i<NUM_HOME_ARROWS; i++ ) {
                         if( i != foundSolid ) {
                             mHomeArrowStates[i].fade -= 0.0625;
-                            printf( "Fade %d down to %f\n",
-                                    i,
-                                    mHomeArrowStates[i].fade );
-                            
                             if( mHomeArrowStates[i].fade < 0 ) {
                                 mHomeArrowStates[i].fade = 0;
                                 }
@@ -6476,6 +6548,14 @@ void LivingLifePage::draw( doublePair inViewCenter,
                                        description );
                     desToDelete = des;
                     }
+                else if( ourLiveObject->dying &&
+                         ourLiveObject->holdingID > 0 ) {
+                    des = autoSprintf( "%s %s",
+                                       translate( "youWith" ),
+                                       getObject( ourLiveObject->holdingID )->
+                                       description );
+                    desToDelete = des;
+                    }
                 else {
                     des = (char*)translate( "you" );
                     if( ourLiveObject->name != NULL ) {
@@ -6497,6 +6577,19 @@ void LivingLifePage::draw( doublePair inViewCenter,
                 if( otherObj != NULL && otherObj->name != NULL ) {
                     des = autoSprintf( "%s - %s",
                                        otherObj->name, des );
+                    desToDelete = des;
+                    }
+                if( otherObj != NULL && 
+                    otherObj->dying && otherObj->holdingID > 0 ) {
+                    des = autoSprintf( "%s - %s %s",
+                                       des,
+                                       translate( "with" ),
+                                       getObject( otherObj->holdingID )->
+                                       description );
+                    if( desToDelete != NULL ) {
+                        delete [] desToDelete;
+                        }
+                    
                     desToDelete = des;
                     }
                 }
@@ -12145,6 +12238,54 @@ void LivingLifePage::step() {
                 }
             delete [] lines;
             }
+        else if( type == HEALED ) {
+            int numLines;
+            char **lines = split( message, "\n", &numLines );
+            
+            if( numLines > 0 ) {
+                // skip first
+                delete [] lines[0];
+                }
+            
+            
+            for( int i=1; i<numLines; i++ ) {
+
+                int id;
+                int numRead = sscanf( lines[i], "%d ",
+                                      &( id ) );
+
+                if( numRead == 1 ) {
+                    for( int j=0; j<gameObjects.size(); j++ ) {
+                        if( gameObjects.getElement(j)->id == id ) {
+                            
+                            LiveObject *existing = gameObjects.getElement(j);
+                            
+                            existing->dying = false;
+                            
+                            // their wound will be gone after this
+                            // play decay sound, if any, for their final
+                            // wound state
+                            if( existing->holdingID > 0 ) {
+                                ObjectRecord *held = 
+                                    getObject( existing->holdingID );
+                                
+                                if( held->decaySound.numSubSounds > 0 ) {    
+                                    
+                                    playSound( 
+                                        held->decaySound,
+                                        getVectorFromCamera( 
+                                            existing->currentPos.x, 
+                                            existing->currentPos.y ) );
+                                    }
+                                }
+                            break;
+                            }
+                        }
+                    }
+                delete [] lines[i];
+                }
+            delete [] lines;
+            }
         else if( type == PLAYER_OUT_OF_RANGE ) {
             int numLines;
             char **lines = split( message, "\n", &numLines );
@@ -13511,6 +13652,10 @@ void LivingLifePage::makeActive( char inFresh ) {
     if( !inFresh ) {
         return;
         }
+
+    savingSpeechEnabled = SettingsManager::getIntSetting( "allowSavingSpeech",
+                                                          0 );
+
 
     for( int i=0; i<mGraveInfo.size(); i++ ) {
         delete [] mGraveInfo.getElement(i)->relationName;
@@ -14972,6 +15117,43 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         }
     
 
+    char tryingToHeal = false;
+    
+
+    if( ourLiveObject->holdingID >= 0 &&
+        p.hitOtherPerson &&
+        getLiveObject( p.hitOtherPersonID )->dying ) {
+        
+        LiveObject *targetPlayer = getLiveObject( p.hitOtherPersonID );
+        
+        if( targetPlayer->holdingID > 0 ) {
+            
+            TransRecord *r = getTrans( ourLiveObject->holdingID,
+                                       targetPlayer->holdingID );
+            
+            if( r != NULL ) {
+                // a transition applies between what we're holding and their
+                // wound
+                tryingToHeal = true;
+                }
+            }
+        }
+    
+    
+    char canClickOnOtherForNonKill = false;
+    
+    if( tryingToHeal ) {
+        canClickOnOtherForNonKill = true;
+        }
+    
+    if( ourLiveObject->holdingID > 0 &&
+        getObject( ourLiveObject->holdingID )->deadlyDistance == 0 &&
+        ( getObject( ourLiveObject->holdingID )->clothing != 'n' ||
+          getObject( ourLiveObject->holdingID )->foodValue > 0 ) ) {
+        canClickOnOtherForNonKill = true;
+        }
+    
+
     
     // true if we're too far away to use on baby BUT we should execute
     // UBABY once we get to destination
@@ -14985,10 +15167,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         p.hitOtherPerson &&
         ! modClick && 
         destID == 0 &&
-        ourLiveObject->holdingID > 0 &&
-        getObject( ourLiveObject->holdingID )->deadlyDistance == 0 &&
-        ( getObject( ourLiveObject->holdingID )->clothing != 'n' ||
-          getObject( ourLiveObject->holdingID )->foodValue > 0 ) ) {
+        canClickOnOtherForNonKill ) {
 
 
         doublePair targetPos = { (double)clickDestX, (double)clickDestY };
@@ -15633,6 +15812,14 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
 
     
     switch( inASCII ) {
+        case 'S':
+            if( savingSpeechEnabled && 
+                ! mSayField.isFocused() ) {
+                savingSpeechColor = true;
+                savingSpeechMask = false;
+                savingSpeech = true;
+                }
+            break;
         /*
         case 'b':
             blackBorder = true;

@@ -9,12 +9,15 @@
 #include <stdint.h>
 
 
+extern double secondsPerYear;
+
+
+
 typedef struct LineageTime {
         int lineageEveID;
         double lastBornTime;
-        // flag indicating that we should ignore totalLifeAge when
-        // considering lineage ban for this player in this family line
-        char murdered;
+        double totalLivedThisLine;
+        double totalLivedOtherLines;
     } LineageTime;
     
 
@@ -23,10 +26,6 @@ typedef struct HashTableEntry {
         char *email;
         
         double freshestTime;
-
-        // how many years total they've lived in the game since
-        // the server started up
-        double totalLifeAge;
         
         SimpleVector<LineageTime> *times;
     } HashTableEntry;
@@ -60,15 +59,18 @@ void freeLineageLimit() {
 
 static char testSkipped = false;
 
+// after 24 hours, drop records, to keep them from building up forever
+static double staleTimeout = 24 * 3600;
 static double staleTime = 0;
 
-static double totalAgeKickIn = 120;
+
+static double otherLineRequiredYears = 0;
+static double oneLineMaxYears = 0;
 
 
 void primeLineageTest( int inNumLivePlayers ) {
-    
-    totalAgeKickIn = 
-        SettingsManager::getFloatSetting( "lineageLimitTotalAgeKickIn", 120 );
+
+    staleTime = Time::getCurrentTime() - staleTimeout;
 
     double fractionOfMax = ( inNumLivePlayers - 10 ) / 40.0;
     
@@ -77,7 +79,7 @@ void primeLineageTest( int inNumLivePlayers ) {
         }
     
     float maxHours = 
-        SettingsManager::getFloatSetting( "lineageLimitMaxHours", 24 );
+        SettingsManager::getFloatSetting( "lineageLimitOtherLineHours", 1.0 );
     
     double hours = fractionOfMax * maxHours;
 
@@ -88,9 +90,13 @@ void primeLineageTest( int inNumLivePlayers ) {
 
     testSkipped = false;
 
-    double sec = hours * 3600;
-    
-    staleTime = Time::getCurrentTime() - sec;
+    otherLineRequiredYears = ( hours * 3600 ) / secondsPerYear;
+
+
+    float maxHoursOneLine = 
+        SettingsManager::getFloatSetting( "lineageLimitOneLineHours", 0.5 );
+
+    oneLineMaxYears = ( maxHoursOneLine * 3600 ) / secondsPerYear;
     }
 
 
@@ -119,12 +125,13 @@ static HashTableEntry *lookup( const char *inPlayerEmail ) {
         HashTableEntry *e = bin->getElement( i );
         
         if( e->freshestTime < staleTime ) {
-            // a completely stale entry, empty it
-            e->times->deleteAll();
-            e->freshestTime = Time::getCurrentTime();
+            // a completely stale entry, remove it
+            delete [] e->email;
+            delete e->times;
+            bin->deleteElement( i );
+            i--;
             }
-
-        if( strcmp( e->email, inPlayerEmail ) == 0 ) {
+        else if( strcmp( e->email, inPlayerEmail ) == 0 ) {
             return e;
             }
         }
@@ -133,20 +140,20 @@ static HashTableEntry *lookup( const char *inPlayerEmail ) {
 
 
 
-static void insert( const char *inPlayerEmail, int inLineageEveID ) {
+static void insert( const char *inPlayerEmail, int inLineageEveID,
+                    double inLivedYears ) {
     // new record saying player born in this line NOW
     
     double curTime = Time::getCurrentTime();
     
     SimpleVector<LineageTime> *tList = new SimpleVector<LineageTime>();
     
-    LineageTime tNew = { inLineageEveID, curTime, false };
+    LineageTime tNew = { inLineageEveID, curTime, inLivedYears, 0 };
     
     tList->push_back( tNew );
 
     HashTableEntry e = { stringDuplicate( inPlayerEmail ),
-                         Time::getCurrentTime(),
-                         0,
+                         curTime,
                          tList };
 
     SimpleVector<HashTableEntry> *bin = lookupBin( inPlayerEmail );
@@ -167,16 +174,7 @@ char isLinePermitted( const char *inPlayerEmail, int inLineageEveID ) {
     if( e == NULL ) {
         return true;
         }
-
-
-    char enoughAge = true;
-    if( e->totalLifeAge < totalAgeKickIn ) {
-        // lineage bans don't count yet
-        // unless they were murdered in a given family
-        enoughAge = false;
-        }
-
-
+    
     for( int i=0; i<e->times->size(); i++ ) {
         LineageTime *t = e->times->getElement( i );
         
@@ -186,14 +184,22 @@ char isLinePermitted( const char *inPlayerEmail, int inLineageEveID ) {
             i--;
             }
         else if( t->lineageEveID == inLineageEveID ) {
-            // born in this lineage, and time not stale
+            // born in this lineage before, and time not stale
 
-            // how much time they lived total doesn't matter if they
-            // were murdered in this family
-            if( enoughAge || t->murdered ) {
-                return false;
+            if( t->totalLivedThisLine < oneLineMaxYears ) {
+                // we're allowed to live more in this line
+                return true;
                 }
-            return true;
+            else if( t->totalLivedOtherLines >= otherLineRequiredYears ) {
+                // we've lived long enough in other lines
+                // clear our count in this line
+                t->totalLivedThisLine = 0;
+                return true;
+                }
+
+            // else we've lived too long in this line, and not long enough
+            // in other lines
+            return false;
             }
         }
     
@@ -203,61 +209,51 @@ char isLinePermitted( const char *inPlayerEmail, int inLineageEveID ) {
 
 
 
-void recordLineage( const char *inPlayerEmail, int inLineageEveID ) {
+void recordLineage( const char *inPlayerEmail, int inLineageEveID,
+                    double inLivedYears, char inMurdered ) {
+
+    if( inMurdered ) {
+        // push up over the limit no matter how long they have lived
+        inLivedYears += oneLineMaxYears;
+        }
+
     HashTableEntry *e = lookup( inPlayerEmail );
     
     if( e == NULL ) {
-        insert( inPlayerEmail, inLineageEveID );
+        insert( inPlayerEmail, inLineageEveID, inLivedYears );
         return;
         }
-
+    
+    
 
     double curTime = Time::getCurrentTime();
 
+    char found = false;
     for( int i=0; i<e->times->size(); i++ ) {
         LineageTime *t = e->times->getElement( i );
         
         if( t->lineageEveID == inLineageEveID ) {
             // previously born in this lineage, adjust with new birth time
             t->lastBornTime = curTime;
-            return;
+            t->totalLivedThisLine += inLivedYears;
+            
+            // clear out count in other lines
+            // that count only starts happening after we're done
+            // living in this line
+            t->totalLivedOtherLines = 0;
+            
+            found = true;
+            }
+        else {
+            t->totalLivedOtherLines += inLivedYears;
             }
         }
 
-    // not found, add new one
-    LineageTime t = { inLineageEveID, curTime, false };
-    e->times->push_back( t );
-    e->freshestTime = curTime;
-    }
-
-
-
-
-void recordLineageLifeTime( const char *inPlayerEmail, double inYearsLived,
-                            int inLineageEveID, char inMurdered ) {
-    
-    HashTableEntry *e = lookup( inPlayerEmail );
-    
-    if( e == NULL ) {
-        return;
-        }
-
-    e->totalLifeAge += inYearsLived;
-
-
-    if( inMurdered ) {
-        for( int i=0; i<e->times->size(); i++ ) {
-            LineageTime *t = e->times->getElement( i );
-        
-            if( t->lastBornTime < staleTime ) {
-                // a stale birth time, remove it
-                e->times->deleteElement( i );
-                i--;
-                }
-            else if( t->lineageEveID == inLineageEveID ) {
-                t->murdered = true;
-                break;
-                }
-            }
+    if( !found ) {
+        // not found, add new one
+        LineageTime t = { inLineageEveID, curTime, inLivedYears, 0 };
+        e->times->push_back( t );
+        e->freshestTime = curTime;
         }
     }
+
