@@ -613,10 +613,15 @@ float initObjectBankStep() {
                 next++;
                 
                 r->stunDistance = 0;
-                sscanf( lines[next], "stunDistance=%d", 
-                        &( r->stunDistance ) );
-                            
-                next++;
+
+                if( strstr( lines[next], 
+                            "stunDistance=" ) != NULL ) {
+                    sscanf( lines[next], "stunDistance=%d", 
+                            &( r->stunDistance ) );
+                                
+                    next++;
+                    }
+                
                 
                 r->useDistance = 1;
                 

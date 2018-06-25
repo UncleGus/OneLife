@@ -7,9 +7,3 @@ breastfeed: breastfeeding prevents pregnancy
 father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
 
 restrain: allows players to team up to overcome a lone opponent
-
-water: adds a water biome and procedurally generated streams
-
-birthcontrol: gives female players the ability to choose when to have a baby
-
-armour: clothing can be used to block attacks
