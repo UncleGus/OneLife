@@ -134,6 +134,10 @@ static int familySpan = 2;
 static SimpleVector<char*> nameGivingPhrases;
 static SimpleVector<char*> familyNameGivingPhrases;
 
+// phrases that trigger baby opt in and out
+static SimpleVector<char*> babyOptInPhrases;
+static SimpleVector<char*> babyOptOutPhrases;
+
 static char *eveName = NULL;
 
 
@@ -403,6 +407,8 @@ typedef struct LiveObject {
         GridPos lastMonumentPos;
         int lastMonumentID;
         char monumentPosSent;
+
+        char babyOptIn;
         
     } LiveObject;
 
@@ -867,7 +873,10 @@ void quitCleanup() {
 
     nameGivingPhrases.deallocateStringElements();
     familyNameGivingPhrases.deallocateStringElements();
-    
+
+    babyOptInPhrases.deallocateStringElements();
+    babyOptOutPhrases.deallocateStringElements();
+
     if( eveName != NULL ) {
         delete [] eveName;
         eveName = NULL;
@@ -1425,7 +1434,7 @@ char isFertileAge( LiveObject *inPlayer ) {
                     
     char f = getFemale( inPlayer );
                     
-    if( age >= 14 && age <= 40 && f ) {
+    if( age >= 14 && age <= 40 && f && inPlayer->babyOptIn ) {
         return true;
         }
     else {
@@ -3616,6 +3625,7 @@ void processLoggedInPlayer( Socket *inSock,
     
     newObject.monumentPosSet = false;
     newObject.monumentPosSent = true;
+    newObject.babyOptIn = true;
     
                 
     for( int i=0; i<HEAT_MAP_D * HEAT_MAP_D; i++ ) {
@@ -4368,8 +4378,17 @@ char *isFamilyNamingSay( char *inSaidString ) {
     return isNamingSay( inSaidString, &familyNameGivingPhrases );
     }
 
-
-
+char isBabyOptSay( char *inSaidString, SimpleVector<char*> *inPhraseList ) {
+    for( int i=0; i<inPhraseList->size(); i++ ) {
+        char *testString = inPhraseList->getElementDirect( i );
+        
+        if( strstr( inSaidString, testString ) == inSaidString ) {
+            // hit
+            return true;
+            }
+        }
+    return false;
+    }
 
 int readIntFromFile( const char *inFileName, int inDefaultValue ) {
     FILE *f = fopen( inFileName, "r" );
@@ -4788,6 +4807,8 @@ int main() {
     
     readNameGivingPhrases( "babyNamingPhrases", &nameGivingPhrases );
     readNameGivingPhrases( "familyNamingPhrases", &familyNameGivingPhrases );
+    readNameGivingPhrases( "babyOptInPhrases", &babyOptInPhrases );
+    readNameGivingPhrases( "babyOptOutPhrases", &babyOptOutPhrases );
     
     eveName = 
         SettingsManager::getStringSetting( "eveName", "EVE" );
@@ -6383,7 +6404,19 @@ int main() {
                                 }
                             }
                         
+                        char babyOptIn = isBabyOptSay( m.saidText, &babyOptInPhrases );
                         
+                        if( babyOptIn ) {
+                            nextPlayer->babyOptIn = true;
+                            }
+
+                        char babyOptOut = isBabyOptSay( m.saidText, &babyOptOutPhrases );
+                        
+                        if( babyOptOut ) {
+                            nextPlayer->babyOptIn = false;
+                            }
+
+
                         if( nextPlayer->lastSay != NULL ) {
                             delete [] nextPlayer->lastSay;
                             nextPlayer->lastSay = NULL;
