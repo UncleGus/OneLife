@@ -424,7 +424,12 @@ typedef struct LiveObject {
 
 SimpleVector<LiveObject> players;
 
-
+typedef struct SoundLocation {
+        int objectID;
+        int soundIndex;
+        int x;
+        int y;
+    } SoundLocation;
 
 
 typedef struct GraveInfo {
@@ -5700,6 +5705,8 @@ int main() {
 
         SimpleVector<int> playerIndicesToSendHealingAbout;
 
+        SimpleVector<SoundLocation> soundsToSend;
+
         SimpleVector<GraveInfo> newGraves;
         SimpleVector<GraveMoveInfo> newGraveMoves;
 
@@ -6664,44 +6671,44 @@ int main() {
                                         double totalPercentage = 0.0;
 
                                         double headHit = 5.0;
-                                        if( nextPlayer->clothing.hat != NULL && nextPlayer->clothing.hat->hitScalar > 0.0 ) {
-                                            headHit *= nextPlayer->clothing.hat->hitScalar;
-                                            printf("Player is wearing a hat\n");
+                                        if( hitPlayer->clothing.hat != NULL && hitPlayer->clothing.hat->hitScalar > 0.0 ) {
+                                            headHit *= hitPlayer->clothing.hat->hitScalar;
+                                            // printf("Player is wearing a hat\n");
                                         }
                                         totalPercentage += headHit;
 
-                                        double chestHit = 35.0;
-                                        if( nextPlayer->clothing.tunic != NULL && nextPlayer->clothing.tunic->hitScalar > 0.0 ) {
-                                            chestHit *= nextPlayer->clothing.tunic->hitScalar;
-                                            printf("Player is wearing a tunic\n");
+                                        double chestHit = 45.0;
+                                        if( hitPlayer->clothing.tunic != NULL && hitPlayer->clothing.tunic->hitScalar > 0.0 ) {
+                                            chestHit *= hitPlayer->clothing.tunic->hitScalar;
+                                            // printf("Player is wearing a tunic\n");
                                         }
                                         totalPercentage += chestHit;
 
-                                        double armsHit = 25.0;
-                                        if( nextPlayer->clothing.backpack != NULL && nextPlayer->clothing.backpack->hitScalar > 0.0 ) {
-                                            armsHit *= nextPlayer->clothing.backpack->hitScalar;
-                                            printf("Player is wearing a shield\n");
+                                        double armsHit = 15.0;
+                                        if( hitPlayer->clothing.backpack != NULL && hitPlayer->clothing.backpack->hitScalar > 0.0 ) {
+                                            armsHit *= hitPlayer->clothing.backpack->hitScalar;
+                                            // printf("Player is wearing a shield\n");
                                         }
                                         totalPercentage += armsHit;
 
                                         double groinHit = 15.0;
-                                        if( nextPlayer->clothing.bottom != NULL && nextPlayer->clothing.bottom->hitScalar > 0.0 ) {
-                                            groinHit *= nextPlayer->clothing.bottom->hitScalar;
-                                            printf("Player is wearing faulds\n");
+                                        if( hitPlayer->clothing.bottom != NULL && hitPlayer->clothing.bottom->hitScalar > 0.0 ) {
+                                            groinHit *= hitPlayer->clothing.bottom->hitScalar;
+                                            // printf("Player is wearing faulds\n");
                                         }
                                         totalPercentage += groinHit;
 
                                         double leftLegHit = 10.0;
-                                        if( nextPlayer->clothing.frontShoe != NULL && nextPlayer->clothing.frontShoe->hitScalar > 0.0 ) {
-                                            leftLegHit *= nextPlayer->clothing.frontShoe->hitScalar;
-                                            printf("Player is wearing a left shoe\n");
+                                        if( hitPlayer->clothing.frontShoe != NULL && hitPlayer->clothing.frontShoe->hitScalar > 0.0 ) {
+                                            leftLegHit *= hitPlayer->clothing.frontShoe->hitScalar;
+                                            // printf("Player is wearing a left shoe\n");
                                         }
                                         totalPercentage += leftLegHit;
 
                                         double rightLegHit = 10.0;
-                                        if( nextPlayer->clothing.backShoe != NULL && nextPlayer->clothing.backShoe->hitScalar > 0.0 ) {
-                                            rightLegHit *= nextPlayer->clothing.backShoe->hitScalar;
-                                            printf("Player is wearing a right shoe\n");
+                                        if( hitPlayer->clothing.backShoe != NULL && hitPlayer->clothing.backShoe->hitScalar > 0.0 ) {
+                                            rightLegHit *= hitPlayer->clothing.backShoe->hitScalar;
+                                            // printf("Player is wearing a right shoe\n");
                                         }
                                         totalPercentage += rightLegHit;
 
@@ -6710,27 +6717,27 @@ int main() {
                                         char hitLocation;
 
                                         if( hitRand < headHit ) {
-                                            AppLog::info("Player is hit in the head\n");
+                                            // AppLog::info("Player is hit in the head\n");
                                             hitArmour = hitPlayer->clothing.hat;
                                             hitLocation = 'h';
                                         } else if ( hitRand < headHit + chestHit ) {
-                                            AppLog::info("Player is hit in the chest\n");
+                                            // AppLog::info("Player is hit in the chest\n");
                                             hitArmour = hitPlayer->clothing.tunic;
                                             hitLocation = 't';
                                         } else if ( hitRand < headHit + chestHit + armsHit ) {
-                                            AppLog::info("Player is hit in the arms\n");
+                                            // AppLog::info("Player is hit in the arms\n");
                                             hitArmour = hitPlayer->clothing.backpack;
                                             hitLocation = 'p';
                                         } else if ( hitRand < headHit + chestHit + armsHit + groinHit ) {
-                                            AppLog::info("Player is hit in the groin\n");
+                                            // AppLog::info("Player is hit in the groin\n");
                                             hitArmour = hitPlayer->clothing.bottom;
                                             hitLocation = 'b';
                                         } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit ) {
-                                            AppLog::info("Player is hit in the left leg\n");
+                                            // AppLog::info("Player is hit in the left leg\n");
                                             hitArmour = hitPlayer->clothing.frontShoe;
                                             hitLocation = 'l';
                                         } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit + rightLegHit ) {
-                                            AppLog::info("Player is hit in the right leg\n");
+                                            // AppLog::info("Player is hit in the right leg\n");
                                             hitArmour = hitPlayer->clothing.backShoe;
                                             hitLocation = 'r';
                                         } else {
@@ -6740,16 +6747,31 @@ int main() {
 
                                         char performKill = false;
 
+                                        SoundLocation attackSound;
+                                        attackSound.objectID = nextPlayer->holdingID;
+                                        attackSound.soundIndex = 1;
+                                        attackSound.x = nextPlayer->xd;
+                                        attackSound.y = nextPlayer->yd;
+                                        soundsToSend.push_back( attackSound );
+
                                         // check if hitPlayer is wearing armour in hit location
                                         if( hitArmour != NULL ) {
                                             // check if there is a transition between the weapon and the armour
-                                            printf("Player is wearing a %s\n", hitArmour->description );
+                                            // printf("Player is wearing a %s\n", hitArmour->description );
                                             TransRecord *armourTrans = 
                                                 getPTrans( nextPlayer->holdingID, 
                                                         hitArmour->id, false, false );
                                             if( armourTrans != NULL ) {
                                                 // perform the transition
-                                                printf("This armour blocks this weapon\n");
+                                                // printf("This armour blocks this weapon\n");
+                                                
+                                                SoundLocation armourSound;
+                                                armourSound.objectID = hitArmour->id;
+                                                armourSound.soundIndex = 2;
+                                                armourSound.x = hitPlayer->xd;
+                                                armourSound.y = hitPlayer->yd;
+                                                soundsToSend.push_back( armourSound );
+
                                                 nextPlayer->holdingID = armourTrans->newActor;
                                                 switch( hitLocation ) {
                                                     case 'h':
@@ -6848,8 +6870,8 @@ int main() {
                                                         staggerTimeLeft;
                                                     }
                                                 }
-                                            } else {
-                                                printf("Player blocked attack\n");
+                                            // } else {
+                                            //     printf("Player blocked attack\n");
                                             }
                                         }
                                     
@@ -10561,6 +10583,46 @@ int main() {
                 }
             }
 
+        unsigned char *soundMessage = NULL;
+        int soundMessageLength = 0;
+        
+        if( soundsToSend.size() > 0 ) {
+            SimpleVector<char> soundWorking;
+            soundWorking.appendElementString( "SD\n" );
+            
+            int numAdded = 0;
+            for( int i=0; i<soundsToSend.size(); i++ ) {
+                SoundLocation *nextSound = soundsToSend.getElement( i );
+
+                char *line = autoSprintf( "%d\n", nextSound->objectID, nextSound->soundIndex,
+                    nextSound->x, nextSound->y );
+
+                numAdded++;
+                soundWorking.appendElementString( line );
+                delete [] line;
+                }
+            
+            soundWorking.push_back( '#' );
+            
+            if( numAdded > 0 ) {
+
+                char *soundMessageText = soundWorking.getElementString();
+                
+                soundMessageLength = strlen( soundMessageText );
+                
+                if( soundMessageLength < maxUncompressedSize ) {
+                    soundMessage = (unsigned char*)soundMessageText;
+                    }
+                else {
+                    // compress for all players once here
+                    soundMessage = makeCompressedMessage( 
+                        soundMessageText, 
+                        soundMessageLength, &soundMessageLength );
+                    
+                    delete [] soundMessageText;
+                    }
+                }
+            }
 
 
 
@@ -11110,6 +11172,21 @@ int main() {
                         }
                     }
 
+                if( soundMessage != NULL ) {
+                    int numSent = 
+                        nextPlayer->sock->send( 
+                            soundMessage, 
+                            soundMessageLength, 
+                            false, false );
+                    
+                    if( numSent != soundMessageLength ) {
+                        setDeathReason( nextPlayer, "disconnected" );
+
+                        nextPlayer->error = true;
+                        nextPlayer->errorCauseString =
+                            "Socket write failed";
+                        }
+                    }
 
                 
 
