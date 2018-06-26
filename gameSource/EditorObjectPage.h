@@ -86,6 +86,7 @@ class EditorObjectPage : public GamePage, public ActionListener {
         
         TextField mFoodValueField;
         TextField mSpeedMultField;
+        TextField mHitScalarField;
         
         TextField mContainSizeField;
         TextField mSlotSizeField;

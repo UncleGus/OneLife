@@ -65,25 +65,29 @@ EditorObjectPage::EditorObjectPage()
           mBiomeField( smallFont, -55, -220, 8, false, "Biomes",
                        "0123456789,", NULL ),
           mMapChanceField( smallFont, 
-                           -250,  64, 6,
+                           -250,  96, 6,
                            false,
                            "MapP", "0123456789.", NULL ),
           mHeatValueField( smallFont, 
-                           -250,  32, 4,
+                           -250,  64, 4,
                            false,
                            "Heat", "-0123456789", NULL ),
           mRValueField( smallFont, 
-                        -250,  0, 4,
+                        -250,  32, 4,
                         false,
                         "R", "0123456789.", NULL ),
           mFoodValueField( smallFont, 
-                           -250,  -32, 4,
+                           -250,  0, 4,
                            false,
                            "Food", "0123456789", NULL ),
           mSpeedMultField( smallFont, 
-                           -250,  -64, 4,
+                           -250,  -32, 4,
                            false,
                            "Speed", "0123456789.", NULL ),
+          mHitScalarField( smallFont, 
+                           -250,  -64, 4,
+                           false,
+                           "HS", "0123456789.", NULL ),
           mContainSizeField( smallFont, 
                              250,  -120, 4,
                              false,
@@ -240,6 +244,7 @@ EditorObjectPage::EditorObjectPage()
     addComponent( &mRValueField );
     addComponent( &mFoodValueField );
     addComponent( &mSpeedMultField );
+    addComponent( &mHitScalarField );
 
     addComponent( &mContainSizeField );
     addComponent( &mSlotSizeField );
@@ -533,6 +538,7 @@ EditorObjectPage::EditorObjectPage()
     
     mFoodValueField.setText( "0" );
     mSpeedMultField.setText( "1.00" );
+    mHitScalarField.setText( "0.00" );
 
     mContainSizeField.setFloat( 1, 4, true );
     mSlotSizeField.setFloat( 1, 4, true );
@@ -1388,7 +1394,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mSpeedMultField.getFloat(),
                    mCurrentObject.heldOffset,
                    mCurrentObject.clothing,
-                   1.0,
+                   mHitScalarField.getFloat(),
                    mCurrentObject.clothingOffset,
                    mDeadlyDistanceField.getInt(),
                    0,
@@ -1530,7 +1536,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mSpeedMultField.getFloat(),
                    mCurrentObject.heldOffset,
                    mCurrentObject.clothing,
-                   1.0,
+                   mHitScalarField.getFloat(),
                    mCurrentObject.clothingOffset,
                    mDeadlyDistanceField.getInt(),
                    mUseDistanceField.getInt(),
@@ -1625,6 +1631,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
 
         mFoodValueField.setText( "0" );
         mSpeedMultField.setText( "1.00" );
+        mHitScalarField.setText( "0.00" );
 
         mContainSizeField.setFloat( 1, 4, true );
         mSlotSizeField.setFloat( 1, 4, true );
@@ -2569,6 +2576,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mFoodValueField.setInt( pickedRecord->foodValue );
 
             mSpeedMultField.setFloat( pickedRecord->speedMult, 2 );
+            mHitScalarField.setFloat( pickedRecord->hitScalar, 2 );
 
             mContainSizeField.setFloat( pickedRecord->containSize, 4, true );
             mSlotSizeField.setFloat( pickedRecord->slotSize, 4, true );
