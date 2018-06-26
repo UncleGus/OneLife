@@ -2614,6 +2614,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
 
             mCurrentObject.clothing = pickedRecord->clothing;
             mCurrentObject.clothingOffset = pickedRecord->clothingOffset;
+            mCurrentObject.hitScalar = pickedRecord->hitScalar;
 
             mCurrentObject.numSlots = pickedRecord->numSlots;
 

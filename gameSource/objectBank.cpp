@@ -2710,6 +2710,22 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
         }
     objectLayerCutoff = -1;
     
+    if( inClothing.backpack != NULL && inClothing.backpack->hitScalar > 0.0 ) {
+        // shield behind everything
+            
+        // relative to body
+
+        doublePair cPos = add( inObject->spritePos[bodyIndex], 
+                               inClothing.backpack->clothingOffset );
+        if( inFlipH ) {
+            cPos.x *= -1;
+            }
+        cPos = add( cPos, inPos );
+        
+        drawObject( inClothing.backpack, 2, cPos, inRot, true,
+                    inFlipH, -1, 0, false, false, emptyClothing );
+        }
+
 
     for( int i=0; i<limit; i++ ) {
         if( inObject->spriteSkipDrawing != NULL &&
@@ -2866,7 +2882,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                 bottomPos = cPos;
                 bottomRot = inRot;
                 }
-            if( inClothing.backpack != NULL ) {
+            if( inClothing.backpack != NULL && inClothing.backpack->hitScalar == 0.0 ) {
             
 
 
@@ -2895,7 +2911,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                             tunicPos, tunicRot, true,
                             inFlipH, -1, 0, false, false, emptyClothing );
                 }
-            if( inClothing.backpack != NULL ) {
+            if( inClothing.backpack != NULL && inClothing.backpack->hitScalar == 0 ) {
                 drawObject( inClothing.backpack, 2, 
                             backpackPos, backpackRot,
                             true,
