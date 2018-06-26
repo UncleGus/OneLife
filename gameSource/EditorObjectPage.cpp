@@ -559,7 +559,7 @@ EditorObjectPage::EditorObjectPage()
     mRaceField.setMaxLength( 1 );
     mRaceField.setVisible( false );
     
-    double boxY = -150;
+    double boxY = -140;
     
     for( int i=0; i<NUM_OBJECT_CHECKBOXES; i++ ) {
         mCheckboxes[i] = new CheckboxButton( 250, boxY, 2 );
