@@ -102,11 +102,15 @@ EditorObjectPage::EditorObjectPage()
                                  "Tm Strch", "0123456789.", NULL ),
           mSlotsLockedCheckbox( -260, -200, 2 ),
           mDeadlyDistanceField( smallFont, 
-                                150,  -220, 4,
+                                140,  -200, 4,
                                 false,
                                 "Deadly Distance", "0123456789", NULL ),
+          mStunDistanceField( smallFont, 
+                                140,  -230, 4,
+                                false,
+                                "Stun Distance", "0123456789", NULL ),
           mUseDistanceField( smallFont, 
-                             150,  -190, 4,
+                             140,  -170, 4,
                              false,
                              "Use Dist", "0123456789", NULL ),
           mMinPickupAgeField( smallFont, 
@@ -268,6 +272,7 @@ EditorObjectPage::EditorObjectPage()
     
 
     addComponent( &mDeadlyDistanceField );
+    addComponent( &mStunDistanceField );
     addComponent( &mUseDistanceField );
     addComponent( &mMinPickupAgeField );
     
@@ -545,6 +550,7 @@ EditorObjectPage::EditorObjectPage()
     mSlotTimeStretchField.setText( "1.0" );
 
     mDeadlyDistanceField.setInt( 0 );
+    mStunDistanceField.setInt( 0 );
     mUseDistanceField.setInt( 1 );
 
     mMinPickupAgeField.setInt( 3 );
@@ -1014,6 +1020,7 @@ void EditorObjectPage::updateAgingPanel() {
 
     mBiomeField.setVisible( !person );
     mDeadlyDistanceField.setVisible( !person );
+    mStunDistanceField.setVisible( !person );
     mUseDistanceField.setVisible( !person );
     
     if( mPickedObjectLayer == -1 || ! anyClothingToggled() ) {
@@ -1397,7 +1404,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mHitScalarField.getFloat(),
                    mCurrentObject.clothingOffset,
                    mDeadlyDistanceField.getInt(),
-                   0,
+                   mStunDistanceField.getInt(),
                    mUseDistanceField.getInt(),
                    mCreationSoundWidget.getSoundUsage(),
                    mUsingSoundWidget.getSoundUsage(),
@@ -1539,8 +1546,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mHitScalarField.getFloat(),
                    mCurrentObject.clothingOffset,
                    mDeadlyDistanceField.getInt(),
+                   mStunDistanceField.getInt(),
                    mUseDistanceField.getInt(),
-                   0,
                    mCreationSoundWidget.getSoundUsage(),
                    mUsingSoundWidget.getSoundUsage(),
                    mEatingSoundWidget.getSoundUsage(),
@@ -1648,6 +1655,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
         
 
         mDeadlyDistanceField.setInt( 0 );
+        mStunDistanceField.setInt( 0 );
         mUseDistanceField.setInt( 1 );
         mMinPickupAgeField.setInt( 3 );
         
@@ -1982,6 +1990,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             
             mBiomeField.setVisible( false );
             mDeadlyDistanceField.setVisible( false );
+            mStunDistanceField.setVisible( false );
             mUseDistanceField.setVisible( false );
             }
         }
@@ -2006,6 +2015,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             
             mBiomeField.setVisible( false );
             mDeadlyDistanceField.setVisible( false );
+            mStunDistanceField.setVisible( false );
             mUseDistanceField.setVisible( false );
             }
         else {
@@ -2014,6 +2024,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             
             mBiomeField.setVisible( true );
             mDeadlyDistanceField.setVisible( true );
+            mStunDistanceField.setVisible( true );
             mUseDistanceField.setVisible( true );
             }
         
@@ -2059,6 +2070,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
 
             mBiomeField.setVisible( false );
             mDeadlyDistanceField.setVisible( false );
+            mStunDistanceField.setVisible( false );
             mUseDistanceField.setVisible( false );
             }
         }
@@ -2076,6 +2088,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             
             mBiomeField.setVisible( false );
             mDeadlyDistanceField.setVisible( false );
+            mStunDistanceField.setVisible( false );
             mUseDistanceField.setVisible( false );
             }
         else {
@@ -2084,6 +2097,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
 
             mBiomeField.setVisible( true );
             mDeadlyDistanceField.setVisible( true );
+            mStunDistanceField.setVisible( true );
             mUseDistanceField.setVisible( true );
             }
 
@@ -2585,6 +2599,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mSlotsLockedCheckbox.setToggled( pickedRecord->slotsLocked );
             
             mDeadlyDistanceField.setInt( pickedRecord->deadlyDistance );
+            mStunDistanceField.setInt( pickedRecord->stunDistance );
             mUseDistanceField.setInt( pickedRecord->useDistance );
             
             mMinPickupAgeField.setInt( pickedRecord->minPickupAge );
