@@ -3258,7 +3258,7 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.clothing.bottom = getObject( 200 );
     newObject.clothing.frontShoe = getObject( 203 );
     newObject.clothing.backShoe = getObject( 203 );
-    newObject.holdingID = 560;
+    newObject.holdingID = 59;
 
     newObject.name = NULL;
     newObject.lastSay = NULL;
