@@ -5835,57 +5835,190 @@ int main() {
 
                 if( !riding &&
                     curOverObj->permanent && curOverObj->deadlyDistance > 0 ) {
-                    
+
+                    // check for armour transition
+
+
+
+                    double totalPercentage = 0.0;
+
+                    double headHit = 5.0;
+                    if( nextPlayer->clothing.hat != NULL && nextPlayer->clothing.hat->hitScalar > 0.0 ) {
+                        headHit *= nextPlayer->clothing.hat->hitScalar;
+                        // printf("Player is wearing a hat\n");
+                    }
+                    totalPercentage += headHit;
+
+                    double chestHit = 45.0;
+                    if( nextPlayer->clothing.tunic != NULL && nextPlayer->clothing.tunic->hitScalar > 0.0 ) {
+                        chestHit *= nextPlayer->clothing.tunic->hitScalar;
+                        // printf("Player is wearing a tunic\n");
+                    }
+                    totalPercentage += chestHit;
+
+                    double armsHit = 15.0;
+                    if( nextPlayer->clothing.backpack != NULL && nextPlayer->clothing.backpack->hitScalar > 0.0 ) {
+                        armsHit *= nextPlayer->clothing.backpack->hitScalar;
+                        // printf("Player is wearing a shield\n");
+                    }
+                    totalPercentage += armsHit;
+
+                    double groinHit = 15.0;
+                    if( nextPlayer->clothing.bottom != NULL && nextPlayer->clothing.bottom->hitScalar > 0.0 ) {
+                        groinHit *= nextPlayer->clothing.bottom->hitScalar;
+                        // printf("Player is wearing faulds\n");
+                    }
+                    totalPercentage += groinHit;
+
+                    double leftLegHit = 10.0;
+                    if( nextPlayer->clothing.frontShoe != NULL && nextPlayer->clothing.frontShoe->hitScalar > 0.0 ) {
+                        leftLegHit *= nextPlayer->clothing.frontShoe->hitScalar;
+                        // printf("Player is wearing a left shoe\n");
+                    }
+                    totalPercentage += leftLegHit;
+
+                    double rightLegHit = 10.0;
+                    if( nextPlayer->clothing.backShoe != NULL && nextPlayer->clothing.backShoe->hitScalar > 0.0 ) {
+                        rightLegHit *= nextPlayer->clothing.backShoe->hitScalar;
+                        // printf("Player is wearing a right shoe\n");
+                    }
+                    totalPercentage += rightLegHit;
+
+                    double hitRand = randSource.getRandomDouble() * totalPercentage;
+                    ObjectRecord *hitArmour;
+                    char hitLocation;
+
+                    if( hitRand < headHit ) {
+                        // AppLog::info("Player is hit in the head\n");
+                        hitArmour = nextPlayer->clothing.hat;
+                        hitLocation = 'h';
+                    } else if ( hitRand < headHit + chestHit ) {
+                        // AppLog::info("Player is hit in the chest\n");
+                        hitArmour = nextPlayer->clothing.tunic;
+                        hitLocation = 't';
+                    } else if ( hitRand < headHit + chestHit + armsHit ) {
+                        // AppLog::info("Player is hit in the arms\n");
+                        hitArmour = nextPlayer->clothing.backpack;
+                        hitLocation = 'p';
+                    } else if ( hitRand < headHit + chestHit + armsHit + groinHit ) {
+                        // AppLog::info("Player is hit in the groin\n");
+                        hitArmour = nextPlayer->clothing.bottom;
+                        hitLocation = 'b';
+                    } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit ) {
+                        // AppLog::info("Player is hit in the left leg\n");
+                        hitArmour = nextPlayer->clothing.frontShoe;
+                        hitLocation = 'l';
+                    } else if ( hitRand < headHit + chestHit + armsHit + groinHit + leftLegHit + rightLegHit ) {
+                        // AppLog::info("Player is hit in the right leg\n");
+                        hitArmour = nextPlayer->clothing.backShoe;
+                        hitLocation = 'r';
+                    } else {
+                        printf("Whoops, maths. hitRand is %f and total percentage is %f\n",
+                            hitRand, totalPercentage );
+                    }
+
+                    char performKill = false;
+
+                    // check if hitPlayer is wearing armour in hit location
+                    if( hitArmour != NULL ) {
+                        // check if there is a transition between the weapon and the armour
+                        // printf("Player is wearing a %s\n", hitArmour->description );
+                        TransRecord *armourTrans = 
+                            getPTrans( curOverObj->id, 
+                                    hitArmour->id, false, false );
+                        if( armourTrans != NULL ) {
+                            // perform the transition
+                            // printf("This armour blocks this weapon\n");
+                            
+                            SoundLocation armourSound;
+                            armourSound.objectID = hitArmour->id;
+                            armourSound.soundIndex = 2;
+                            armourSound.x = nextPlayer->xd;
+                            armourSound.y = nextPlayer->yd;
+                            soundsToSend.push_back( armourSound );
+
+                            switch( hitLocation ) {
+                                case 'h':
+                                    nextPlayer->clothing.hat = getObject( armourTrans->newTarget );
+                                    break;
+                                case 't':
+                                    nextPlayer->clothing.tunic = getObject( armourTrans->newTarget );
+                                    break;
+                                case 'p':
+                                    nextPlayer->clothing.backpack = getObject( armourTrans->newTarget );
+                                    break;
+                                case 'b':
+                                    nextPlayer->clothing.bottom = getObject( armourTrans->newTarget );
+                                    break;
+                                case 'l':
+                                    nextPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
+                                    break;
+                                case 'r':
+                                    nextPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
+                                    break;
+                            }
+                        } else {
+                            // proceed with the kill code
+                            performKill = true;
+                        }
+                    } else {
+                        // proceed with the kill code
+                        performKill = true;
+                    }
+
+
+
                     addDeadlyMapSpot( curPos );
                     
-                    setDeathReason( nextPlayer, 
-                                    "killed",
-                                    curOverID );
-                    
-                    nextPlayer->deathSourceID = curOverID;
-                    
-                    if( curOverObj->isUseDummy ) {
-                        nextPlayer->deathSourceID = curOverObj->useDummyParent;
-                        }
-
-                    nextPlayer->errorCauseString =
-                        "Player killed by permanent object";
-                    
-                    if( ! nextPlayer->dying ) {
-                        int staggerTime = 
-                            SettingsManager::getIntSetting(
-                                "deathStaggerTime", 20 );
+                    if( performKill ) {
+                        setDeathReason( nextPlayer, 
+                                        "killed",
+                                        curOverID );
                         
-                        double currentTime = 
-                            Time::getCurrentTime();
+                        nextPlayer->deathSourceID = curOverID;
                         
-                        nextPlayer->dying = true;
-                        nextPlayer->dyingETA = 
-                            currentTime + staggerTime;
-
-                        playerIndicesToSendDyingAbout.
-                            push_back( 
-                                getLiveObjectIndex( 
-                                    nextPlayer->id ) );
-                        }
-                    else {
-                        // already dying, and getting attacked again
-                        
-                        // halve their remaining stagger time
-                        double currentTime = 
-                            Time::getCurrentTime();
-                        
-                        double staggerTimeLeft = 
-                            nextPlayer->dyingETA - currentTime;
-                        
-                        if( staggerTimeLeft > 0 ) {
-                            staggerTimeLeft /= 2;
-                            nextPlayer->dyingETA = 
-                                currentTime + staggerTimeLeft;
+                        if( curOverObj->isUseDummy ) {
+                            nextPlayer->deathSourceID = curOverObj->useDummyParent;
                             }
-                        }
-                
+
+                        nextPlayer->errorCauseString =
+                            "Player killed by permanent object";
+                        
+                        if( ! nextPlayer->dying ) {
+                            int staggerTime = 
+                                SettingsManager::getIntSetting(
+                                    "deathStaggerTime", 20 );
+                            
+                            double currentTime = 
+                                Time::getCurrentTime();
+                            
+                            nextPlayer->dying = true;
+                            nextPlayer->dyingETA = 
+                                currentTime + staggerTime;
+
+                            playerIndicesToSendDyingAbout.
+                                push_back( 
+                                    getLiveObjectIndex( 
+                                        nextPlayer->id ) );
+                            }
+                        else {
+                            // already dying, and getting attacked again
+                            
+                            // halve their remaining stagger time
+                            double currentTime = 
+                                Time::getCurrentTime();
+                            
+                            double staggerTimeLeft = 
+                                nextPlayer->dyingETA - currentTime;
+                            
+                            if( staggerTimeLeft > 0 ) {
+                                staggerTimeLeft /= 2;
+                                nextPlayer->dyingETA = 
+                                    currentTime + staggerTimeLeft;
+                                }
+                            }
                     
+                        }
                     // generic on-person
                     TransRecord *r = 
                         getPTrans( curOverID, 0 );
