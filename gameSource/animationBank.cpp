@@ -1229,12 +1229,10 @@ ObjectAnimPack drawObjectAnimPacked(
 
 
 void drawObjectAnim( ObjectAnimPack inPack ) {
-    printf("Starting drawObjectAnim function #1\n");
     HoldingPos p;
     p.valid = false;
 
     if( inPack.inContainedIDs == NULL ) {
-        printf("drawObjectAnim #11 %s\n", getObject( inPack.inObjectID )->description );
         p = drawObjectAnim( 
             inPack.inObjectID,
             2,
@@ -1259,7 +1257,6 @@ void drawObjectAnim( ObjectAnimPack inPack ) {
             inPack.inClothingContained );
         }
     else {
-        printf("drawObjectAnim #12 %s\n", getObject( inPack.inObjectID )->description );
         drawObjectAnim( 
             inPack.inObjectID,
             inPack.inType,
@@ -1298,7 +1295,6 @@ void drawObjectAnim( ObjectAnimPack inPack ) {
                             inPack.inFlipH,
                             &holdPos, &holdRot );
 
-        printf("drawObjectAnim #13 %s\n", getObject( inPack.additionalHeldID )->description );
         drawObjectAnim( 
             inPack.additionalHeldID,
             2,
@@ -1348,7 +1344,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                            SimpleVector<int> *inClothingContained,
                            double *outSlotRots,
                            doublePair *outSlotOffsets ) {
-    printf("Starting drawObjectAnim function #2\n");
     
     if( inType == ground2 ) {
         inType = ground;
@@ -1360,7 +1355,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
     if( r == NULL ) {
         setObjectDrawLayerCutoff( animLayerCutoff );
         animLayerCutoff = -1;
-        printf("drawObject #1 %s\n", getObject( inObjectID )->description);
         return drawObject( getObject( inObjectID ), inDrawBehindSlots,
                            inPos, inRot, inWorn, 
                            inFlipH, inAge, 
@@ -1389,7 +1383,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             }
         
                 
-        printf("drawObjectAnim #14 %s\n", getObject( inObjectID )->description );
         return drawObjectAnim( inObjectID, inDrawBehindSlots, 
                                r, inFrameTime,
                                inAnimFade, rB, 
@@ -1520,8 +1513,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                            double *outSlotRots,
                            doublePair *outSlotOffsets ) {
 
-    printf("Starting drawObjectAnim function #3\n");
-
     HoldingPos returnHoldingPos = { false, {0, 0}, 0 };
 
 
@@ -1538,7 +1529,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
         setObjectDrawLayerCutoff( animLayerCutoff );
         animLayerCutoff = -1;
 
-        printf("drawObject #2 %s\n", obj->description);
         drawObject( obj, inDrawBehindSlots,
                     inPos, inRot, inWorn, inFlipH, inAge, 
                     inHideClosestArm, inHideAllLimbs, inHeldNotInPlaceYet,
@@ -2024,7 +2014,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
     
 
     for( int i=0; i<limit; i++ ) {
-        printf("This is layer %d\n", i);
         if( obj->spriteSkipDrawing[i] ) {
             continue;
             }
@@ -2077,7 +2066,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
 
 
         if( i == headIndex ) {
-            printf("This is the headIndex\n");
             // this is the head
             animHeadPos = spritePos;
             animHeadRotDelta = rot - obj->spriteRot[i];
@@ -2159,7 +2147,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
         if( ! skipSprite && 
             i == backFootIndex 
             && inClothing.backShoe != NULL ) {
-            printf("This is the backFootIndex\n");
             
             doublePair offset = inClothing.backShoe->clothingOffset;
 
@@ -2190,7 +2177,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             }
 
         if( i == bodyIndex ) {
-            printf("This is the bodyIndex\n");
             
             if( inClothing.tunic != NULL ) {
 
@@ -2251,7 +2237,7 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 
                 bottomPos = cPos;
                 }
-            if( inClothing.backpack != NULL && inClothing.backpack->hitScalar == 0.0 ) {
+            if( inClothing.backpack != NULL && inClothing.backpack->hitScalar >= 0.0 ) {
 
                 doublePair offset = inClothing.backpack->clothingOffset;
             
@@ -2282,18 +2268,16 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 }
 
             }
-        else if( i == 0 ) {
-            printf("This is the shield layer\n");
+        else if( i == 10 ) {
             if( inClothing.backpack != NULL && inClothing.backpack->hitScalar > 0.0 ) {
-                printf("There is a shield to draw\n");
+
                 doublePair offset = inClothing.backpack->clothingOffset;
-            
                 if( inFlipH ) {
                     offset.x *= -1;
-                    backpackRot = -rot - obj->spriteRot[headIndex];
+                    backpackRot = -rot - obj->spriteRot[i];
                     }
                 else {
-                    backpackRot = rot - obj->spriteRot[headIndex];
+                    backpackRot = rot - obj->spriteRot[i];
                     }
                 
                 if( backpackRot != 0 ) {
@@ -2307,11 +2291,16 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
                 
             
-                doublePair cPos = add( spritePos, offset );
+                doublePair cPos = add( workingSpritePos[bodyIndex], offset );
                 
                 cPos = add( cPos, inPos );
                 
                 backpackPos = cPos;
+
+
+
+
+
                 int numCont = 0;
                 int *cont = NULL;
                 if( inClothingContained != NULL ) {    
@@ -2320,7 +2309,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
 
                 char used;
-                printf("drawObjectAnim #17 %s\n", inClothing.backpack->description );
                 drawObjectAnim( inClothing.backpack->id, 
                                 clothingAnimType, 
                                 inFrameTime,
@@ -2351,7 +2339,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             }
         else if( i == topBackArmIndex ) {
             // draw under top of back arm
-            printf("This is the topBackArmIndex\n");
             
             if( inClothing.bottom != NULL ) {
                 int numCont = 0;
@@ -2363,7 +2350,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 
 
                 char used;
-                printf("drawObjectAnim #15 %s\n", inClothing.bottom->description );
                 drawObjectAnim( inClothing.bottom->id, 
                                 clothingAnimType, 
                                 inFrameTime,
@@ -2400,7 +2386,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
                 
                 char used;
-                printf("drawObjectAnim #16 %s\n", inClothing.tunic->description );
                 drawObjectAnim( inClothing.tunic->id, 
                                 clothingAnimType, 
                                 inFrameTime,
@@ -2437,7 +2422,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
 
                 char used;
-                printf("drawObjectAnim #17 %s\n", inClothing.backpack->description );
                 drawObjectAnim( inClothing.backpack->id, 
                                 clothingAnimType, 
                                 inFrameTime,
@@ -2471,7 +2455,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
         if( ! skipSprite && 
             i == frontFootIndex 
             && inClothing.frontShoe != NULL ) {
-            printf("This is the frontFootIndex\n");
         
             doublePair offset = inClothing.frontShoe->clothingOffset;
                 
@@ -2538,7 +2521,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             
             if( drawMouthShapes && spriteID == mouthAnchorID &&
                 mouthShapeFrame < numMouthShapeFrames ) {
-                printf("drawSprite #2\n");
                 drawSprite( mouthShapeFrameList[ mouthShapeFrame ], 
                             pos, 1.0, rot, 
                             logicalXOR( inFlipH, obj->spriteHFlip[i] ) );
@@ -2559,7 +2541,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
                 }
             else {
-                printf("drawSprite #3\n");
                 drawSprite( getSprite( spriteID ), pos, 1.0, rot, 
                             logicalXOR( inFlipH, obj->spriteHFlip[i] ) );
                 }
@@ -2574,7 +2555,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             // in unanimated, unflipped object
             if( i == backHandIndex && inHideClosestArm == 0 
                 && !inHideAllLimbs ) {
-                printf("This is the backHandIndex\n");
                 returnHoldingPos.valid = true;
                 // return screen pos for hand, which may be flipped, etc.
                 returnHoldingPos.pos = pos;
@@ -2587,7 +2567,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                     }
                 }
             else if( i == bodyIndex && inHideClosestArm != 0 ) {
-                printf("This is the bodyIndex again\n");
                 returnHoldingPos.valid = true;
                 // return screen pos for body, which may be flipped, etc.
                 returnHoldingPos.pos = pos;
@@ -2604,7 +2583,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
 
         // shoes on top of feet
         if( inClothing.backShoe != NULL && i == backFootIndex ) {
-            printf("This is the backFootIndex again\n");
             int numCont = 0;
             int *cont = NULL;
             if( inClothingContained != NULL ) {    
@@ -2613,7 +2591,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 }
 
             char used;
-            printf("drawObjectAnim #18 %s\n", inClothing.backShoe->description );
             drawObjectAnim( inClothing.backShoe->id, 
                             clothingAnimType, 
                             inFrameTime,
@@ -2642,7 +2619,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 }
             }
         else if( inClothing.frontShoe != NULL && i == frontFootIndex ) {
-            printf("This is the frontFootIndex again\n");
             int numCont = 0;
             int *cont = NULL;
             if( inClothingContained != NULL ) {    
@@ -2651,7 +2627,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
                 }
             
             char used;
-            printf("drawObjectAnim #19 %s\n", inClothing.frontShoe->description );
             drawObjectAnim( inClothing.frontShoe->id, 
                             clothingAnimType, 
                             inFrameTime,
@@ -2713,7 +2688,6 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
             }
         
         char used;
-        printf("drawObjectAnim #20 %s\n", inClothing.hat->description );
         drawObjectAnim( inClothing.hat->id, 
                         clothingAnimType, 
                         inFrameTime,
@@ -2826,7 +2800,6 @@ void drawObjectAnim( int inObjectID, AnimType inType, double inFrameTime,
                      SimpleVector<int> *inClothingContained,
                      int inNumContained, int *inContainedIDs,
                      SimpleVector<int> *inSubContained ) {
-    printf("Starting drawObjectAnim function #4\n");
     
     if( inType == ground2 ) {
         inType = ground;
@@ -2838,7 +2811,6 @@ void drawObjectAnim( int inObjectID, AnimType inType, double inFrameTime,
         setObjectDrawLayerCutoff( animLayerCutoff );
         animLayerCutoff = -1;
 
-        printf("drawObject #3 %s\n", getObject( inObjectID )->description);
         drawObject( getObject( inObjectID ), inPos, inRot, inWorn, 
                     inFlipH, inAge, inHideClosestArm, inHideAllLimbs, 
                     inHeldNotInPlaceYet, inClothing,
@@ -2866,7 +2838,6 @@ void drawObjectAnim( int inObjectID, AnimType inType, double inFrameTime,
             }
 
 
-        printf("drawObjectAnim #21 %s\n", getObject( inObjectID )->description );
         drawObjectAnim( inObjectID, r, inFrameTime,
                         inAnimFade, rB, inFadeTargetFrameTime,
                         inFrozenRotFrameTime,
@@ -2907,7 +2878,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
                      SimpleVector<int> *inClothingContained,
                      int inNumContained, int *inContainedIDs,
                      SimpleVector<int> *inSubContained ) {
-    printf("Starting drawObjectAnim function #5\n");
     
     ClothingSet emptyClothing = getEmptyClothingSet();
 
@@ -2925,7 +2895,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
 
 
     // draw portion of animating object behind slots
-    printf("drawObjectAnim #22 %s\n", getObject( inObjectID )->description );
     drawObjectAnim( inObjectID, 0, inAnim, inFrameTime,
                     inAnimFade, inFadeTargetAnim, inFadeTargetFrameTime,
                     inFrozenRotFrameTime,
@@ -3084,7 +3053,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
 
 
                 // behind sub-contained
-                printf("drawObject #3 %s\n", contained->description);
                 drawObject( contained, 0, pos, rot, false, inFlipH,
                             inAge, 0, false, false, emptyClothing );
 
@@ -3177,7 +3145,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
 
                         subPos = add( subPos, pos );
 
-                        printf("drawObject #5\n");
                         drawObject( subContained, 2, subPos, subRot, 
                                     false, inFlipH,
                                     inAge, 0, false, false, emptyClothing );
@@ -3185,7 +3152,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
                     }
                 
                 // in front of sub-contained
-                printf("drawObject #6\n");
                 drawObject( contained, 1, pos, rot, false, inFlipH,
                             inAge, 0, false, false, emptyClothing );
 
@@ -3193,7 +3159,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
             else {
                 // no sub-contained
                 // draw contained all at once
-                printf("drawObject #7\n");
                 drawObject( contained, 2, pos, rot, false, inFlipH,
                             inAge, 0, false, false, emptyClothing );
                 }
@@ -3202,7 +3167,6 @@ void drawObjectAnim( int inObjectID, AnimationRecord *inAnim,
         } 
 
     // draw portion of animating object on top of contained slots
-    printf("drawObjectAnim #23 %s\n", getObject( inObjectID )->description );
     drawObjectAnim( inObjectID, 1, inAnim, inFrameTime,
                     inAnimFade, inFadeTargetAnim, inFadeTargetFrameTime,
                     inFrozenRotFrameTime,

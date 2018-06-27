@@ -3481,7 +3481,6 @@ void EditorObjectPage::draw( doublePair inViewCenter,
         
         
         
-        printf("drawObject #22\n");
         HoldingPos holdingPos =
             drawObject( personObject, 2, personPos, 0, false, false, 
                         age, hideClosestArm, hideAllLimbs, false,
@@ -3544,7 +3543,6 @@ void EditorObjectPage::draw( doublePair inViewCenter,
         
                 
   
-        printf("drawObject #23\n");
         drawObject( getObject( mDemoPersonObject ), 2, drawOffset, 0, 
                     false, false, 
                     age, 0, false, false, s );
@@ -3638,7 +3636,6 @@ void EditorObjectPage::draw( doublePair inViewCenter,
                     }
                 
 
-                printf("drawObject #24\n");
                 drawObject( demoObject, 2, 
                             sub( add( mCurrentObject.slotPos[i], drawOffset ),
                                  centerOffset ),
