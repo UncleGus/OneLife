@@ -3332,13 +3332,13 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.lineage = new SimpleVector<int>();
 
     // this is to make people spawn with clothes and a knife, for testing of weapons and armour
-    newObject.clothing.hat = getObject( 199 );
+    newObject.clothing.hat = getObject( 86782 );
     newObject.clothing.tunic = getObject( 202 );
-    newObject.clothing.backpack = getObject( 198 );
+    newObject.clothing.backpack = getObject( 86118 );
     newObject.clothing.bottom = getObject( 200 );
     newObject.clothing.frontShoe = getObject( 203 );
     newObject.clothing.backShoe = getObject( 203 );
-    newObject.holdingID = 59;
+    newObject.holdingID = 86604;
 
     newObject.name = NULL;
     newObject.lastSay = NULL;

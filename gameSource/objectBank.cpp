@@ -2649,6 +2649,8 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                        char inHeldNotInPlaceYet,
                        ClothingSet inClothing,
                        double inScale ) {
+
+    printf("Starting drawObject function #1\n");
     
     HoldingPos returnHoldingPos = { false, {0, 0}, 0 };
     
@@ -2712,6 +2714,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
     
     if( inClothing.backpack != NULL && inClothing.backpack->hitScalar > 0.0 ) {
         // shield behind everything
+        printf("Drawing the shield\n");
             
         // relative to body
 
@@ -2722,6 +2725,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
             }
         cPos = add( cPos, inPos );
         
+        printf("drawObject #8\n");
         drawObject( inClothing.backpack, 2, cPos, inRot, true,
                     inFlipH, -1, 0, false, false, emptyClothing );
         }
@@ -2731,7 +2735,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
     char reverseOrder = false;
     if( inObject->clothing == 'p' && inObject->hitScalar > 0.0 ) {
         i = limit - 1;
-        reverseOrder = true;
+        // reverseOrder = true;
     } else {
         i = 0;
     }
@@ -2940,16 +2944,22 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
             // draw under top of back arm
 
             if( inClothing.bottom != NULL ) {
+                printf("Drawing the bottom\n");
+                printf("drawObject #9\n");
                 drawObject( inClothing.bottom, 2, 
                             bottomPos, bottomRot, true,
                             inFlipH, -1, 0, false, false, emptyClothing );
                 }
             if( inClothing.tunic != NULL ) {
+                printf("Drawing the tunic\n");
+                printf("drawObject #10\n");
                 drawObject( inClothing.tunic, 2,
                             tunicPos, tunicRot, true,
                             inFlipH, -1, 0, false, false, emptyClothing );
                 }
             if( inClothing.backpack != NULL && inClothing.backpack->hitScalar == 0 ) {
+                printf("Drawing the backpack\n");
+                printf("drawObject #11\n");
                 drawObject( inClothing.backpack, 2, 
                             backpackPos, backpackRot,
                             true,
@@ -3006,6 +3016,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                     }
                 }
             
+            printf("drawSprite #1\n");
             drawSprite( getSprite( inObject->sprites[i] ), pos, inScale,
                         rot, 
                         logicalXOR( inFlipH, inObject->spriteHFlip[i] ) );
@@ -3036,11 +3047,15 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
         
         // shoes on top of feet
         if( inClothing.backShoe != NULL && i == backFootIndex ) {
+            printf("Drawing the back shoe\n");
+            printf("drawObject #12\n");
             drawObject( inClothing.backShoe, 2,
                         backShoePos, backShoeRot, true,
                         inFlipH, -1, 0, false, false, emptyClothing );
             }
         else if( inClothing.frontShoe != NULL && i == frontFootIndex ) {
+            printf("Drawing the front shoe\n");
+            printf("drawObject #13\n");
             drawObject( inClothing.backShoe, 2,
                         frontShoePos, frontShoeRot, true,
                         inFlipH, -1, 0, false, false, emptyClothing );
@@ -3056,6 +3071,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
     
     if( inClothing.hat != NULL ) {
         // hat on top of everything
+        printf("Drawing the hat\n");
             
         // relative to head
         
@@ -3066,6 +3082,7 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
             }
         cPos = add( cPos, inPos );
         
+        printf("drawObject #14\n");
         drawObject( inClothing.hat, 2, cPos, inRot, true,
                     inFlipH, -1, 0, false, false, emptyClothing );
         }
@@ -3083,7 +3100,10 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
                        ClothingSet inClothing,
                        int inNumContained, int *inContainedIDs,
                        SimpleVector<int> *inSubContained ) {
+
+    printf("Starting drawObject function #2\n");
     
+    printf("drawObject #15 %s\n", inObject->description);
     drawObject( inObject, 0, inPos, inRot, inWorn, inFlipH, inAge, 
                 inHideClosestArm,
                 inHideAllLimbs,
@@ -3146,6 +3166,7 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
             inSubContained[i].size() > 0 ) {
                 
             // behind sub-contained
+            printf("drawObject #16\n");
             drawObject( contained, 0, pos, rot, false, inFlipH, inAge,
                         0,
                         false,
@@ -3197,6 +3218,7 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
 
                     subPos = add( subPos, pos );
                     
+                    printf("drawObject #17\n");
                     drawObject( subContained, 2, subPos, subRot, 
                                 false, inFlipH,
                                 inAge, 0, false, false, emptyClothing );
@@ -3204,6 +3226,7 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
                 }
                 
             // in front of sub-contained
+            printf("drawObject #18\n");
             drawObject( contained, 1, pos, rot, false, inFlipH, inAge,
                         0,
                         false,
@@ -3214,6 +3237,7 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
         else {
             // no sub-contained
             // draw contained all at once
+            printf("drawObject #19 %s\n", contained->description);
             drawObject( contained, 2, pos, rot, false, inFlipH, inAge,
                         0,
                         false,
@@ -3223,6 +3247,7 @@ HoldingPos drawObject( ObjectRecord *inObject, doublePair inPos, double inRot,
         
         }
     
+    printf("drawObject #20 %s\n", inObject->description);
     return drawObject( inObject, 1, inPos, inRot, inWorn, inFlipH, inAge, 
                        inHideClosestArm,
                        inHideAllLimbs,

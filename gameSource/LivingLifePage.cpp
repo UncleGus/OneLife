@@ -2919,6 +2919,7 @@ void LivingLifePage::drawMapCell( int inMapI,
             SimpleVector<int> *subStackArray =
                 mMapSubContainedStacks[ inMapI ].getElementArray();
             
+            printf("drawObjectAnim #1 %s\n", getObject( oID )->description);
             drawObjectAnim( oID, 
                             curType, timeVal,
                             animFade,
@@ -2939,6 +2940,7 @@ void LivingLifePage::drawMapCell( int inMapI,
             delete [] subStackArray;
             }
         else {
+            printf("drawObjectAnim #2 %s\n", getObject( oID )->description);
             drawObjectAnim( oID, 2, 
                             curType, timeVal,
                             animFade,
@@ -3342,6 +3344,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
         
 
 
+        printf("drawObjectAnim #3 %s\n", getObject( inObj->displayID )->description);
         holdingPos =
             drawObjectAnim( inObj->displayID, 2, curType, 
                             timeVal,
@@ -3516,6 +3519,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
             personPos = add( personPos, inObj->ridingOffset );
 
             // rideable object
+            printf("drawObjectAnim #4 %s\n", getObject( inObj->displayID )->description);
             holdingPos =
                 drawObjectAnim( inObj->displayID, 2, curType, 
                                 timeVal,
@@ -3582,6 +3586,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                     }
                 
 
+                printf("drawObjectAnim #5 %s\n", getObject( babyO->displayID )->description);
                 returnPack =
                     drawObjectAnimPacked( 
                                 babyO->displayID, curHeldType, 
@@ -3615,6 +3620,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
             }
         else if( inObj->numContained == 0 ) {
                         
+            printf("drawObjectAnim #6 %s\n", getObject( inObj->holdingID )->description);
             returnPack = 
                 drawObjectAnimPacked(
                             inObj->holdingID, curHeldType, 
@@ -3634,6 +3640,7 @@ ObjectAnimPack LivingLifePage::drawLiveObject(
                             0, NULL, NULL );
             }
         else {
+            printf("drawObjectAnim #7 %s\n", getObject( inObj->holdingID )->description);
             returnPack =
                 drawObjectAnimPacked( 
                             inObj->holdingID, curHeldType, 
@@ -4262,6 +4269,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
                 
                 
                 char used;
+                printf("drawObjectAnim #8 %s\n", getObject( oID )->description);
                 drawObjectAnim( oID, 2, 
                                 ground, timeVal,
                                 0,
@@ -5096,6 +5104,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
                     if( ! o->heldPosOverride ) {
                         // not sliding into place
                         // draw it now
+                        printf("drawObjectAnim #9 %s\n", getObject( heldPack.inObjectID )->description);
                         drawObjectAnim( heldPack );
                         }
                     else {
@@ -5189,6 +5198,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
         // now draw held flying objects on top of objects in this row
         // but still behind walls in this row
         for( int i=0; i<heldToDrawOnTop.size(); i++ ) {
+            printf("drawObjectAnim #10 %d %s\n", i, getObject( heldToDrawOnTop.getElementDirect( i ).inObjectID )->description);
             drawObjectAnim( heldToDrawOnTop.getElementDirect( i ) );
             }
 
