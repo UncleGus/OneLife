@@ -133,6 +133,8 @@ static int familySpan = 2;
 // phrases that trigger baby and family naming
 static SimpleVector<char*> nameGivingPhrases;
 static SimpleVector<char*> familyNameGivingPhrases;
+static SimpleVector<char*> nationNames;
+static SimpleVector<char*> nationMembers;
 
 // phrases that trigger baby opt in and out
 static SimpleVector<char*> babyOptInPhrases;
@@ -179,6 +181,8 @@ SimpleVector<FreshConnection> newConnections;
 
 typedef struct LiveObject {
         char *email;
+
+        int nation;
         
         int id;
         
@@ -890,6 +894,9 @@ void quitCleanup() {
     babyOptInPhrases.deallocateStringElements();
     babyOptOutPhrases.deallocateStringElements();
 
+    nationNames.deallocateStringElements();
+    nationMembers.deallocateStringElements();
+    
     if( eveName != NULL ) {
         delete [] eveName;
         eveName = NULL;
@@ -3169,9 +3176,46 @@ static LiveObject *getHitPlayer( int inX, int inY,
     return hitPlayer;
     }
 
-    
+
+char *getNationName( char *inEmail, SimpleVector<char*> *inMemberList ) {
+    for( int i=0; i<inMemberList->size(); i++ ) {
+        char *email = stringToUpperCase( inEmail );
+        char *testString = inMemberList->getElementDirect( i );
+
+        if( strstr( testString, email ) == testString ) {
+            // hit
+            int phraseLen = strlen( email );
+            // skip spaces after
+            while( testString[ phraseLen ] == ' ' ) {
+                phraseLen++;
+                }
+            return &( testString[ phraseLen ] );
+            }
+        }
+    return NULL;
+    }
 
 
+int getNation( char *inEmail ) {
+    char *nationName = getNationName( inEmail, &nationMembers );
+    if( nationName == NULL ) {
+        return -1;
+    }
+
+    for( int i=0; i<nationNames.size(); i++ ) {
+        if( strstr( nationName, nationNames.getElementDirect( i ) ) == nationName ) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void getNationPosition( int inNation, int *outX, int *outY ) {
+    char *fileName = autoSprintf( "nation%dPositionX", inNation );
+    *outX = SettingsManager::getIntSetting( fileName, 0 );
+    fileName = autoSprintf( "nation%dPositionY", inNation );
+    *outY = SettingsManager::getIntSetting( fileName, 0 );
+}
         
 
 
@@ -3201,6 +3245,10 @@ void processLoggedInPlayer( Socket *inSock,
     LiveObject newObject;
 
     newObject.email = inEmail;
+
+    newObject.nation = getNation( inEmail );
+    printf("Player is in nation %d %s\n", newObject.nation, getNationName( inEmail, &nationMembers ));
+
     
     newObject.id = nextID;
     nextID++;
@@ -3374,7 +3422,7 @@ void processLoggedInPlayer( Socket *inSock,
     for( int i=0; i<numPlayers; i++ ) {
         LiveObject *player = players.getElement( i );
         
-        if( player->error ) {
+        if( player->error || player->nation != newObject.nation ) {
             continue;
             }
 
@@ -3400,6 +3448,10 @@ void processLoggedInPlayer( Socket *inSock,
             
             if( ! isLinePermitted( newObject.email, player->lineageEveID ) ) {
                 // this line forbidden for new player
+                continue;
+                }
+            if( player->nation != newObject.nation ) {
+                // can only be born in the same nation
                 continue;
                 }
             
@@ -3599,17 +3651,23 @@ void processLoggedInPlayer( Socket *inSock,
         
         // AppLog::infoF("Spawning Adam at a new Adam location\n");
         // else starts at civ outskirts (lone Adam)
-        int startX, startY;
-        getEvePosition( newObject.email, &startX, &startY );
+        int startX = 0;
+        int startY = 0;
+
 
         if( SettingsManager::getIntSetting( "forceEveLocation", 0 ) ) {
-
-            startX = 
-                SettingsManager::getIntSetting( "forceEveLocationX", 0 );
-            startY = 
-                SettingsManager::getIntSetting( "forceEveLocationY", 0 );
+            if( newObject.nation == -1 ) {
+                startX = 
+                    SettingsManager::getIntSetting( "forceEveLocationX", 0 );
+                startY = 
+                    SettingsManager::getIntSetting( "forceEveLocationY", 0 );
+                } else {
+                    getNationPosition( newObject.nation, &startX, &startY );
+                }
             }
-        
+            else {
+                getEvePosition( newObject.email, &startX, &startY );
+            }        
         
         newObject.xs = startX;
         newObject.ys = startY;
@@ -4967,6 +5025,13 @@ int main() {
     readNameGivingPhrases( "familyNamingPhrases", &familyNameGivingPhrases );
     readNameGivingPhrases( "babyOptInPhrases", &babyOptInPhrases );
     readNameGivingPhrases( "babyOptOutPhrases", &babyOptOutPhrases );
+    readNameGivingPhrases( "nationNames", &nationNames );
+    readNameGivingPhrases( "nationMembers", &nationMembers );
+
+    printf("Nations are:\n");
+    for(int i=0; i<nationNames.size(); i++ ) {
+        printf("%s\n", nationNames.getElementDirect( i ) );
+    }
     
     eveName = 
         SettingsManager::getStringSetting( "eveName", "EVE" );
@@ -5040,7 +5105,7 @@ int main() {
     
     SocketPoll sockPoll;
     
-    
+
     
     SocketServer server( port, 256 );
     
