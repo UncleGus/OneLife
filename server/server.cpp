@@ -3292,11 +3292,12 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.isEve = false;
     newObject.isAdam = false;
     newObject.hasEve = false;
+    newObject.babyOptIn = true;
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
     newObject.lifeStartTimeSeconds = newObject.trueStartTimeSeconds;
 
-    newObject.lastBreastFeedTimeSeconds = Time::getCurrentTime();
+    newObject.lastBreastFeedTimeSeconds = 0;
 
                             
     newObject.lastSayTimeSeconds = Time::getCurrentTime();
@@ -3449,6 +3450,7 @@ void processLoggedInPlayer( Socket *inSock,
         LiveObject *player = players.getElement( i );
         
         if( player->error || player->nation != newObject.nation ) {
+            // AppLog::infoF("SKIPPING PLAYER %d\n", player->id);
             continue;
             }
 
@@ -3476,11 +3478,6 @@ void processLoggedInPlayer( Socket *inSock,
                 // this line forbidden for new player
                 continue;
                 }
-            if( player->nation != newObject.nation ) {
-                // can only be born in the same nation
-                continue;
-                }
-            
 
             int numPastBabies = player->babyIDs->size();
             
@@ -3552,9 +3549,8 @@ void processLoggedInPlayer( Socket *inSock,
                                             unmatchedAdams.size() - 1 );
         
         spawnTarget = unmatchedAdams.getElementDirect( spawnTargetIndex );
-        // AppLog::infoF("Spawning Eve next to %d\n", spawnTarget->id);
+        // AppLog::infoF("Spawning Eve next to Adam %d\n", spawnTarget->id);
 
-        // AppLog::infoF("Spawning Eve next to Adam\n");
         if( spawnTarget->xs == spawnTarget->xd && 
             spawnTarget->ys == spawnTarget->yd ) {
             // AppLog::infoF("Adam is not moving, spawning at his location\n");
