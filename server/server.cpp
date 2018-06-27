@@ -134,7 +134,6 @@ static int familySpan = 2;
 static SimpleVector<char*> nameGivingPhrases;
 static SimpleVector<char*> familyNameGivingPhrases;
 static SimpleVector<char*> nationNames;
-static SimpleVector<char*> nationMembers;
 
 // phrases that trigger baby opt in and out
 static SimpleVector<char*> babyOptInPhrases;
@@ -895,7 +894,7 @@ void quitCleanup() {
     babyOptOutPhrases.deallocateStringElements();
 
     nationNames.deallocateStringElements();
-    nationMembers.deallocateStringElements();
+    // nationMembers.deallocateStringElements();
     
     if( eveName != NULL ) {
         delete [] eveName;
@@ -3196,8 +3195,8 @@ char *getNationName( char *inEmail, SimpleVector<char*> *inMemberList ) {
     }
 
 
-int getNation( char *inEmail ) {
-    char *nationName = getNationName( inEmail, &nationMembers );
+int getNation( char *inEmail, SimpleVector<char*> *inMemberList ) {
+    char *nationName = getNationName( inEmail, inMemberList );
     if( nationName == NULL ) {
         return -1;
     }
@@ -3217,6 +3216,28 @@ void getNationPosition( int inNation, int *outX, int *outY ) {
     *outY = SettingsManager::getIntSetting( fileName, 0 );
 }
         
+
+void readNameGivingPhrases( const char *inSettingsName, 
+                            SimpleVector<char*> *inList ) {
+    char *cont = SettingsManager::getSettingContents( inSettingsName, "" );
+    
+    if( strcmp( cont, "" ) == 0 ) {
+        delete [] cont;
+        return;    
+        }
+    
+    int numParts;
+    char **parts = split( cont, "\n", &numParts );
+    delete [] cont;
+    
+    for( int i=0; i<numParts; i++ ) {
+        if( strcmp( parts[i], "" ) != 0 ) {
+            inList->push_back( stringToUpperCase( parts[i] ) );
+            }
+        delete [] parts[i];
+        }
+    delete [] parts;
+    }
 
 
 void processLoggedInPlayer( Socket *inSock,
@@ -3246,9 +3267,14 @@ void processLoggedInPlayer( Socket *inSock,
 
     newObject.email = inEmail;
 
-    newObject.nation = getNation( inEmail );
+    SimpleVector<char*> nationMembers;
+
+    readNameGivingPhrases( "nationMembers", &nationMembers );
+
+    newObject.nation = getNation( inEmail, &nationMembers );
     printf("Player is in nation %d %s\n", newObject.nation, getNationName( inEmail, &nationMembers ));
 
+    nationMembers.deallocateStringElements();
     
     newObject.id = nextID;
     nextID++;
@@ -4542,27 +4568,6 @@ static void sendMessageToPlayer( LiveObject *inPlayer,
     
 
 
-void readNameGivingPhrases( const char *inSettingsName, 
-                            SimpleVector<char*> *inList ) {
-    char *cont = SettingsManager::getSettingContents( inSettingsName, "" );
-    
-    if( strcmp( cont, "" ) == 0 ) {
-        delete [] cont;
-        return;    
-        }
-    
-    int numParts;
-    char **parts = split( cont, "\n", &numParts );
-    delete [] cont;
-    
-    for( int i=0; i<numParts; i++ ) {
-        if( strcmp( parts[i], "" ) != 0 ) {
-            inList->push_back( stringToUpperCase( parts[i] ) );
-            }
-        delete [] parts[i];
-        }
-    delete [] parts;
-    }
 
 
 
@@ -5026,7 +5031,6 @@ int main() {
     readNameGivingPhrases( "babyOptInPhrases", &babyOptInPhrases );
     readNameGivingPhrases( "babyOptOutPhrases", &babyOptOutPhrases );
     readNameGivingPhrases( "nationNames", &nationNames );
-    readNameGivingPhrases( "nationMembers", &nationMembers );
 
     printf("Nations are:\n");
     for(int i=0; i<nationNames.size(); i++ ) {
