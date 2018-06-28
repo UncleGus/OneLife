@@ -10802,7 +10802,7 @@ int main() {
             for( int i=0; i<soundsToSend.size(); i++ ) {
                 SoundLocation *nextSound = soundsToSend.getElement( i );
 
-                char *line = autoSprintf( "%d\n", nextSound->objectID, nextSound->soundIndex,
+                char *line = autoSprintf( "%d %d %d %d\n", nextSound->objectID, nextSound->soundIndex,
                     nextSound->x, nextSound->y );
 
                 numAdded++;
