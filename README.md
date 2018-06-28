@@ -5,5 +5,8 @@ This mod joins together the following mods:
 - birthcontrol
 - breastfeed
 - father
+- nations
 - restrain
+- slowhunger
 - water
+- nations
