@@ -2014,6 +2014,7 @@ HoldingPos drawObjectAnim( int inObjectID, int inDrawBehindSlots,
     
 
     for( int i=0; i<limit; i++ ) {
+
         if( obj->spriteSkipDrawing[i] ) {
             continue;
             }
