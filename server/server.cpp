@@ -64,6 +64,7 @@ float targetHeat = 10;
 
 double secondsPerYear = 60.0;
 
+double lastCycleTime = Time::getCurrentTime();
 
 
 #define PERSON_OBJ_ID 12
@@ -5101,6 +5102,8 @@ int main() {
     
     int port = 
         SettingsManager::getIntSetting( "port", 5077 );
+
+    float hungerDelay = SettingsManager::getFloatSetting( "hungerDelay", 0.5 );
     
     
     SocketPoll sockPoll;
@@ -5122,7 +5125,9 @@ int main() {
     while( !quit ) {
         
         int shutdownMode = SettingsManager::getIntSetting( "shutdownMode", 0 );
-        
+
+        double timeSinceLastCycle = Time::getCurrentTime() - lastCycleTime;
+        lastCycleTime = Time::getCurrentTime();
         
         apocalypseStep();
         monumentStep();
@@ -5149,6 +5154,11 @@ int main() {
 
         for( int i=0; i<numLive; i++ ) {
             LiveObject *nextPlayer = players.getElement( i );
+
+            if( nextPlayer->xd == nextPlayer->xs && nextPlayer->yd == nextPlayer->ys ) {
+                // player is not moving
+                nextPlayer->foodDecrementETASeconds += timeSinceLastCycle * hungerDelay;
+            }
             
             // clear at the start of each step
             nextPlayer->responsiblePlayerID = -1;
