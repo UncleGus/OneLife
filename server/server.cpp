@@ -5934,7 +5934,7 @@ int main() {
                                     hitArmour->id, false, false );
                         if( armourTrans != NULL ) {
                             // perform the transition
-                            // printf("This armour blocks this weapon\n");
+                            printf("KILL attempt blocked\n");
                             
                             SoundLocation armourSound;
                             armourSound.objectID = hitArmour->id;
@@ -6879,6 +6879,7 @@ int main() {
                                         double totalPercentage = 0.0;
 
                                         double headHit = 5.0;
+                                        headHit = 0.0;
                                         if( hitPlayer->clothing.hat != NULL && hitPlayer->clothing.hat->hitScalar > 0.0 ) {
                                             headHit *= hitPlayer->clothing.hat->hitScalar;
                                             // printf("Player is wearing a hat\n");
@@ -6886,6 +6887,7 @@ int main() {
                                         totalPercentage += headHit;
 
                                         double chestHit = 45.0;
+                                        chestHit = 0.0;
                                         if( hitPlayer->clothing.tunic != NULL && hitPlayer->clothing.tunic->hitScalar > 0.0 ) {
                                             chestHit *= hitPlayer->clothing.tunic->hitScalar;
                                             // printf("Player is wearing a tunic\n");
@@ -6900,6 +6902,7 @@ int main() {
                                         totalPercentage += armsHit;
 
                                         double groinHit = 15.0;
+                                        groinHit = 0.0;
                                         if( hitPlayer->clothing.bottom != NULL && hitPlayer->clothing.bottom->hitScalar > 0.0 ) {
                                             groinHit *= hitPlayer->clothing.bottom->hitScalar;
                                             // printf("Player is wearing faulds\n");
@@ -6907,6 +6910,7 @@ int main() {
                                         totalPercentage += groinHit;
 
                                         double leftLegHit = 10.0;
+                                        leftLegHit = 0.0;
                                         if( hitPlayer->clothing.frontShoe != NULL && hitPlayer->clothing.frontShoe->hitScalar > 0.0 ) {
                                             leftLegHit *= hitPlayer->clothing.frontShoe->hitScalar;
                                             // printf("Player is wearing a left shoe\n");
@@ -6914,6 +6918,7 @@ int main() {
                                         totalPercentage += leftLegHit;
 
                                         double rightLegHit = 10.0;
+                                        rightLegHit = 0.0;
                                         if( hitPlayer->clothing.backShoe != NULL && hitPlayer->clothing.backShoe->hitScalar > 0.0 ) {
                                             rightLegHit *= hitPlayer->clothing.backShoe->hitScalar;
                                             // printf("Player is wearing a right shoe\n");
@@ -6971,7 +6976,12 @@ int main() {
                                                         hitArmour->id, false, false );
                                             if( armourTrans != NULL ) {
                                                 // perform the transition
-                                                // printf("This armour blocks this weapon\n");
+                                                printf("KILL attempt blocked\n");
+
+                                                TransRecord *armourDamageTrans = 
+                                                    getPTrans( nextPlayer->holdingID, 
+                                                        hitArmour->id, false, false );
+
                                                 
                                                 SoundLocation armourSound;
                                                 armourSound.objectID = hitArmour->id;
@@ -6980,25 +6990,33 @@ int main() {
                                                 armourSound.y = hitPlayer->yd;
                                                 soundsToSend.push_back( armourSound );
 
+                                                printf("Attacker's weapon switching from %d to %d\n", nextPlayer->holdingID, armourTrans->newActor);
                                                 nextPlayer->holdingID = armourTrans->newActor;
+
                                                 switch( hitLocation ) {
                                                     case 'h':
-                                                        hitPlayer->clothing.hat = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's hat switching from %d to %d\n", hitPlayer->clothing.hat->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.hat = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                     case 't':
-                                                        hitPlayer->clothing.tunic = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's tunic switching from %d to %d\n", hitPlayer->clothing.tunic->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.tunic = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                     case 'p':
-                                                        hitPlayer->clothing.backpack = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's backpack switching from %d to %d\n", hitPlayer->clothing.backpack->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.backpack = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                     case 'b':
-                                                        hitPlayer->clothing.bottom = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's bottom switching from %d to %d\n", hitPlayer->clothing.bottom->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.bottom = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                     case 'l':
-                                                        hitPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's frontShoe switching from %d to %d\n", hitPlayer->clothing.frontShoe->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.frontShoe = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                     case 'r':
-                                                        hitPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
+                                                        printf("Attacker's backShoe switching from %d to %d\n", hitPlayer->clothing.backShoe->id, armourDamageTrans->newTarget);
+                                                        hitPlayer->clothing.backShoe = getObject( armourDamageTrans->newTarget );
                                                         break;
                                                 }
                                             } else {
@@ -10802,7 +10820,7 @@ int main() {
             for( int i=0; i<soundsToSend.size(); i++ ) {
                 SoundLocation *nextSound = soundsToSend.getElement( i );
 
-                char *line = autoSprintf( "%d\n", nextSound->objectID, nextSound->soundIndex,
+                char *line = autoSprintf( "%d %d %d %d\n", nextSound->objectID, nextSound->soundIndex,
                     nextSound->x, nextSound->y );
 
                 numAdded++;
