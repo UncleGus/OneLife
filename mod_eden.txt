@@ -9,6 +9,5 @@ This mod joins together the following mods:
 - restrain
 - slowhunger
 - water
-- nations
 
 See individual mod_<name>.txt files for instructions about each mod.
