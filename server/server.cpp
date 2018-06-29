@@ -3112,6 +3112,7 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.displayID = getRandomPersonObject();
     
     newObject.isEve = false;
+    newObject.babyOptIn = true;
 
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
