@@ -3335,11 +3335,11 @@ void processLoggedInPlayer( Socket *inSock,
     // this is to make people spawn with clothes and a knife, for testing of weapons and armour
     newObject.clothing.hat = getObject( 86782 );
     newObject.clothing.tunic = getObject( 202 );
-    newObject.clothing.backpack = getObject( 86118 );
+    newObject.clothing.backpack = getObject( 3718 );
     newObject.clothing.bottom = getObject( 200 );
     newObject.clothing.frontShoe = getObject( 203 );
     newObject.clothing.backShoe = getObject( 203 );
-    newObject.holdingID = 86604;
+    newObject.holdingID = 4204;
 
     newObject.name = NULL;
     newObject.lastSay = NULL;
@@ -5947,39 +5947,45 @@ int main() {
                             switch( hitLocation ) {
                                 case 'h':
                                     if( armourTrans->newTarget != nextPlayer->clothing.hat->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.hat = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.hat = getObject( armourTrans->newTarget );
                                     break;
                                 case 't':
                                     if( armourTrans->newTarget != nextPlayer->clothing.tunic->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.tunic = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.tunic = getObject( armourTrans->newTarget );
                                     break;
                                 case 'p':
                                     if( armourTrans->newTarget != nextPlayer->clothing.backpack->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.backpack = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.backpack = getObject( armourTrans->newTarget );
                                     break;
                                 case 'b':
                                     if( armourTrans->newTarget != nextPlayer->clothing.bottom->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.bottom = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.bottom = getObject( armourTrans->newTarget );
                                     break;
                                 case 'l':
                                     if( armourTrans->newTarget != nextPlayer->clothing.frontShoe->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
                                     break;
                                 case 'r':
                                     if( armourTrans->newTarget != nextPlayer->clothing.backShoe->id ) {
-                                        playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                            getLiveObjectIndex( nextPlayer->id) );
+                                        nextPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
                                     }
-                                    nextPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
                                     break;
                             }
                         } else {
@@ -7005,46 +7011,53 @@ int main() {
                                                 soundsToSend.push_back( armourSound );
 
                                                 if( armourTrans->newActor != nextPlayer->holdingID ) {
-                                                    playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                                                    playerIndicesToSendUpdatesAbout.push_back( 
+                                                        getLiveObjectIndex( nextPlayer->id) );
                                                 }
                                                 nextPlayer->holdingID = armourTrans->newActor;
 
                                                 switch( hitLocation ) {
                                                     case 'h':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.hat->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.hat = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.hat = getObject( armourTrans->newTarget );
                                                         break;
                                                     case 't':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.tunic->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.tunic = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.tunic = getObject( armourTrans->newTarget );
                                                         break;
                                                     case 'p':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.backpack->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.backpack = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.backpack = getObject( armourTrans->newTarget );
                                                         break;
                                                     case 'b':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.bottom->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.bottom = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.bottom = getObject( armourTrans->newTarget );
                                                         break;
                                                     case 'l':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.frontShoe->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
                                                         break;
                                                     case 'r':
                                                         if( armourTrans->newTarget != hitPlayer->clothing.backShoe->id ) {
-                                                            playerIndicesToSendUpdatesAbout.push_back( hitPlayer->id );
+                                                        playerIndicesToSendUpdatesAbout.push_back( 
+                                                            getLiveObjectIndex( hitPlayer->id) );
+                                                            hitPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
                                                         }
-                                                        hitPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
                                                         break;
                                                 }
                                             } else {
