@@ -2727,32 +2727,14 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
         }
 
 
-    int i;
-    char reverseOrder = false;
-    if( inObject->clothing == 'p' && inObject->hitScalar > 0.0 ) {
-        i = limit - 1;
-        // reverseOrder = true;
-    } else {
-        i = 0;
-    }
-    while( i >= 0 && i < limit ) {
+    for( int i = 0; i < limit; i++ ) {
         if( inObject->spriteSkipDrawing != NULL &&
             inObject->spriteSkipDrawing[i] ) {
-            if( reverseOrder ) {
-                i--;
-                } else {
-                i++;
-                }
             continue;
             }
         if( inObject->person &&
             ! isSpriteVisibleAtAge( inObject, i, inAge ) ) {    
             // skip drawing this aging layer entirely
-            if( reverseOrder ) {
-                i--;
-                } else {
-                i++;
-                }
             continue;
             }
         if( inObject->clothing != 'n' && 
@@ -2762,21 +2744,11 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                 inObject->spriteInvisibleWhenWorn[i] == 1 ) {
         
                 // skip invisible layer in worn clothing
-                if( reverseOrder ) {
-                    i--;
-                    } else {
-                    i++;
-                    }
                 continue;
                 }
             else if( ! inWorn &&
                      inObject->spriteInvisibleWhenWorn[i] == 2 ) {
                 // skip invisible layer in unworn clothing
-                if( reverseOrder ) {
-                    i--;
-                    } else {
-                    i++;
-                    }
                 continue;
                 }
             }
@@ -2785,20 +2757,10 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
         if( inDrawBehindSlots != 2 ) {    
             if( inDrawBehindSlots == 0 && 
                 ! inObject->spriteBehindSlots[i] ) {
-                if( reverseOrder ) {
-                    i--;
-                    } else {
-                    i++;
-                    }
                 continue;
                 }
             else if( inDrawBehindSlots == 1 && 
                      inObject->spriteBehindSlots[i] ) {
-                if( reverseOrder ) {
-                    i--;
-                    } else {
-                    i++;
-                    }
                 continue;
                 }
             }
@@ -3046,11 +3008,6 @@ HoldingPos drawObject( ObjectRecord *inObject, int inDrawBehindSlots,
                         inFlipH, -1, 0, false, false, emptyClothing );
             }
 
-        if( reverseOrder ) {
-            i--;
-            } else {
-            i++;
-            }
         }    
 
     
