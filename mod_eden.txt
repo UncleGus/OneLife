@@ -1,0 +1,14 @@
+Garden of Eden mod
+
+This mod joins together the following mods:
+- armour
+- birthcontrol
+- breastfeed
+- father
+- nations
+- restrain
+- slowhunger
+- water
+- nations
+
+See individual mod_<name>.txt files for instructions about each mod.
