@@ -12352,11 +12352,6 @@ void LivingLifePage::step() {
                 int numRead = sscanf( lines[i], "%d %d %d %d",
                                       &( objectID ), &( soundIndex ), &( x ), &( y ) );
 
-                ObjectRecord *soundSource = getObject( objectID );
-                if( soundSource->isUseDummy ) {
-                    objectID = soundSource->useDummyParent;
-                }
-
                 if( numRead == 4 ) {
                     ObjectRecord *soundObject = getObject( objectID );
                     SoundUsage sound;
@@ -12377,9 +12372,14 @@ void LivingLifePage::step() {
                             }
                             break;
                         case 3:
-                            if( soundObject->decaySound.numSubSounds > 0 ) {
-                                sound = soundObject->decaySound;
-                            }
+                            if( soundObject->isUseDummy ) {
+                                if( soundObject->creationSound.numSubSounds > 0 ) {
+                                    sound = soundObject->creationSound;
+                                }
+                            } else if( soundObject->decaySound.numSubSounds > 0 ) {
+                                    sound = soundObject->decaySound;
+                                }
+                            
                             break;
                         }
                     playSound( sound, getVectorFromCamera( x, y ) );
