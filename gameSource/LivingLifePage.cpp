@@ -12354,6 +12354,10 @@ void LivingLifePage::step() {
 
                 if( numRead == 4 ) {
                     ObjectRecord *soundObject = getObject( objectID );
+                    printf("Object %d has %d creation sub sounds\n", objectID, soundObject->creationSound.numSubSounds);
+                    printf("Object %d has %d using sub sounds\n", objectID, soundObject->usingSound.numSubSounds);
+                    printf("Object %d has %d eating sub sounds\n", objectID, soundObject->eatingSound.numSubSounds);
+                    printf("Object %d has %d decay sub sounds\n", objectID, soundObject->decaySound.numSubSounds);
                     SoundUsage sound;
                     switch( soundIndex ) {
                         case 0:
@@ -12372,13 +12376,9 @@ void LivingLifePage::step() {
                             }
                             break;
                         case 3:
-                            if( soundObject->isUseDummy ) {
-                                if( soundObject->creationSound.numSubSounds > 0 ) {
-                                    sound = soundObject->creationSound;
-                                }
-                            } else if( soundObject->decaySound.numSubSounds > 0 ) {
-                                    sound = soundObject->decaySound;
-                                }
+                            if( soundObject->decaySound.numSubSounds > 0 ) {
+                                sound = soundObject->decaySound;
+                            }
                             
                             break;
                         }
