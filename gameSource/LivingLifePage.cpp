@@ -12344,12 +12344,18 @@ void LivingLifePage::step() {
             
             for( int i=1; i<numLines; i++ ) {
 
+
                 int objectID;
                 int soundIndex;
                 int x;
                 int y;
                 int numRead = sscanf( lines[i], "%d %d %d %d",
                                       &( objectID ), &( soundIndex ), &( x ), &( y ) );
+
+                ObjectRecord *soundSource = getObject( objectID );
+                if( soundSource->isUseDummy ) {
+                    objectID = soundSource->useDummyParent;
+                }
 
                 if( numRead == 4 ) {
                     ObjectRecord *soundObject = getObject( objectID );
