@@ -9,8 +9,11 @@ The server check for what the weapon turns into after using it is still performe
 e.g. the bow and arrow will still turn into a bloody bow after shooting it at
 someone, even if their armour blocks it. Transitions should be updated accordingly.
 
-When a deadly weapon is used against a player, its using sound will be played. When
-armour blocks a weapon, its eating sound will be played.
+When a deadly weapon is used against a player and does not change (i.e. is not damaged,
+its using sound will be played. If it does change (i.e. is damaged, its decay sound
+will play. When armour blocks a weapon and does not change (i.e. is not damaged), its
+eating sound will be played. If it does change (i.e. is damaged), its decay sound will
+play.
 
 The backpack slot is repurposed as the arms slot for the purposes of armour. In this
 way, a shield can be set up as a backpack clothing item, and this will block the arms.
@@ -35,3 +38,5 @@ To slow down attacks, a weapon could be made to turn into an undeadly version of
 which decays back into its useable version after a number of seconds. This can be used
 to make some weapons quicker than others, although it is limited to whole numbers
 of seconds.
+
+Armour transitions can also be set up for animal attacks.
