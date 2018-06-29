@@ -6971,7 +6971,7 @@ int main() {
                                                         hitArmour->id, false, false );
                                             if( armourTrans != NULL ) {
                                                 // perform the transition
-                                                // printf("This armour blocks this weapon\n");
+                                                AppLog::info("KILL attempt blocked\n");
                                                 
                                                 SoundLocation armourSound;
                                                 armourSound.objectID = hitArmour->id;
