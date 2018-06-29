@@ -1,10 +1,19 @@
-birthcontrol mod
+Forked from jasonrohrer/OneLife
 
-This mod allows female players to decide when to have a baby. They are opted in to
-having a baby by default. They can opt out by saying one of the phrases in
-babyOptOutPhrases.ini and they can opt in by saying one of the phrases in
-babyOptInPhrases.ini
+master branch is the foundation for all of the other mod branches:
 
-The simplest examples of these are
-BABY YES
-BABY NO
+breastfeed: breastfeeding prevents pregnancy
+
+father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
+
+restrain: allows players to team up to overcome a lone opponent
+
+water: adds a water biome and procedurally generated streams
+
+birthcontrol: gives female players the ability to choose when to have a baby
+
+armour: clothing can be used to block attacks
+
+nations: players can be assigned to nations, spawning only among their nation's people
+
+slowhunger: slows down hunger by a percentage when players are standing still
