@@ -3333,13 +3333,88 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.lineage = new SimpleVector<int>();
 
     // this is to make people spawn with clothes and a knife, for testing of weapons and armour
-    newObject.clothing.hat = getObject( 86782 );
-    newObject.clothing.tunic = getObject( 202 );
-    newObject.clothing.backpack = getObject( 3718 );
-    newObject.clothing.bottom = getObject( 200 );
-    newObject.clothing.frontShoe = getObject( 203 );
-    newObject.clothing.backShoe = getObject( 203 );
-    newObject.holdingID = 4204;
+    switch( newObject.nation ) {
+        case 0: //     Avalon
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3710 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3711;
+            break;
+        case 1: //     Sparta
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3715 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3722;
+            break;
+        case 2: //     Lucky Foot Nation
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3718 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3833;
+            break;
+        case 3: //     Ivory
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3716 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3835;
+            break;
+        case 4: //     Oblivion
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3714 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3837;
+            break;
+        case 5: //     The Commonwealth
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3717 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3839;
+            break;
+        case 6: //     Baget
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3720 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3841;
+            break;
+        case 7: //     Meow Empire
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 3719 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 3843;
+            break;
+        default:
+            newObject.clothing.hat = getObject( 199 );
+            newObject.clothing.tunic = getObject( 202 );
+            newObject.clothing.backpack = getObject( 4203 );
+            newObject.clothing.bottom = getObject( 200 );
+            newObject.clothing.frontShoe = getObject( 203 );
+            newObject.clothing.backShoe = getObject( 203 );
+            newObject.holdingID = 4204;
+    }
 
     newObject.name = NULL;
     newObject.lastSay = NULL;
@@ -6996,6 +7071,7 @@ int main() {
                                         attackSound.soundIndex = 1;
                                         attackSound.x = nextPlayer->xd;
                                         attackSound.y = nextPlayer->yd;
+                                        soundsToSend.push_back( attackSound );
 
                                         // check if hitPlayer is wearing armour in hit location
                                         if( hitArmour != NULL ) {
@@ -7018,9 +7094,14 @@ int main() {
                                                 if( armourTrans->newActor != nextPlayer->holdingID ) {
                                                     playerIndicesToSendUpdatesAbout.push_back(
                                                         getLiveObjectIndex( nextPlayer->id ) );
-                                                    attackSound.soundIndex = 3;
+                                                    // SoundLocation attackBreakSound;
+                                                    // attackBreakSound.objectID = nextPlayer->holdingID;
+                                                    // attackBreakSound.soundIndex = 3;
+                                                    // attackBreakSound.x = nextPlayer->xd;
+                                                    // attackBreakSound.y = nextPlayer->yd;
+                                                    // soundsToSend.push_back( attackBreakSound );
+                                                    nextPlayer->holdingID = armourTrans->newActor;
                                                 }
-                                                nextPlayer->holdingID = armourTrans->newActor;
 
                                                 switch( hitLocation ) {
                                                     case 'h':
@@ -7028,6 +7109,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.hat = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                     case 't':
@@ -7035,6 +7122,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.tunic = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                     case 'p':
@@ -7042,6 +7135,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.backpack = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                     case 'b':
@@ -7049,6 +7148,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.bottom = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                     case 'l':
@@ -7056,6 +7161,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.frontShoe = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                     case 'r':
@@ -7063,6 +7174,12 @@ int main() {
                                                             playerIndicesToSendUpdatesAbout.push_back(
                                                                 getLiveObjectIndex( hitPlayer->id ) );
                                                             hitPlayer->clothing.backShoe = getObject( armourTrans->newTarget );
+                                                            // SoundLocation armourBreakSound;
+                                                            // armourBreakSound.objectID = hitArmour->id;
+                                                            // armourBreakSound.soundIndex = 3;
+                                                            // armourBreakSound.x = hitPlayer->xd;
+                                                            // armourBreakSound.y = hitPlayer->yd;
+                                                            // soundsToSend.push_back( armourBreakSound );
                                                         }
                                                         break;
                                                 }
@@ -7070,7 +7187,6 @@ int main() {
                                                 // proceed with the kill code
                                                 performKill = true;
                                             }
-                                        soundsToSend.push_back( attackSound );
                                         } else {
                                             // proceed with the kill code
                                             performKill = true;
@@ -7115,6 +7231,7 @@ int main() {
                                                 hitPlayer->dying = true;
                                                 hitPlayer->dyingETA = 
                                                     currentTime + staggerTime;
+                                                printf("Player will die at %f\n", hitPlayer->dyingETA );
 
                                                 playerIndicesToSendDyingAbout.
                                                     push_back( 
