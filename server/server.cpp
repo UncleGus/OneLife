@@ -6978,6 +6978,7 @@ int main() {
                                         getHitPlayer( m.x, m.y, true );
                                     
                                     char someoneHit = false;
+                                    char performKill = false;
 
                                     if( hitPlayer != NULL ) {
                                         someoneHit = true;
@@ -7064,7 +7065,6 @@ int main() {
                                                 hitRand, totalPercentage );
                                         }
 
-                                        char performKill = false;
 
                                         SoundLocation attackSound;
                                         attackSound.objectID = nextPlayer->holdingID;
@@ -7280,6 +7280,7 @@ int main() {
                                     TransRecord *rHit = NULL;
                                     
                                     if( someoneHit ) {
+                                        printf("Someone was hit\n");
                                         // last use on target specifies
                                         // grave and weapon change on hit
                                         // non-last use (r above) specifies
@@ -7290,7 +7291,7 @@ int main() {
                                                       0, false, true );
                                         
                                         if( rHit != NULL &&
-                                            rHit->newTarget > 0 ) {
+                                            rHit->newTarget > 0 && performKill ) {
                                             hitPlayer->customGraveID = 
                                                 rHit->newTarget;
                                             }
@@ -7302,11 +7303,18 @@ int main() {
                                                       0, true, false );
                                         
                                         if( woundHit != NULL &&
-                                            woundHit->newTarget > 0 ) {
+                                            woundHit->newTarget > 0 && performKill ) {
+                                            printf("There is a wound transition producing a %s\n", getObject( woundHit->newTarget )->description );
                                             
+                                            if( hitPlayer->holdingWound ) {
+                                                printf("Player is holding a wound\n");
+                                            } else {
+                                                printf("Player is not holding a wound\n");
+                                            }
                                             // don't drop their wound
                                             if( hitPlayer->holdingID != 0 &&
                                                 ! hitPlayer->holdingWound ) {
+                                                printf("Handling the drop\n");
                                                 handleDrop( 
                                                     m.x, m.y, 
                                                     hitPlayer,
@@ -7315,6 +7323,7 @@ int main() {
                                             hitPlayer->holdingID = 
                                                 woundHit->newTarget;
                                             hitPlayer->holdingWound = true;
+                                            printf("Player is now holding the wound\n");
                                             
                                             playerIndicesToSendUpdatesAbout.
                                                 push_back( 
@@ -7355,7 +7364,7 @@ int main() {
                                     if( r != NULL ) {
                                     
                                         if( hitPlayer != NULL &&
-                                            r->newTarget != 0 ) {
+                                            r->newTarget != 0 && performKill ) {
                                         
                                             hitPlayer->embeddedWeaponID = 
                                                 r->newTarget;
@@ -7389,7 +7398,7 @@ int main() {
                                                     }
                                                 }
                                             }
-                                        else if( hitPlayer == NULL &&
+                                        else if( ( hitPlayer == NULL || !performKill ) &&
                                                  isMapSpotEmpty( m.x, 
                                                                  m.y ) ) {
                                             // no player hit, and target ground
