@@ -10326,49 +10326,6 @@ int main() {
                 }
             }
 
-        unsigned char *soundMessage = NULL;
-        int soundMessageLength = 0;
-        
-        if( soundsToSend.size() > 0 ) {
-            SimpleVector<char> soundWorking;
-            soundWorking.appendElementString( "SD\n" );
-            
-            int numAdded = 0;
-            for( int i=0; i<soundsToSend.size(); i++ ) {
-                SoundLocation *nextSound = soundsToSend.getElement( i );
-
-                char *line = autoSprintf( "%d %d %d %d\n", nextSound->objectID, nextSound->soundIndex,
-                    nextSound->x, nextSound->y );
-
-                numAdded++;
-                soundWorking.appendElementString( line );
-                delete [] line;
-                }
-            
-            soundWorking.push_back( '#' );
-            
-            if( numAdded > 0 ) {
-
-                char *soundMessageText = soundWorking.getElementString();
-                
-                soundMessageLength = strlen( soundMessageText );
-                
-                if( soundMessageLength < maxUncompressedSize ) {
-                    soundMessage = (unsigned char*)soundMessageText;
-                    }
-                else {
-                    // compress for all players once here
-                    soundMessage = makeCompressedMessage( 
-                        soundMessageText, 
-                        soundMessageLength, &soundMessageLength );
-                    
-                    delete [] soundMessageText;
-                    }
-                }
-            }
-
-
-
         unsigned char *healingMessage = NULL;
         int healingMessageLength = 0;
         
@@ -10708,6 +10665,27 @@ int main() {
                 int playerXD = nextPlayer->xd;
                 int playerYD = nextPlayer->yd;
                 
+                if( soundsToSend.size() > 0 ) {
+                    // compose SD messages for this player
+                    
+                    for( int u=0; u<soundsToSend.size(); u++ ) {
+                        SoundLocation *s = soundsToSend.getElement( u );
+                        
+                        char *soundMessage = 
+                            autoSprintf( "SD\n%d %d %d %d\n#", 
+                                         s->objectID,
+                                         s->soundIndex,
+                                         s->x -
+                                         nextPlayer->birthPos.x, 
+                                         s->y -
+                                         nextPlayer->birthPos.y );
+                        
+                        sendMessageToPlayer( nextPlayer, soundMessage,
+                                             strlen( soundMessage ) );
+                        delete [] soundMessage;
+                        }
+                }
+
                 if( nextPlayer->heldByOther ) {
                     LiveObject *holdingPlayer = 
                         getLiveObject( nextPlayer->heldByOtherID );
@@ -10908,22 +10886,6 @@ int main() {
                             false, false );
                     
                     if( numSent != healingMessageLength ) {
-                        setDeathReason( nextPlayer, "disconnected" );
-
-                        nextPlayer->error = true;
-                        nextPlayer->errorCauseString =
-                            "Socket write failed";
-                        }
-                    }
-
-                if( soundMessage != NULL ) {
-                    int numSent = 
-                        nextPlayer->sock->send( 
-                            soundMessage, 
-                            soundMessageLength, 
-                            false, false );
-                    
-                    if( numSent != soundMessageLength ) {
                         setDeathReason( nextPlayer, "disconnected" );
 
                         nextPlayer->error = true;

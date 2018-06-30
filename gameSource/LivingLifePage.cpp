@@ -8378,6 +8378,48 @@ void LivingLifePage::step() {
                     }
                 }            
             }
+        else if( type == SOUND ) {
+            int objectID, soundIndex, posX, posY;
+            
+            int numRead = sscanf( message, "SD\n%d %d %d %d",
+                                  &objectID, &soundIndex, &posX, &posY );
+            if( numRead == 3 ) {
+                applyReceiveOffset( &posX, &posY );
+                
+                ObjectRecord *soundObject = getObject( objectID );
+                SoundUsage sound;
+                char play = false;
+                switch( soundIndex ) {
+                    case 0:
+                        if( soundObject->creationSound.numSubSounds > 0 ) {
+                            sound = soundObject->creationSound;
+                            play = true;
+                        }
+                        break;
+                    case 1:
+                        if( soundObject->usingSound.numSubSounds > 0 ) {
+                            sound = soundObject->usingSound;
+                            play= true;
+                        }
+                        break;
+                    case 2:
+                        if( soundObject->eatingSound.numSubSounds > 0 ) {
+                            sound = soundObject->eatingSound;
+                            play = true;
+                        }
+                        break;
+                    case 3:
+                        if( soundObject->decaySound.numSubSounds > 0 ) {
+                            sound = soundObject->decaySound;
+                            play = true;
+                        }
+                        
+                        break;
+                    }
+                if( play ) {
+                    playSound( sound, getVectorFromCamera( posX, posY ) );
+                }
+            }
         else if( type == MAP_CHUNK ) {
             
             int sizeX = 0;
@@ -12237,66 +12279,6 @@ void LivingLifePage::step() {
                             break;
                             }
                         }
-                    }
-                delete [] lines[i];
-                }
-            delete [] lines;
-            }
-        else if( type == SOUND ) {
-            int numLines;
-            char **lines = split( message, "\n", &numLines );
-            
-            if( numLines > 0 ) {
-                // skip first
-                delete [] lines[0];
-                }
-            
-            
-            for( int i=1; i<numLines; i++ ) {
-
-
-                int objectID;
-                int soundIndex;
-                int x;
-                int y;
-                int numRead = sscanf( lines[i], "%d %d %d %d",
-                                      &( objectID ), &( soundIndex ), &( x ), &( y ) );
-
-                if( numRead == 4 ) {
-                    ObjectRecord *soundObject = getObject( objectID );
-                    SoundUsage sound;
-                    char play = false;
-                    switch( soundIndex ) {
-                        case 0:
-                            if( soundObject->creationSound.numSubSounds > 0 ) {
-                                sound = soundObject->creationSound;
-                                play = true;
-                            }
-                            break;
-                        case 1:
-                            if( soundObject->usingSound.numSubSounds > 0 ) {
-                                sound = soundObject->usingSound;
-                                play= true;
-                            }
-                            break;
-                        case 2:
-                            if( soundObject->eatingSound.numSubSounds > 0 ) {
-                                sound = soundObject->eatingSound;
-                                play = true;
-                            }
-                            break;
-                        case 3:
-                            if( soundObject->decaySound.numSubSounds > 0 ) {
-                                sound = soundObject->decaySound;
-                                play = true;
-                            }
-                            
-                            break;
-                        }
-                    if( play ) {
-                        playSound( sound, getVectorFromCamera( x, y ) );
-                    }
-
                     }
                 delete [] lines[i];
                 }
