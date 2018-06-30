@@ -12354,35 +12354,38 @@ void LivingLifePage::step() {
 
                 if( numRead == 4 ) {
                     ObjectRecord *soundObject = getObject( objectID );
-                    printf("Object %d has %d creation sub sounds\n", objectID, soundObject->creationSound.numSubSounds);
-                    printf("Object %d has %d using sub sounds\n", objectID, soundObject->usingSound.numSubSounds);
-                    printf("Object %d has %d eating sub sounds\n", objectID, soundObject->eatingSound.numSubSounds);
-                    printf("Object %d has %d decay sub sounds\n", objectID, soundObject->decaySound.numSubSounds);
                     SoundUsage sound;
+                    char play = false;
                     switch( soundIndex ) {
                         case 0:
                             if( soundObject->creationSound.numSubSounds > 0 ) {
                                 sound = soundObject->creationSound;
+                                play = true;
                             }
                             break;
                         case 1:
                             if( soundObject->usingSound.numSubSounds > 0 ) {
                                 sound = soundObject->usingSound;
+                                play= true;
                             }
                             break;
                         case 2:
                             if( soundObject->eatingSound.numSubSounds > 0 ) {
                                 sound = soundObject->eatingSound;
+                                play = true;
                             }
                             break;
                         case 3:
                             if( soundObject->decaySound.numSubSounds > 0 ) {
                                 sound = soundObject->decaySound;
+                                play = true;
                             }
                             
                             break;
                         }
-                    playSound( sound, getVectorFromCamera( x, y ) );
+                    if( play ) {
+                        playSound( sound, getVectorFromCamera( x, y ) );
+                    }
 
                     }
                 delete [] lines[i];
