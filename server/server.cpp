@@ -3333,86 +3333,46 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.lineage = new SimpleVector<int>();
 
     // this is to make people spawn with clothes and a knife, for testing of weapons and armour
+    newObject.clothing.hat = getObject( 4317 );
+    newObject.clothing.tunic = getObject( 4378 );
+    newObject.clothing.bottom = getObject( 4316 );
+    newObject.clothing.frontShoe = getObject( 766 );
+    newObject.clothing.backShoe = getObject( 766 );
     switch( newObject.nation ) {
         case 0: //     Avalon
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3710 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3711;
             break;
         case 1: //     Sparta
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3715 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3722;
             break;
         case 2: //     Lucky Foot Nation
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3718 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3833;
             break;
         case 3: //     Ivory
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3716 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3835;
             break;
         case 4: //     Oblivion
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3714 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3837;
             break;
         case 5: //     The Commonwealth
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3717 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3839;
             break;
         case 6: //     Baget
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3720 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3841;
             break;
         case 7: //     Meow Empire
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 3719 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 3843;
             break;
         default:
-            newObject.clothing.hat = getObject( 199 );
-            newObject.clothing.tunic = getObject( 202 );
             newObject.clothing.backpack = getObject( 4203 );
-            newObject.clothing.bottom = getObject( 200 );
-            newObject.clothing.frontShoe = getObject( 203 );
-            newObject.clothing.backShoe = getObject( 203 );
             newObject.holdingID = 4204;
     }
 
