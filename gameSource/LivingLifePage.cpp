@@ -8498,7 +8498,7 @@ void LivingLifePage::step() {
             
             int numRead = sscanf( message, "SD\n%d %d %d %d",
                                   &objectID, &soundIndex, &posX, &posY );
-            if( numRead == 3 ) {
+            if( numRead == 4 ) {
                 applyReceiveOffset( &posX, &posY );
                 
                 ObjectRecord *soundObject = getObject( objectID );
@@ -8533,6 +8533,7 @@ void LivingLifePage::step() {
                     }
                 if( play ) {
                     playSound( sound, getVectorFromCamera( posX, posY ) );
+                    }
                 }
             }
         else if( type == MAP_CHUNK ) {
