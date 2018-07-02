@@ -4,9 +4,43 @@ http://onehouronelife.com/updateLog.php
 
 
 
-Version 117    ???
+Server Fixes
+
+--Fixed typo in computation of stagger time for player who is wounded multiple
+  times.  Fixes #41.  Thanks UncleGus.
+
+
+
+Version 118    2018-June-29
 
 --Support for masked speech output in client (useful for making gifs).
+
+--Support for tutorial trigger on client login, and server loading a tutorial
+  map out in the unused wilderness and placing player at start of the tutorial.
+
+--Scene editor support for copy/paste of 6x6 area.  Fixed memory leak.
+
+--New crafting hint filter system.  Say /hatchet to show only hints relevant to
+  making a hatchet.  Say / by itself to clear the filter.
+
+--Time played in other lines before returning to a line pushed up to 1.5 hours.
+
+--People who kill, regardless of their time in a line (even less than a half
+  hour) are given the full lineage ban, just like murder victims.  Killing
+  counts as fully participating in a line.  This prevents grief-killers from
+  suiciding before 30 minutes and coming right back.
+
+--TEMP LOGIN button hidden along with login button when checking for FPS
+  mismatch (otherwise, someone might press TEMP LOGIN upon not seeing LOGIN at
+  first).
+
+--Typo in objectBank.  Fixes #39.  Good catch UncleGus.
+
+--Fixed so that you can never click on a held baby by clicking its last ground
+  position (could kill a held baby by accident when trying to set a weapon
+  down where they were standing before pick-up).
+
+
 
 
 
