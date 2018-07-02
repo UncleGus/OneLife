@@ -812,7 +812,9 @@ class LivingLifePage : public GamePage {
 
         char getCellBlocksWalking( int inMapX, int inMapY );
         
-        
+        char getCellBlocksWaterWalking( int inMapX, int inMapY, int inHoldingID );
+
+
         char mShowHighlights;
 
 

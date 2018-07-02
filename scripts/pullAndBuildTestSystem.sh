@@ -21,9 +21,11 @@ cd minorGems
 git pull --tags
 
 cd ../OneLife
+git checkout water
 git pull --tags
 
 cd ../OneLifeData7
+git checkout water
 git pull --tags
 
 rm */cache.fcz
@@ -60,6 +62,7 @@ make
 
 
 ln -s ../../OneLifeData7/categories .
+ln -s ../../OneLifeData7/ground .
 ln -s ../../OneLifeData7/objects .
 ln -s ../../OneLifeData7/transitions .
 ln -s ../../OneLifeData7/tutorialMaps .

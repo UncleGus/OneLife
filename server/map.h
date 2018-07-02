@@ -216,6 +216,9 @@ void restretchMapContainedDecays( int inX, int inY,
 
 int getMapBiome( int inX, int inY );
 
+char isWaterBiomeCell( int inX, int inY );
+
+
 
 
 // returns true on success

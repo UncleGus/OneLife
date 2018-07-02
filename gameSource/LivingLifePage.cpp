@@ -102,7 +102,7 @@ static char teaserVideo = false;
 static char showBugMessage = false;
 static const char *bugEmail = "jason" "rohrer" "@" "fastmail.fm";
 
-
+static int waterBiome = 100; // hardcoded for now as proof of concept
 
 // if true, pressing S key (capital S)
 // causes current speech and mask to be saved to the screenShots folder
@@ -1321,12 +1321,11 @@ void LivingLifePage::computePathToDest( LiveObject *inObject ) {
                 int mapI = mapY * mMapD + mapX;
             
                 // note that unknowns (-1) count as blocked too
-                if( mMap[ mapI ] == 0
-                    ||
-                    ( mMap[ mapI ] != -1 && 
-                      ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
-                    
-                    blockedMap[ y * pathFindingD + x ] = false;
+                blockedMap[ y * pathFindingD + x ] = false;
+
+                if( mMap[ mapI ] == -1 || ( mMap[ mapI ] > 0 && getObject( mMap[ mapI ] )->blocksWalking ) || 
+                    getCellBlocksWaterWalking( mapX, mapY, getOurLiveObject()->holdingID ) ) {
+                    blockedMap[ y * pathFindingD + x ] = true;
                     }
                 }
             }
@@ -1751,9 +1750,24 @@ void LivingLifePage::clearMap() {
         
         mMapPlayerPlacedFlags[i] = false;
         }
+    
+        
+        if( waterBiome == -100 ) {
+            FILE *waterFile = fopen( "ground/water.txt", "r" );
+            if( waterFile != NULL ) {
+                int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+                if( numRead != 1 ) {
+                    waterBiome = -50;
+                    printf( "Could not find waterBiome information in ground/water.txt\n" );
+                }
+                printf( "waterBiome=%d\n", waterBiome );
+                fclose( waterFile );
+            } else {
+                printf( "Problem reading water file from ground/water.txt\n" );
+            }
+        }
+
     }
-
-
 
 LivingLifePage::LivingLifePage() 
         : mServerSocket( -1 ), 
@@ -15440,8 +15454,7 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         
         if( destID > 0 && getObject( destID )->blocksWalking ) {
             return true;
-            }
-        else {
+        } else {
             // check for wide neighbors
             
             int r = getMaxWideRadius();
@@ -15478,7 +15491,61 @@ char LivingLifePage::getCellBlocksWalking( int inMapX, int inMapY ) {
         }
     }
 
+char LivingLifePage::getCellBlocksWaterWalking( int inMapX, int inMapY, int inHoldingID ) {
+    // printf("Checking %d, %d for blocking due to water; ", inMapX, inMapY);
+    int destBiome = mMapBiomes[ inMapY * mMapD + inMapX ];
+    if( destBiome == waterBiome ) {
+        // printf("This is a water cell; ");
+        int targetObjectID = mMap[ inMapY * mMapD + inMapX ];
+        if( targetObjectID > 0 ) {
+            ObjectRecord *targetObject = getObject( targetObjectID );
+            if( targetObject->rideable && targetObject->waterObject ) {
+                // printf("There is a rideable object (%d) that goes on water here, so this cell is not blocked\n", targetObjectID);
+                return false;
+            }
+        }
 
+        if( inHoldingID <= 0 ) {
+            // printf("The player is not holding or riding anything, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+
+        ObjectRecord *heldObject = getObject( inHoldingID );
+
+        if( !heldObject->rideable ) {
+            // printf("The player is holding something (%d), not riding anything, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+
+        // if the object the player is riding is not a water object,
+        // they cannot ride on the water
+        if( !heldObject->waterObject ) {
+            // printf("The player is riding something (%d) but not something that goes on water, so this cell is blocked\n", inHoldingID);
+            return true;
+        }
+        // printf("The player is riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
+        return false;
+    }
+        
+    // this is a land cell, if the player is riding a water object (boat)
+    // then they cannot move onto land
+    // printf("This is a land cell; ");
+    if( inHoldingID <= 0 ) {
+        // printf("The player is not holding/riding anything, so this cell is not blocked\n");
+        return false;
+    }
+    
+    ObjectRecord *heldObject = getObject( inHoldingID );
+    
+    if( heldObject->rideable &&
+        heldObject->waterObject ) {
+        // printf("The player is riding an object that goes on water (%d), so this cell is blocked\n", inHoldingID);
+        return true;
+    }
+
+    // printf("The player is not riding an object that goes on water (%d), so this cell is not blocked\n", inHoldingID);
+    return false;
+}
 
 
 void LivingLifePage::pointerDown( float inX, float inY ) {
@@ -15619,7 +15686,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
         // watch out for case where they mouse over a blocked spot by accident
         
-        if( getCellBlocksWalking( mapX, mapY ) ) {
+        if( getCellBlocksWalking( mapX, mapY ) || 
+            getCellBlocksWaterWalking( mapX, mapY, getOurLiveObject()->holdingID ) ) {
             printf( "Blocked at cont move click dest %d,%d\n",
                     clickDestX, clickDestY );
             
@@ -15637,7 +15705,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     }
 
                 for( int xd=step; xd != limit; xd += step ) {
-                    if( ! getCellBlocksWalking( mapX + xd, mapY ) ) {
+                    if( ! getCellBlocksWalking( mapX + xd, mapY ) &&
+                        ! getCellBlocksWaterWalking( mapX + xd, mapY, getOurLiveObject()->holdingID ) ) {
                         // found
                         clickDestX += xd;
                         break;
@@ -15652,7 +15721,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     }
 
                 for( int yd=step; yd != limit; yd += step ) {
-                    if( ! getCellBlocksWalking( mapX, mapY + yd ) ) {
+                    if( ! getCellBlocksWalking( mapX, mapY + yd ) &&
+                        ! getCellBlocksWaterWalking( mapX, mapY + yd, getOurLiveObject()->holdingID ) ) {
                         // found
                         clickDestY += yd;
                         break;
@@ -15835,7 +15905,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         
         // clicked on empty space near an object
         
-        if( ! getObject( destID )->blocksWalking ) {
+        if( !getObject( destID )->blocksWalking && 
+            !getCellBlocksWaterWalking( mapY, mapX, getOurLiveObject()->holdingID ) ) {
             
             // object in this space not blocking
             
@@ -15871,7 +15942,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
 
                         if( oID == 0 
                             ||
-                            ( oID > 0 && ! getObject( oID )->blocksWalking ) ) {
+                            ( oID > 0 && ! getObject( oID )->blocksWalking &&
+                            ! getCellBlocksWaterWalking( mapPY, mapPX, getOurLiveObject()->holdingID ) ) ) {
 
 
                             double d2 = distance2( p, clickP );
@@ -16328,7 +16400,8 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                     if( mMap[ mapI ] == 0
                         ||
                         ( mMap[ mapI ] != -1 && 
-                          ! getObject( mMap[ mapI ] )->blocksWalking ) ) {
+                          ! getObject( mMap[ mapI ] )->blocksWalking &&
+                          ! getCellBlocksWaterWalking( x, y, getOurLiveObject()->holdingID ) ) ) {
                         
                         int emptyX = clickDestX + nDX[n];
                         int emptyY = clickDestY + nDY[n];

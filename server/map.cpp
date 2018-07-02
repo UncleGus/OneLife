@@ -169,6 +169,43 @@ static double gapIntScale = 1000000.0;
 // object ids that occur naturally on map at random, per biome
 static int numBiomes;
 static int *biomes;
+static double *biomeBiases;
+
+typedef enum direction {
+	NORTH,
+    EAST,
+    SOUTH,
+    WEST,
+    UNKNOWN
+    } direction;
+
+
+// these will all be read in from a file
+static int waterBiome = -100;
+static int waterScale = 1;
+static double biomeScale = 0.83332;
+static int waterLength = -1;
+static int waterSpawnId = -1;
+static int waterSouthToNorth = -1;
+static int waterWestToEast = -1;
+static int waterNorthToSouth = -1;
+static int waterEastToWest = -1;
+static int waterSouthToEast = -1;
+static int waterSouthToWest = -1;
+static int waterWestToSouth = -1;
+static int waterWestToNorth = -1;
+static int waterNorthToWest = -1;
+static int waterNorthToEast = -1;
+static int waterEastToNorth = -1;
+static int waterEastToSouth = -1;
+static int waterSpringToNorth = -1;
+static int waterSpringToEast = -1;
+static int waterSpringToSouth = -1;
+static int waterSpringToWest = -1;
+static int waterSouthToLake = -1;
+static int waterWestToLake = -1;
+static int waterNorthToLake = -1;
+static int waterEastToLake = -1;
 
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
@@ -657,11 +694,18 @@ static int computeMapBiomeIndex( int inX, int inY,
         
         setXYRandomSeed( biome * 263 + 723 );
 
+        double thisScale = biomeScale + ( biomeScale / 10 * numBiomes );
+        if( biome == waterBiome ) {
+            thisScale *= waterScale;
+        }
         double randVal = getXYFractal(  inX,
                                         inY,
                                         0.55, 
-                                        0.83332 + 0.08333 * numBiomes );
+                                        thisScale );
+
         
+        randVal += biomeBiases[i];
+
         if( randVal > maxValue ) {
             // a new first place
             
@@ -901,9 +945,6 @@ static int getBaseMap( int inX, int inY ) {
     
     if( getXYRandom( inX, inY ) < density ) {
 
-
-
-
         // next step, pick top two biomes
         int secondPlace;
         double secondPlaceGap;
@@ -911,6 +952,7 @@ static int getBaseMap( int inX, int inY ) {
         int pickedBiome = getMapBiomeIndex( inX, inY, &secondPlace,
                                             &secondPlaceGap );
         
+
         if( pickedBiome == -1 ) {
             mapCacheInsert( inX, inY, 0 );
             return 0;
@@ -918,6 +960,14 @@ static int getBaseMap( int inX, int inY ) {
         
         lastCheckedBiome = biomes[pickedBiome];
         
+        // we don't want stream spawn objects spawning
+        // on non-water biomes, so if the second place biome
+        // is water, implying that the first place is not,
+        // then we don't want water biome objects to be spawned
+        // we also don't want non-water objects spawning in water cells
+        if( biomes[secondPlace] == waterBiome || biomes[pickedBiome] == waterBiome ) {
+            secondPlace = pickedBiome;
+        }
 
         
         // randomly let objects from second place biome peek through
@@ -1059,8 +1109,8 @@ void outputMapImage() {
     
     // output a chunk of the map as an image
 
-    int w =  500;
-    int h = 500;
+    int w = 1000;
+    int h = 1000;
     
     Image objIm( w, h, 3, true );
     Image biomeIm( w, h, 3, true );
@@ -1998,7 +2048,7 @@ void initMap() {
     else {
         printf( "No shutdownLongLineagePos.txt file exists\n" );
         
-        // look for longest monument log file
+        // look for longest monument log
         // that has been touched in last 24 hours
         // (ignore spots that may have been culled)
         File f( NULL, "monumentLogs" );
@@ -2392,7 +2442,7 @@ void initMap() {
     
     // first, find all biomes
     SimpleVector<int> biomeList;
-    
+    SimpleVector<double> biomeBiasList;
     
     for( int i=0; i<numObjects; i++ ) {
         ObjectRecord *o = allObjects[i];
@@ -2448,6 +2498,34 @@ void initMap() {
         }
 
 
+    for( int i=0; i<numBiomes; i++ ) {
+        SimpleVector<char> fileNameWorking;
+        char *fileNameString = autoSprintf("ground/ground_%d.txt", biomes[i]);
+        fileNameWorking.appendElementString( fileNameString );
+        delete fileNameString;
+        char *fileName = fileNameWorking.getElementString();
+        FILE *biomeFile = fopen( fileName, "r" );
+                
+        double biomeBias = 0.0;
+
+        if( biomeFile == NULL ) {
+            biomeBiasList.push_back( 0.0 );
+        } else {
+            int numRead = fscanf( biomeFile, "%lf", &biomeBias );
+            if( numRead >= 1 ) {
+                biomeBiasList.push_back( biomeBias );
+            } else {
+                biomeBiasList.push_back( 0.0 );
+            }
+            fclose( biomeFile );
+        }
+    }
+    biomeBiases = biomeBiasList.getElementArray();
+
+    for( int i=0; i<numBiomes; i++ ) {
+        AppLog::infoF( "Biome %d: bias %f", biomes[i], biomeBiases[i] );
+    }
+
     for( int j=0; j<numBiomes; j++ ) {    
         AppLog::infoF( 
             "Biome %d:  Found %d natural objects with total weight %f",
@@ -2455,6 +2533,68 @@ void initMap() {
         }
     
     delete [] allObjects;
+
+    AppLog::infoF( "Reading water biome information " );
+    FILE *waterFile = fopen( "ground/water.txt", "r" );
+        if( waterFile != NULL ) {
+            int numRead = fscanf( waterFile, "waterBiome=%d\n", &waterBiome );
+            numRead += fscanf( waterFile, "waterScale=%d\n", &waterScale );
+            numRead += fscanf( waterFile, "biomeScale=%lf\n", &biomeScale );
+            numRead += fscanf( waterFile, "waterLength=%d\n", &waterLength );
+            numRead += fscanf( waterFile, "waterSpawnId=%d\n", &waterSpawnId );
+            numRead += fscanf( waterFile, "waterSouthToNorth=%d\n", &waterSouthToNorth );
+            numRead += fscanf( waterFile, "waterWestToEast=%d\n", &waterWestToEast );
+            numRead += fscanf( waterFile, "waterNorthToSouth=%d\n", &waterNorthToSouth );
+            numRead += fscanf( waterFile, "waterEastToWest=%d\n", &waterEastToWest );
+            numRead += fscanf( waterFile, "waterSouthToEast=%d\n", &waterSouthToEast );
+            numRead += fscanf( waterFile, "waterSouthToWest=%d\n", &waterSouthToWest );
+            numRead += fscanf( waterFile, "waterWestToSouth=%d\n", &waterWestToSouth );
+            numRead += fscanf( waterFile, "waterWestToNorth=%d\n", &waterWestToNorth );
+            numRead += fscanf( waterFile, "waterNorthToWest=%d\n", &waterNorthToWest );
+            numRead += fscanf( waterFile, "waterNorthToEast=%d\n", &waterNorthToEast );
+            numRead += fscanf( waterFile, "waterEastToNorth=%d\n", &waterEastToNorth );
+            numRead += fscanf( waterFile, "waterEastToSouth=%d\n", &waterEastToSouth );
+            numRead += fscanf( waterFile, "waterSpringToNorth=%d\n", &waterSpringToNorth );
+            numRead += fscanf( waterFile, "waterSpringToEast=%d\n", &waterSpringToEast );
+            numRead += fscanf( waterFile, "waterSpringToSouth=%d\n", &waterSpringToSouth );
+            numRead += fscanf( waterFile, "waterSpringToWest=%d\n", &waterSpringToWest );
+            numRead += fscanf( waterFile, "waterSouthToLake=%d\n", &waterSouthToLake );
+            numRead += fscanf( waterFile, "waterWestToLake=%d\n", &waterWestToLake );
+            numRead += fscanf( waterFile, "waterNorthToLake=%d\n", &waterNorthToLake );
+            numRead += fscanf( waterFile, "waterEastToLake=%d\n", &waterEastToLake );
+            if( numRead != 25 ) {
+                waterBiome = -100;
+                AppLog::infoF( "Not all information found in ground/water.txt, only %d of 25 required lines found", numRead );
+            }
+            AppLog::infoF( "waterBiome=%d", waterBiome );
+            AppLog::infoF( "waterScale=%d", waterScale );
+            AppLog::infoF( "biomeScale=%lf", biomeScale );
+            AppLog::infoF( "waterLength=%d", waterLength );
+            AppLog::infoF( "waterSpawnId=%d", waterSpawnId );
+            AppLog::infoF( "waterSouthToNorth=%d", waterSouthToNorth );
+            AppLog::infoF( "waterWestToEast=%d", waterWestToEast );
+            AppLog::infoF( "waterNorthToSouth=%d", waterNorthToSouth );
+            AppLog::infoF( "waterEastToWest=%d", waterEastToWest );
+            AppLog::infoF( "waterSouthToEast=%d", waterSouthToEast );
+            AppLog::infoF( "waterSouthToWest=%d", waterSouthToWest );
+            AppLog::infoF( "waterWestToSouth=%d", waterWestToSouth );
+            AppLog::infoF( "waterWestToNorth=%d", waterWestToNorth );
+            AppLog::infoF( "waterNorthToWest=%d", waterNorthToWest );
+            AppLog::infoF( "waterNorthToEast=%d", waterNorthToEast );
+            AppLog::infoF( "waterEastToNorth=%d", waterEastToNorth );
+            AppLog::infoF( "waterEastToSouth=%d", waterEastToSouth );
+            AppLog::infoF( "waterSpringToNorth=%d", waterSpringToNorth );
+            AppLog::infoF( "waterSpringToEast=%d", waterSpringToEast );
+            AppLog::infoF( "waterSpringToSouth=%d", waterSpringToSouth );
+            AppLog::infoF( "waterSpringToWest=%d", waterSpringToWest );
+            AppLog::infoF( "waterSouthToLake=%d", waterSouthToLake );
+            AppLog::infoF( "waterWestToLake=%d", waterWestToLake );
+            AppLog::infoF( "waterNorthToLake=%d", waterNorthToLake );
+            AppLog::infoF( "waterEastToLake=%d", waterEastToLake );
+            fclose( waterFile );
+        } else {
+            AppLog::infoF( "Problem reading water file from ground/water.txt" );
+        }
 
 
     int totalSetCount = cleanMap();
@@ -2512,9 +2652,9 @@ void initMap() {
     
     // for debugging the map
     // printBiomeSamples();
-    //outputMapImage();
+    // outputMapImage();
 
-    //outputBiomeFractals();
+    // outputBiomeFractals();
     }
 
 
@@ -4213,8 +4353,195 @@ int getMapBiome( int inX, int inY ) {
     return biomes[getMapBiomeIndex( inX, inY )];
     }
 
+char isWaterBiomeCell( int inX, int inY ) {
+    return getMapBiome( inX, inY ) == waterBiome;
+}
 
+void placeWaterTile( int inX, int inY, direction oldDirection, direction newDirection ) {
+    switch( oldDirection ) {
+        case NORTH:
+            switch( newDirection ) {
+                case NORTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterNorthToSouth", waterNorthToSouth, inX, inY );
+                    setMapObject( inX, inY, waterNorthToSouth);
+                    mapCacheInsert( inX, inY, waterNorthToSouth);
+                break;
+                case EAST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterEastToSouth", waterEastToSouth, inX, inY );
+                    setMapObject( inX, inY, waterEastToSouth);
+                    mapCacheInsert( inX, inY, waterEastToSouth);
+                break;
+                case WEST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterWestToSouth", waterWestToSouth, inX, inY );
+                    setMapObject( inX, inY, waterWestToSouth);
+                    mapCacheInsert( inX, inY, waterWestToSouth);
+                break;
+                case SOUTH:
+                case UNKNOWN:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSpringToSouth", waterSpringToSouth, inX, inY );
+                    setMapObject( inX, inY, waterSpringToSouth);
+                    mapCacheInsert( inX, inY, waterSpringToSouth);
+                break;
+            }
+        break;
+        case EAST:
+            switch( newDirection ) {
+                case NORTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterNorthToWest", waterNorthToWest, inX, inY );
+                    setMapObject( inX, inY, waterNorthToWest);
+                    mapCacheInsert( inX, inY, waterNorthToWest);
+                break;
+                case EAST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterEastToWest", waterEastToWest, inX, inY );
+                    setMapObject( inX, inY, waterEastToWest);
+                    mapCacheInsert( inX, inY, waterEastToWest);
+                break;
+                case SOUTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSouthToWest", waterSouthToWest, inX, inY );
+                    setMapObject( inX, inY, waterSouthToWest);
+                    mapCacheInsert( inX, inY, waterSouthToWest);
+                break;
+                case WEST:
+                case UNKNOWN:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSpringToWest", waterSpringToWest, inX, inY );
+                    setMapObject( inX, inY, waterSpringToWest);
+                    mapCacheInsert( inX, inY, waterSpringToWest);
+                break;
+            }
+        break;
+        case SOUTH:
+            switch( newDirection ) {
+                case EAST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterEastToNorth", waterEastToNorth, inX, inY );
+                    setMapObject( inX, inY, waterEastToNorth);
+                    mapCacheInsert( inX, inY, waterEastToNorth);
+                break;
+                case SOUTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSouthToNorth", waterSouthToNorth, inX, inY );
+                    setMapObject( inX, inY, waterSouthToNorth);
+                    mapCacheInsert( inX, inY, waterSouthToNorth);
+                break;
+                case WEST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterWestToNorth", waterWestToNorth, inX, inY );
+                    setMapObject( inX, inY, waterWestToNorth);
+                    mapCacheInsert( inX, inY, waterWestToNorth);
+                break;
+                case NORTH:
+                case UNKNOWN:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSpringToNorth", waterSpringToNorth, inX, inY );
+                    setMapObject( inX, inY, waterSpringToNorth);
+                    mapCacheInsert( inX, inY, waterSpringToNorth);
+                break;
+            }
+        break;
+        case WEST:
+            switch( newDirection ) {
+                case NORTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterNorthToEast", waterNorthToEast, inX, inY );
+                    setMapObject( inX, inY, waterNorthToEast);
+                    mapCacheInsert( inX, inY, waterNorthToEast);
+                break;
+                case SOUTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSouthToEast", waterSouthToEast, inX, inY );
+                    setMapObject( inX, inY, waterSouthToEast);
+                    mapCacheInsert( inX, inY, waterSouthToEast);
+                break;
+                case WEST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterWestToEast", waterWestToEast, inX, inY );
+                    setMapObject( inX, inY, waterWestToEast);
+                    mapCacheInsert( inX, inY, waterWestToEast);
+                break;
+                case EAST:
+                case UNKNOWN:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSpringToEast", waterSpringToEast, inX, inY );
+                    setMapObject( inX, inY, waterSpringToEast);
+                    mapCacheInsert( inX, inY, waterSpringToEast);
+                break;
+            }
+        break;
+        case UNKNOWN:
+            switch( newDirection ) {
+                case NORTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterNorthToLake", waterNorthToLake, inX, inY );
+                    setMapObject( inX, inY, waterNorthToLake);
+                    mapCacheInsert( inX, inY, waterNorthToLake);
+                break;
+                case SOUTH:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterSouthToLake", waterSouthToLake, inX, inY );
+                    setMapObject( inX, inY, waterSouthToLake);
+                    mapCacheInsert( inX, inY, waterSouthToLake);
+                break;
+                case WEST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterWestToLake", waterWestToLake, inX, inY );
+                    setMapObject( inX, inY, waterWestToLake);
+                    mapCacheInsert( inX, inY, waterWestToLake);
+                break;
+                case EAST:
+                    AppLog::infoF( "Placing tile id %d at %d, %d waterEastToLake", waterEastToLake, inX, inY );
+                    setMapObject( inX, inY, waterEastToLake);
+                    mapCacheInsert( inX, inY, waterEastToLake);
+                break;
+                case UNKNOWN:
+                    AppLog::infoF( "Not placing a tile at %d, %d", inX, inY );
+                break;
+            }
+        break;
+    }
+}
 
+char isWaterBiome( int inX, int inY ) {
+    return getMapBiome( inX, inY ) == waterBiome;
+}
+
+char isOccupiedByWideObject( int inX, int inY ) {
+    int maxWideRadius = getMaxWideRadius();
+    for( int ii=1; ii<=maxWideRadius; ii++ ) {
+        int objId = getMapObject( inX+ii, inY );
+        if( objId < 1 ) {
+            continue;
+        }
+        ObjectRecord *obj = getObject( objId );
+        if( obj->leftBlockingRadius >= ii ) {
+            return true;
+        }
+    }
+    for( int ii=0; ii<=maxWideRadius; ii++ ) {
+        int objId = getMapObject( inX-ii, inY );
+        if( objId < 1 ) {
+            continue;
+        }
+        ObjectRecord *obj = getObject( objId );
+        if( obj->leftBlockingRadius >= ii ) {
+            return true;
+        }
+    }
+    return false;
+}
+ 
+char isWaterObjectCell( int inX, int inY ) {
+    int cellObject = getMapObject( inX, inY );
+    if ( cellObject == waterSouthToNorth ||
+        cellObject == waterWestToEast ||
+        cellObject == waterNorthToSouth ||
+        cellObject == waterEastToWest ||
+        cellObject == waterSouthToEast ||
+        cellObject == waterSouthToWest ||
+        cellObject == waterWestToSouth ||
+        cellObject == waterWestToNorth ||
+        cellObject == waterNorthToWest ||
+        cellObject == waterNorthToEast ||
+        cellObject == waterEastToNorth ||
+        cellObject == waterEastToSouth ||
+        cellObject == waterSpringToNorth ||
+        cellObject == waterSpringToEast ||
+        cellObject == waterSpringToSouth ||
+        cellObject == waterSpringToWest ) {
+        // AppLog::infoF( "cellObject %d at %d, %d is a water object", cellObject, inX, inY );
+        return true;
+    }
+    // AppLog::infoF( "cellObject %d at %d, %d is not a water object", cellObject, inX, inY );
+    return false;
+}
 
 // returns properly formatted chunk message for chunk centered
 // around x,y
@@ -4240,13 +4567,12 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
     int endY = inStartY + inHeight;
     int endX = inStartX + inWidth;
 
-    
-    
     for( int y=inStartY; y<endY; y++ ) {
         int chunkY = y - inStartY;
         
 
         for( int x=inStartX; x<endX; x++ ) {
+
             int chunkX = x - inStartX;
             
             int cI = chunkY * inWidth + chunkX;
@@ -4254,6 +4580,145 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
             lastCheckedBiome = -1;
             
             chunk[cI] = getMapObject( x, y );
+
+            if( chunk[cI] == waterSpawnId && waterBiome > -100 ) {
+                // remove object at x, y
+                AppLog::infoF( "Removing initial spawn trigger object at %d, %d", x, y );
+                setMapObject( x, y, 0);
+                mapCacheInsert( x, y, 0);
+
+                // generate a stream length
+                setXYRandomSeed( 9476 );
+                int streamLength = getXYRandom( x, y ) * waterLength;
+                AppLog::infoF( "================SPAWNING A STREAM AT %d, %d OF LENGTH %d==================", x, y, streamLength );
+                direction newCellDirection = UNKNOWN;
+                direction oldCellDirection = UNKNOWN;
+                direction dominantDirection = UNKNOWN;
+                int oldX = x;
+                int oldY = y;
+                direction checkOrder [4] = { NORTH, EAST, SOUTH, WEST };
+                for( int nn=0; nn<10; nn++ ) {
+                    int firstIndex = getXYRandom( x + nn * 10, y ) * 4;
+                    int secondIndex = getXYRandom( x, y + nn * 10 ) * 4;
+                    direction holder = checkOrder[secondIndex];
+                    checkOrder[secondIndex] = checkOrder[firstIndex];
+                    checkOrder[firstIndex] = holder;
+                }
+                
+                while( streamLength > 0 ) {
+                    oldCellDirection = newCellDirection;
+                    newCellDirection = UNKNOWN;
+                    if( dominantDirection == UNKNOWN ) {
+                        dominantDirection = oldCellDirection;
+                    }
+                    // AppLog::infoF( "Rest of stream length is %d", streamLength );
+                    // AppLog::infoF( "oldCellDirection is %d", oldCellDirection );
+                    for( int nn=0; nn<4; nn++ ) {
+                        int firstIndex = getXYRandom( oldX + nn * 10, oldY ) * 4;
+                        int secondIndex = getXYRandom( oldX, oldY + nn * 10 ) * 4;
+                        direction holder = checkOrder[secondIndex];
+                        checkOrder[secondIndex] = checkOrder[firstIndex];
+                        checkOrder[firstIndex] = holder;
+                    }
+                    int checkIndex = 0;
+                    int checkX;
+                    int checkY;
+                    if( dominantDirection != UNKNOWN && getXYRandom( oldX + 243, oldY - 723 ) * 10 > 5 ) {
+                        switch( dominantDirection ) {
+                            case NORTH:
+                                // AppLog::infoF( "NORTH");
+                                checkX = oldX;
+                                checkY = oldY + 1;
+                            break;
+                            case EAST:
+                                // AppLog::infoF( "EAST");
+                                checkX = oldX + 1;
+                                checkY = oldY;
+                            break;
+                            case SOUTH:
+                                // AppLog::infoF( "SOUTH");
+                                checkX = oldX;
+                                checkY = oldY - 1;
+                            break;
+                            case WEST:
+                                // AppLog::infoF( "WEST");
+                                checkX = oldX - 1;
+                                checkY = oldY;
+                            break;
+                            case UNKNOWN:
+                                // AppLog::infoF( "UNKNOWN" );
+                            break;
+                        }
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY ) &&
+                            !isOccupiedByWideObject( checkX, checkY )
+                        ) {
+                            newCellDirection = dominantDirection;
+                            // AppLog::infoF( "Found a suitable cell" );
+                        }
+
+                    }
+                    while( newCellDirection == UNKNOWN && checkIndex < 4) {
+                        // AppLog::infoF( "Making check #%d for empty dry cell", checkIndex );
+                        // AppLog::infoF( "Starting from cell %d, %d and checking ", oldX, oldY );
+                        switch( checkOrder[checkIndex] ) {
+                            case NORTH:
+                                // AppLog::infoF( "NORTH");
+                                checkX = oldX;
+                                checkY = oldY + 1;
+                            break;
+                            case EAST:
+                                // AppLog::infoF( "EAST");
+                                checkX = oldX + 1;
+                                checkY = oldY;
+                            break;
+                            case SOUTH:
+                                // AppLog::infoF( "SOUTH");
+                                checkX = oldX;
+                                checkY = oldY - 1;
+                            break;
+                            case WEST:
+                                // AppLog::infoF( "WEST");
+                                checkX = oldX - 1;
+                                checkY = oldY;
+                            break;
+                            case UNKNOWN:
+                                // AppLog::infoF( "UNKNOWN" );
+                            break;
+                        }
+                        // AppLog::infoF( " in cell %d, %d", checkX, checkY);
+                        // if this new cell is not a water cell and does not already contain a water tile
+                        if( !isWaterBiome( checkX, checkY ) && !isWaterObjectCell( checkX, checkY )) {
+                            newCellDirection = checkOrder[checkIndex];
+                            // AppLog::infoF( "Found a suitable cell" );
+                        } else {
+                            // AppLog::infoF( "This cell is not suitable" );
+                            checkIndex++;
+                        }
+                    }
+                    if( newCellDirection != UNKNOWN ) {
+                        // we have a new cell to place a water tile in
+                        // first we need to place the appropriate water cell in
+                        // the tile we just came from, now that we know the two directions
+                        placeWaterTile( oldX, oldY, oldCellDirection, newCellDirection );
+                        oldX = checkX;
+                        oldY = checkY;
+                        streamLength--;
+                    } else {
+                        // we couldn't find a new cell to place a water tile in,
+                        // finish the stream here
+                        // AppLog::infoF( "Dead end" );
+                        newCellDirection = oldCellDirection;
+                        streamLength = 0;
+                    }
+                }
+                AppLog::infoF( "End of stream" );
+
+                // place headwater at oldX, oldY, based on oldCellDirection
+                oldCellDirection = newCellDirection;
+                newCellDirection = UNKNOWN;
+                placeWaterTile( oldX, oldY, oldCellDirection, newCellDirection );
+
+            }
 
             if( lastCheckedBiome == -1 ) {
                 // biome wasn't checked in order to compute
@@ -4288,8 +4753,8 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
                         
                         int numSubContained;
                         int *subContained = getContained( x, y, 
-                                                          &numSubContained,
-                                                          i + 1 );
+                                                        &numSubContained,
+                                                        i + 1 );
                         if( subContained != NULL ) {
                             subContainedStackSizes[cI][i] = numSubContained;
                             subContainedStacks[cI][i] = subContained;
@@ -4306,7 +4771,6 @@ unsigned char *getChunkMessage( int inStartX, int inStartY,
             }
         
         }
-
 
 
     SimpleVector<unsigned char> chunkDataBuffer;
