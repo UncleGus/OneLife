@@ -65,6 +65,7 @@ ln -s ../../OneLifeData7/categories .
 ln -s ../../OneLifeData7/ground .
 ln -s ../../OneLifeData7/objects .
 ln -s ../../OneLifeData7/transitions .
+ln -s ../../OneLifeData7/tutorialMaps .
 ln -s ../../OneLifeData7/dataVersionNumber.txt .
 
 

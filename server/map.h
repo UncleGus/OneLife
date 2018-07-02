@@ -220,4 +220,12 @@ char isWaterBiomeCell( int inX, int inY );
 
 
 
+
+// returns true on success
+// example:
+// loadTutorial( "tutorialA.txt", 10000, 10000 )
+char loadTutorial( const char *inMapFileName, int inX, int inY );
+
+
+
 #endif

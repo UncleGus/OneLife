@@ -165,6 +165,8 @@ typedef struct FreshConnection {
         double connectionStartTimeSeconds;
 
         char *email;
+        
+        int tutorialNumber;
     } FreshConnection;
 
 
@@ -185,6 +187,8 @@ typedef struct LiveObject {
         char *lastSay;
 
         char isEve;        
+
+        char isTutorial;
 
         GridPos birthPos;
 
@@ -297,6 +301,9 @@ typedef struct LiveObject {
         // or if they were killed by a non-person, what was it?
         int deathSourceID;
         
+        // true if this character landed a mortal wound on another player
+        char everKilledOther;
+
 
         Socket *sock;
         SimpleVector<char> *sockBuffer;
@@ -3035,7 +3042,12 @@ static LiveObject *getHitPlayer( int inX, int inY,
         if( otherPlayer->error ) {
             continue;
             }
-
+        
+        if( otherPlayer->heldByOther ) {
+            // ghost position of a held baby
+            continue;
+            }
+        
         if( inMaxAge != -1 &&
             computeAge( otherPlayer ) > inMaxAge ) {
             continue;
@@ -3114,12 +3126,20 @@ static LiveObject *getHitPlayer( int inX, int inY,
     
 
 
+
+// for placement of tutorials out of the way 
+static int maxPlacementX = 5000000;
+
+// each subsequent tutorial gets put in a diferent place
+static int tutorialCount = 0;
+
         
 
 
 void processLoggedInPlayer( Socket *inSock,
                             SimpleVector<char> *inSockBuffer,
-                            char *inEmail ) {
+                            char *inEmail,
+                            int inTutorialNumber ) {
     
     // reload these settings every time someone new connects
     // thus, they can be changed without restarting the server
@@ -3156,7 +3176,12 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.displayID = getRandomPersonObject();
     
     newObject.isEve = false;
-
+    
+    newObject.isTutorial = false;
+    
+    if( inTutorialNumber > 0 ) {
+        newObject.isTutorial = true;
+        }
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
     newObject.lifeStartTimeSeconds = newObject.trueStartTimeSeconds;
@@ -3195,6 +3220,10 @@ void processLoggedInPlayer( Socket *inSock,
         LiveObject *player = players.getElement( i );
         
         if( player->error ) {
+            continue;
+            }
+
+        if( player->isTutorial ) {
             continue;
             }
 
@@ -3260,6 +3289,13 @@ void processLoggedInPlayer( Socket *inSock,
             }
         }
 
+
+    if( inTutorialNumber > 0 ) {
+        // Tutorial always played full-grown
+        parentChoices.deleteAll();
+        }
+
+
     newObject.parentChainLength = 1;
 
     if( parentChoices.size() == 0 || numOfAge == 0 ) {
@@ -3311,6 +3347,13 @@ void processLoggedInPlayer( Socket *inSock,
         // babies start out almost starving
         newObject.foodStore = 2;
         }
+    
+    if( newObject.isTutorial && newObject.foodStore > 10 ) {
+        // so they can practice eating at the beginning of the tutorial
+        newObject.foodStore -= 6;
+        }
+    
+
 
     newObject.heat = 0.5;
 
@@ -3341,9 +3384,12 @@ void processLoggedInPlayer( Socket *inSock,
     
     
     LiveObject *parent = NULL;
-                
-    if( parentChoices.size() > 0 ) {
 
+    char placed = false;
+    
+    if( parentChoices.size() > 0 ) {
+        placed = true;
+        
         if( newObject.isEve ) {
             // spawned next to random existing player
             int parentIndex = 
@@ -3502,8 +3548,49 @@ void processLoggedInPlayer( Socket *inSock,
             newObject.xd = cPos.x;
             newObject.yd = cPos.y;
             }
-        }                    
-    else {
+        
+        if( newObject.xs > maxPlacementX ) {
+            maxPlacementX = newObject.xs;
+            }
+        }
+    else if( inTutorialNumber > 0 ) {
+        
+        int startX = maxPlacementX * 2;
+        int startY = tutorialCount * 100;
+
+        newObject.xs = startX;
+        newObject.ys = startY;
+        
+        newObject.xd = startX;
+        newObject.yd = startY;
+
+        char *mapFileName = autoSprintf( "tutorial%d.txt", inTutorialNumber );
+        
+        placed = loadTutorial( mapFileName, startX, startY );
+        
+        delete [] mapFileName;
+
+        tutorialCount ++;
+
+        int maxPlayers = 
+            SettingsManager::getIntSetting( "maxPlayers", 200 );
+
+        if( tutorialCount > maxPlayers * 2 ) {
+            // wrap back to 0 so we don't keep getting farther
+            // and farther away on map if server runs for a long time.
+
+            // The earlier-placed tutorials are over by now, because
+            // we can't have more than maxPlayers tutorials running at once
+            
+            tutorialCount = 0;
+            }
+        }
+    
+    
+    if( !placed ) {
+        // tutorial didn't happen if not placed
+        newObject.isTutorial = false;
+        
         // else starts at civ outskirts (lone Eve)
         int startX, startY;
         do {
@@ -3523,7 +3610,11 @@ void processLoggedInPlayer( Socket *inSock,
         newObject.ys = startY;
         
         newObject.xd = startX;
-        newObject.yd = startY;    
+        newObject.yd = startY;
+
+        if( newObject.xs > maxPlacementX ) {
+            maxPlacementX = newObject.xs;
+            }
         }
     
 
@@ -3609,6 +3700,8 @@ void processLoggedInPlayer( Socket *inSock,
     newObject.murderPerpEmail = NULL;
     
     newObject.deathSourceID = 0;
+    
+    newObject.everKilledOther = false;
     
 
     newObject.sock = inSock;
@@ -3699,6 +3792,7 @@ void processLoggedInPlayer( Socket *inSock,
     players.push_back( newObject );            
 
 
+    if( ! newObject.isTutorial )        
     logBirth( newObject.id,
               newObject.email,
               newObject.parentID,
@@ -3709,8 +3803,9 @@ void processLoggedInPlayer( Socket *inSock,
               players.size(),
               newObject.parentChainLength );
     
-    AppLog::infoF( "New player %s connected as player %d",
-                   newObject.email, newObject.id );
+    AppLog::infoF( "New player %s connected as player %d (tutorial=%d)",
+                   newObject.email, newObject.id,
+                   inTutorialNumber );
     }
 
 
@@ -5111,6 +5206,8 @@ int main() {
 
                 newConnection.sequenceNumber = nextSequenceNumber;
                 
+                newConnection.tutorialNumber = 0;
+
                 nextSequenceNumber ++;
                 
                 SettingsManager::setSetting( "sequenceNumber",
@@ -5270,7 +5367,8 @@ int main() {
                             processLoggedInPlayer( 
                                 nextConnection->sock,
                                 nextConnection->sockBuffer,
-                                nextConnection->email );
+                                nextConnection->email,
+                                nextConnection->tutorialNumber );
                             
                             delete nextConnection->ticketServerRequest;
                             newConnections.deleteElement( i );
@@ -5328,7 +5426,7 @@ int main() {
                         SimpleVector<char *> *tokens =
                             tokenizeString( message );
                         
-                        if( tokens->size() == 4 ) {
+                        if( tokens->size() == 4 || tokens->size() == 5 ) {
                             
                             nextConnection->email = 
                                 stringDuplicate( 
@@ -5336,7 +5434,12 @@ int main() {
                             char *pwHash = tokens->getElementDirect( 2 );
                             char *keyHash = tokens->getElementDirect( 3 );
                             
-
+                            if( tokens->size() == 5 ) {
+                                sscanf( tokens->getElementDirect( 4 ),
+                                        "%d", 
+                                        &( nextConnection->tutorialNumber ) );
+                                }
+                            
                             char emailAlreadyLoggedIn = false;
                             
 
@@ -5444,7 +5547,8 @@ int main() {
                                     processLoggedInPlayer( 
                                         nextConnection->sock,
                                         nextConnection->sockBuffer,
-                                        nextConnection->email );
+                                        nextConnection->email,
+                                        nextConnection->tutorialNumber );
                                     
                                     delete nextConnection->ticketServerRequest;
                                     newConnections.deleteElement( i );
@@ -6488,6 +6592,9 @@ int main() {
                                         hitPlayer->murderPerpID =
                                             nextPlayer->id;
                                         
+                                        // brand this player as a murderer
+                                        nextPlayer->everKilledOther = true;
+
                                         if( hitPlayer->murderPerpEmail 
                                             != NULL ) {
                                             delete [] 
@@ -6534,12 +6641,12 @@ int main() {
                                                  Time::getCurrentTime();
                                              
                                              double staggerTimeLeft = 
-                                                 nextPlayer->dyingETA - 
+                                                 hitPlayer->dyingETA - 
                                                  currentTime;
                         
                                              if( staggerTimeLeft > 0 ) {
                                                  staggerTimeLeft /= 2;
-                                                 nextPlayer->dyingETA = 
+                                                 hitPlayer->dyingETA = 
                                                      currentTime + 
                                                      staggerTimeLeft;
                                                  }
@@ -8388,6 +8495,7 @@ int main() {
                 nextPlayer->error = true;
 
                 
+                if( ! nextPlayer->isTutorial )
                 logDeath( nextPlayer->id,
                           nextPlayer->email,
                           nextPlayer->isEve,
@@ -8501,6 +8609,7 @@ int main() {
                 
                 char male = ! getFemale( nextPlayer );
                 
+                if( ! nextPlayer->isTutorial )
                 recordPlayerLineage( nextPlayer->email, 
                                      age,
                                      nextPlayer->id,
@@ -8517,10 +8626,12 @@ int main() {
                 double yearsLived = 
                     getSecondsPlayed( nextPlayer ) * getAgeRate();
 
+                if( ! nextPlayer->isTutorial )
                 recordLineage( nextPlayer->email, 
                                nextPlayer->lineageEveID,
                                yearsLived, 
-                               ( killerID > 0 ) );
+                               ( killerID > 0 ),
+                               nextPlayer->everKilledOther );
         
                 if( ! nextPlayer->deathLogged ) {
                     char disconnect = true;
@@ -8529,6 +8640,7 @@ int main() {
                         disconnect = false;
                         }
                     
+                    if( ! nextPlayer->isTutorial )
                     logDeath( nextPlayer->id,
                               nextPlayer->email,
                               nextPlayer->isEve,
@@ -9394,7 +9506,8 @@ int main() {
                                 computePartialMoveSpot( decrementedPlayer );
                             }
                         
-                        if( ! decrementedPlayer->deathLogged ) {    
+                        if( ! decrementedPlayer->deathLogged &&
+                            ! decrementedPlayer->isTutorial ) {    
                             logDeath( decrementedPlayer->id,
                                       decrementedPlayer->email,
                                       decrementedPlayer->isEve,
