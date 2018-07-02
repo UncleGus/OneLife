@@ -96,6 +96,7 @@ class EditorObjectPage : public GamePage, public ActionListener {
         
 
         TextField mDeadlyDistanceField;
+        TextField mStunDistanceField;
         TextField mUseDistanceField;
         TextField mMinPickupAgeField;
         
