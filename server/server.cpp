@@ -397,6 +397,8 @@ typedef struct LiveObject {
         
 
         timeSec_t lastRegionLookTime;
+
+        double lastBreastFeedTimeSeconds;
         
         char monumentPosSet;
         GridPos lastMonumentPos;
@@ -1427,10 +1429,15 @@ char getFemale( LiveObject *inPlayer ) {
 
 char isFertileAge( LiveObject *inPlayer ) {
     double age = computeAge( inPlayer );
+
+    double timeSinceBreastFeed = Time::getCurrentTime() - inPlayer->lastBreastFeedTimeSeconds;
                     
     char f = getFemale( inPlayer );
+
+    double breastFeedingInhibitTime = 
+        SettingsManager::getFloatSetting( "breastFeedingInhibitTime", 30.0 );
                     
-    if( age >= 14 && age <= 40 && f && inPlayer->babyOptIn ) {
+    if( age >= 14 && age <= 40 && f && timeSinceBreastFeed > breastFeedingInhibitTime ) {
         return true;
         }
     else {
@@ -3147,7 +3154,8 @@ void processLoggedInPlayer( Socket *inSock,
 
     newObject.trueStartTimeSeconds = Time::getCurrentTime();
     newObject.lifeStartTimeSeconds = newObject.trueStartTimeSeconds;
-                            
+
+    newObject.lastBreastFeedTimeSeconds = Time::getCurrentTime();
 
     newObject.lastSayTimeSeconds = Time::getCurrentTime();
     
@@ -7933,6 +7941,8 @@ int main() {
                                         // leave their food decrement
                                         // time alone
                                         nextPlayer->foodUpdate = true;
+
+                                        nextPlayer->lastBreastFeedTimeSeconds = Time::getCurrentTime();
                                         }
                                     
                                     nextPlayer->heldOriginValid = 1;
@@ -9727,6 +9737,7 @@ int main() {
                             isFertileAge( adultO ) ) {
                     
                             heldByFemale = true;
+                            adultO->lastBreastFeedTimeSeconds = Time::getCurrentTime();
                             }
                         }
                     
