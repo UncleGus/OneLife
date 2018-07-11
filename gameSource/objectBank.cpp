@@ -1142,6 +1142,7 @@ void initObjectBankFinish() {
                         
                         dummyO->isUseDummy = true;
                         dummyO->useDummyParent = mainID;
+                        dummyO->hitScalar= o->hitScalar;
                         
                         if( o->creationSoundInitialOnly && d != 1 ) {
                             // only keep creation sound for last dummy
