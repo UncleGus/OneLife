@@ -49,13 +49,10 @@ class ExistingAccountPage : public GamePage, public ActionListener {
     protected:
         
         TextField mEmailField;
-        TextField mKeyField;
 
-        TextField *mFields[2];
+        TextField *mFields[1];
 
         TextButton mAtSignButton;
-
-        KeyEquivalentTextButton mPasteButton;
 
         TextButton mDisableCustomServerButton;
         

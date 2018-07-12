@@ -32,12 +32,7 @@ ExistingAccountPage::ExistingAccountPage()
                        NULL,
                        // forbid only spaces
                        " " ),
-          mKeyField( mainFont, 0, 0, 15, true,
-                     translate( "accountKey" ),
-                     // allow only ticket code characters
-                     "23456789ABCDEFGHJKLMNPQRSTUVWXYZ-" ),
           mAtSignButton( mainFont, 252, 128, "@" ),
-          mPasteButton( mainFont, 0, -80, translate( "paste" ), 'v', 'V' ),
           mDisableCustomServerButton( mainFont, 0, 220, 
                                       translate( "disableCustomServer" ) ),
           mLoginButton( mainFont, 400, 0, translate( "loginButton" ) ),
@@ -67,7 +62,6 @@ ExistingAccountPage::ExistingAccountPage()
     
     if( userEmail != NULL && accountKey != NULL ) {
         mEmailField.setText( userEmail );
-        mKeyField.setText( accountKey );
         }
 
     setButtonStyle( &mLoginButton );
@@ -76,13 +70,11 @@ ExistingAccountPage::ExistingAccountPage()
     setButtonStyle( &mSettingsButton );
     setButtonStyle( &mReviewButton );
     setButtonStyle( &mAtSignButton );
-    setButtonStyle( &mPasteButton );
     setButtonStyle( &mRedetectButton );
 
     setButtonStyle( &mDisableCustomServerButton );
     
     mFields[0] = &mEmailField;
-    mFields[1] = &mKeyField;
 
     
     addComponent( &mLoginButton );
@@ -91,9 +83,7 @@ ExistingAccountPage::ExistingAccountPage()
     addComponent( &mSettingsButton );
     addComponent( &mReviewButton );
     addComponent( &mAtSignButton );
-    addComponent( &mPasteButton );
     addComponent( &mEmailField );
-    addComponent( &mKeyField );
     addComponent( &mRedetectButton );
     addComponent( &mDisableCustomServerButton );
     
@@ -105,7 +95,6 @@ ExistingAccountPage::ExistingAccountPage()
     mReviewButton.addActionListener( this );
     
     mAtSignButton.addActionListener( this );
-    mPasteButton.addActionListener( this );
 
     mRedetectButton.addActionListener( this );
     
@@ -139,7 +128,6 @@ ExistingAccountPage::~ExistingAccountPage() {
 
 void ExistingAccountPage::clearFields() {
     mEmailField.setText( "" );
-    mKeyField.setText( "" );
     }
 
 
@@ -178,7 +166,7 @@ void ExistingAccountPage::makeActive( char inFresh ) {
     int pastSuccess = SettingsManager::getIntSetting( "loginSuccess", 0 );
 
     char *emailText = mEmailField.getText();
-    char *keyText = mKeyField.getText();
+    char *keyText = autoSprintf( "THISISNOTAREALKEY" );
 
     // don't hide field contents unless there is something to hide
     if( ! pastSuccess || 
@@ -190,17 +178,14 @@ void ExistingAccountPage::makeActive( char inFresh ) {
         }
     else {
         mEmailField.unfocus();
-        mKeyField.unfocus();
         
         mEmailField.setContentsHidden( true );
-        mKeyField.setContentsHidden( true );
         }
     
     delete [] emailText;
     delete [] keyText;
 
     
-    mPasteButton.setVisible( false );
     mAtSignButton.setVisible( false );
 
 
@@ -225,8 +210,6 @@ void ExistingAccountPage::makeNotActive() {
 
 
 void ExistingAccountPage::step() {
-    mPasteButton.setVisible( isClipboardSupported() &&
-                             mKeyField.isFocused() );
     mAtSignButton.setVisible( mEmailField.isFocused() );
     }
 
@@ -254,19 +237,12 @@ void ExistingAccountPage::actionPerformed( GUIComponent *inTarget ) {
         if( accountKey != NULL ) {
             delete [] accountKey;
             }
-        accountKey = mKeyField.getText();
+        accountKey = autoSprintf( "NOTAREALKEY" );
         
         setSignal( "review" );
         }
     else if( inTarget == &mAtSignButton ) {
         mEmailField.insertCharacter( '@' );
-        }
-    else if( inTarget == &mPasteButton ) {
-        char *clipboardText = getClipboardText();
-        
-        mKeyField.setText( clipboardText );
-    
-        delete [] clipboardText;
         }
     else if( inTarget == &mRedetectButton ) {
         SettingsManager::setSetting( "targetFrameRate", -1 );
@@ -293,12 +269,7 @@ void ExistingAccountPage::actionPerformed( GUIComponent *inTarget ) {
 
 
 void ExistingAccountPage::switchFields() {
-    if( mFields[0]->isFocused() ) {
-        mFields[1]->focus();
-        }
-    else if( mFields[1]->isFocused() ) {
-        mFields[0]->focus();
-        }
+    mFields[0]->focus();
     }
 
     
@@ -313,14 +284,11 @@ void ExistingAccountPage::keyDown( unsigned char inASCII ) {
     if( inASCII == 10 || inASCII == 13 ) {
         // enter key
         
-        if( mKeyField.isFocused() ) {
+        if( mEmailField.isFocused() ) {
 
             processLogin( true );
             
             return;
-            }
-        else if( mEmailField.isFocused() ) {
-            switchFields();
             }
         }
     }
@@ -347,7 +315,7 @@ void ExistingAccountPage::processLogin( char inStore ) {
     if( accountKey != NULL ) {
         delete [] accountKey;
         }
-    accountKey = mKeyField.getText();
+    accountKey = autoSprintf( "THISISNOTAREALKEY" );
 
     if( !gamePlayingBack ) {
         
