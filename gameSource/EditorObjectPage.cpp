@@ -149,6 +149,7 @@ EditorObjectPage::EditorObjectPage()
           mPersonNoSpawnCheckbox( 290, -150, 2 ),
           // these are in same spot because they're never shown at same time
           mMaleCheckbox( 290, -190, 2 ),
+          mOreCheckbox( 340, -220, 2 ),
           mDeathMarkerCheckbox( 290, -190, 2 ),
           mHomeMarkerCheckbox( 100, -120, 2 ),
           mFloorCheckbox( 290, -150, 2 ),
@@ -575,6 +576,9 @@ EditorObjectPage::EditorObjectPage()
     addComponent( &mMaleCheckbox );
     mMaleCheckbox.setVisible( false );
 
+    addComponent( &mOreCheckbox );
+    mOreCheckbox.setVisible( true );
+
     addComponent( &mDeathMarkerCheckbox );
     mDeathMarkerCheckbox.setVisible( true );
     mDeathMarkerCheckbox.addActionListener( this );
@@ -886,6 +890,8 @@ void EditorObjectPage::updateAgingPanel() {
 
         mMaleCheckbox.setToggled( false );
         mMaleCheckbox.setVisible( false );
+
+        mOreCheckbox.setVisible( true );
 
         mDeathMarkerCheckbox.setVisible( true );
         mHomeMarkerCheckbox.setVisible( true );
@@ -1395,6 +1401,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mCurrentObject.spriteBehindPlayer,
                    biomes,
                    mMapChanceField.getFloat(),
+                   mOreCheckbox.getToggled(),
                    mHeatValueField.getInt(),
                    mRValueField.getFloat(),
                    mCheckboxes[2]->getToggled(),
@@ -1534,6 +1541,7 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
                    mCurrentObject.spriteBehindPlayer,
                    biomes,
                    mMapChanceField.getFloat(),
+                   mOreCheckbox.getToggled(),
                    mHeatValueField.getInt(),
                    mRValueField.getFloat(),
                    mCheckboxes[2]->getToggled(),
@@ -2587,6 +2595,8 @@ void EditorObjectPage::actionPerformed( GUIComponent *inTarget ) {
             mDescriptionField.setText( pickedRecord->description );
 
             mMapChanceField.setFloat( pickedRecord->mapChance, 4 );
+            mOreCheckbox.setToggled( pickedRecord->isOre );
+
             
             char *biomeText = getBiomesString( pickedRecord );
             
@@ -3898,6 +3908,12 @@ void EditorObjectPage::draw( doublePair inViewCenter,
         pos = mMaleCheckbox.getPosition();
         pos.y += checkboxSep + 5;
         smallFont->drawString( "Male", pos, alignCenter );
+        }
+
+    if( mOreCheckbox.isVisible() ) {
+        pos = mOreCheckbox.getPosition();
+        pos.y += checkboxSep + 5;
+        smallFont->drawString( "Ore", pos, alignCenter );
         }
 
     if( mDeathMarkerCheckbox.isVisible() ) {

@@ -4774,6 +4774,9 @@ int getMapOre( int inX, int inY ) {
     return ores[getMapOreIndex( inX, inY )];
     }
 
+void removeMapOre( int inX, int inY ) {
+    orePutCached( inX, inY, -1 );
+    }
 
 
 // returns properly formatted chunk message for chunk centered

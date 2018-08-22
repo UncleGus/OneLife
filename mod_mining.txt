@@ -1,0 +1,11 @@
+Mining mod
+
+This mod adds a new cached database of underground ores. These ores are defined in the
+object data. There is a new Ore checkbox in the editor, which saves ore={0|1} after
+mapChance. Any object marked as an ore will use the mapChance value as a scalar for
+the size of the vein. If it is not meant to spawn above ground, remove all biome
+values.
+
+Underground objects can be used in transitions but these transitions will only be
+checked for when a player is using an object on bare ground. If a transition does exist
+involving the underground object, the underground map will be cleared at that location.

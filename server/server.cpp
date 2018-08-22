@@ -8203,6 +8203,8 @@ int main() {
                                     if( r == NULL ) {
                                         r = getPTrans( nextPlayer->holdingID, 
                                                   -1 );
+                                    } else {
+                                        removeMapOre( m.x, m.y );
                                     }
 
 

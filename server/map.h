@@ -223,6 +223,8 @@ int getMapBiome( int inX, int inY );
 
 int getMapOre( int inX, int inY );
 
+void removeMapOre( int inX, int inY );
+
 
 typedef struct {
         unsigned int uniqueLoadID;
