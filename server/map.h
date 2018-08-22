@@ -221,6 +221,7 @@ void restretchMapContainedDecays( int inX, int inY,
 
 int getMapBiome( int inX, int inY );
 
+int getMapOre( int inX, int inY );
 
 
 typedef struct {

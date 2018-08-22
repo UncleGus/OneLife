@@ -223,6 +223,9 @@ static double gapIntScale = 1000000.0;
 static int numBiomes;
 static int *biomes;
 
+static int numOres;
+static int *ores;
+
 // one vector per biome
 static SimpleVector<int> *naturalMapIDs;
 static SimpleVector<float> *naturalMapChances;
@@ -651,8 +654,14 @@ typedef struct BiomeCacheRecord {
         int biome, secondPlace;
         double secondPlaceGap;
     } BiomeCacheRecord;
-    
+
+typedef struct OreCacheRecord {
+        int x, y;
+        int ore;
+    } OreCacheRecord;
+
 static BiomeCacheRecord biomeCache[ BIOME_CACHE_SIZE ];
+static OreCacheRecord oreCache[ BIOME_CACHE_SIZE ];
 
 
 #define CACHE_PRIME_A 776509273
@@ -679,6 +688,12 @@ static void initBiomeCache() {
         }
     }
 
+static void initOreCache() {
+    OreCacheRecord blankRecord = { 0, 0, -2 };
+    for( int i=0; i<BIOME_CACHE_SIZE; i++ ) {
+        oreCache[i] = blankRecord;
+        }
+    }
     
 
 
@@ -700,6 +715,18 @@ static int biomeGetCached( int inX, int inY,
         }
     }
 
+// returns -2 on miss
+static int oreGetCached( int inX, int inY ) {
+    OreCacheRecord r =
+        oreCache[ computeXYCacheHash( inX, inY ) ];
+
+    if( r.x == inX && r.y == inY ) {
+        return r.ore;
+        }
+    else {
+        return -2;
+        }
+    }
 
 
 static void biomePutCached( int inX, int inY, int inBiome, int inSecondPlace,
@@ -707,6 +734,12 @@ static void biomePutCached( int inX, int inY, int inBiome, int inSecondPlace,
     BiomeCacheRecord r = { inX, inY, inBiome, inSecondPlace, inSecondPlaceGap };
     
     biomeCache[ computeXYCacheHash( inX, inY ) ] = r;
+    }
+
+static void orePutCached( int inX, int inY, int inOre ) {
+    OreCacheRecord r = { inX, inY, inOre };
+    
+    oreCache[ computeXYCacheHash( inX, inY ) ] = r;
     }
 
 
@@ -789,6 +822,41 @@ static int computeMapBiomeIndex( int inX, int inY,
     return pickedBiome;
     }
 
+static int getMapOreIndex( int inX, int inY ) {
+        
+    int pickedOre = oreGetCached( inX, inY );
+        
+    if( pickedOre != -2 ) {
+        return pickedOre;
+        }
+
+    // else cache miss
+    pickedOre = -1;
+
+
+    double maxValue = -DBL_MAX;
+
+    
+    for( int i=0; i<numOres; i++ ) {
+        int ore = ores[i];
+        
+        setXYRandomSeed( ore * 263 + 723 );
+
+        double randVal = getXYFractal(  inX,
+                                        inY,
+                                        0.55, 
+                                        0.83332 + 0.08333 * numOres );
+        
+        if( randVal > maxValue ) {
+            // a new first place
+            maxValue = randVal;
+            pickedOre = i;
+            }
+        }
+    orePutCached( inX, inY, pickedOre );
+    
+    return pickedOre;
+    }
 
 
 
@@ -2193,6 +2261,7 @@ static char loadIntoMapFromFile( FILE *inFile,
 char initMap() {
     initDBCaches();
     initBiomeCache();
+    initOreCache();
 
     mapCacheClear();
     
@@ -2752,8 +2821,9 @@ char initMap() {
     ObjectRecord **allObjects = getAllObjects( &numObjects );
     
     
-    // first, find all biomes
+    // first, find all biomes and ores
     SimpleVector<int> biomeList;
+    SimpleVector<int> oreList;
     
     
     for( int i=0; i<numObjects; i++ ) {
@@ -2770,11 +2840,17 @@ char initMap() {
                 }
             }
         
+        if( o->isOre ) {
+            oreList.push_back( o->id );
+            }
+        
         }
 
-    
+
     numBiomes = biomeList.size();
     biomes = biomeList.getElementArray();
+    numOres = oreList.size();
+    ores = oreList.getElementArray();
     
     naturalMapIDs = new SimpleVector<int>[ numBiomes ];
     naturalMapChances = new SimpleVector<float>[ numBiomes ];
@@ -4692,6 +4768,9 @@ int getMapBiome( int inX, int inY ) {
     return biomes[getMapBiomeIndex( inX, inY )];
     }
 
+int getMapOre( int inX, int inY ) {
+    return ores[getMapOreIndex( inX, inY )];
+    }
 
 
 
