@@ -834,18 +834,20 @@ static int getMapOreIndex( int inX, int inY ) {
     pickedOre = -1;
 
 
-    double maxValue = -DBL_MAX;
+    // threshold for raising/lowering ore chances
+    double maxValue = 0.1;
 
     
     for( int i=0; i<numOres; i++ ) {
         int ore = ores[i];
+        ObjectRecord *o = getObject( ore );
         
         setXYRandomSeed( ore * 263 + 723 );
 
         double randVal = getXYFractal(  inX,
                                         inY,
                                         0.55, 
-                                        0.83332 + 0.08333 * numOres );
+                                        0.83332 + 0.08333 * numOres * o->mapChance );
         
         if( randVal > maxValue ) {
             // a new first place
