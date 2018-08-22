@@ -91,6 +91,9 @@ typedef struct ObjectRecord {
         // total sum weight of all objects.
         float mapChance;
         
+        // whether this object is an underground ore or not
+        char isOre;
+        
         int heatValue;
         
         // between 0 and 1, how much heat is transmitted
@@ -414,6 +417,7 @@ int addObject( const char *inDescription,
                char *inSpriteBehindPlayer,
                char *inBiomes,
                float inMapChance,
+               char inIsOre,
                int inHeatValue,
                float inRValue,
                char inPerson,

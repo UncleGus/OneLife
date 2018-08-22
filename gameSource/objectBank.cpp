@@ -435,7 +435,7 @@ float initObjectBankStep() {
 
                 
                 
-                r->mapChance = 0;      
+                r->mapChance = 0;
                 char biomeString[200];
                 int numRead = sscanf( lines[next], 
                                       "mapChance=%f#biomes_%199s", 
@@ -458,6 +458,19 @@ float initObjectBankStep() {
                 fillObjectBiomeFromString( r, biomeString );
 
                 next++;
+
+                r->isOre = false;
+                
+                if( strstr( lines[next], "ore=" ) != NULL ) {
+                    // home marker flag present
+                    
+                    int oreRead = 0;
+                    sscanf( lines[next], "ore=%d", &( oreRead ) );
+                    
+                    r->isOre = oreRead;
+                    
+                    next++;
+                    }
 
 
                 r->heatValue = 0;                            
@@ -1160,6 +1173,7 @@ void initObjectBankFinish() {
 
                         // used objects never occur naturally
                         dummyO->mapChance = 0;
+                        dummyO->isOre = false;
                         
                         dummyO->isUseDummy = true;
                         dummyO->useDummyParent = mainID;
@@ -1702,6 +1716,7 @@ int reAddObject( ObjectRecord *inObject,
                         inObject->spriteBehindPlayer,
                         biomeString,
                         inObject->mapChance,
+                        inObject->isOre,
                         inObject->heatValue,
                         inObject->rValue,
                         inObject->person,
@@ -1972,6 +1987,7 @@ int addObject( const char *inDescription,
                char *inSpriteBehindPlayer,
                char *inBiomes,
                float inMapChance,
+               char inIsOre,
                int inHeatValue,
                float inRValue,
                char inPerson,
@@ -2130,6 +2146,8 @@ int addObject( const char *inDescription,
         lines.push_back( autoSprintf( "mapChance=%f#biomes_%s", 
                                       inMapChance, inBiomes ) );
         
+        lines.push_back( autoSprintf( "ore=%d", (int)inIsOre ) );
+
         lines.push_back( autoSprintf( "heatValue=%d", inHeatValue ) );
         lines.push_back( autoSprintf( "rValue=%f", inRValue ) );
 
@@ -2408,6 +2426,7 @@ int addObject( const char *inDescription,
     
     
     r->mapChance = inMapChance;
+    r->isOre = inIsOre;
     
     r->heatValue = inHeatValue;
     r->rValue = inRValue;
