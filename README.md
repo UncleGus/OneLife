@@ -12,6 +12,8 @@ eden: a combination of many other mods
 
 father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
 
+mining: adds underground ore
+
 nations: players can be assigned to nations, spawning only among their nation's people
 
 restrain: allows players to team up to overcome a lone opponent
