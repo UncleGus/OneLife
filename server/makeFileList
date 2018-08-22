@@ -32,9 +32,10 @@ map.cpp \
 ../gameSource/ageControl.cpp \
 ../gameSource/folderCache.cpp \
 ../gameSource/SoundUsage.cpp \
+../gameSource/objectMetadata.cpp \
 ../commonSource/fractalNoise.cpp \
 kissdb.cpp \
-stackdb.cpp \
+lineardb3.cpp \
 lifeLog.cpp \
 foodLog.cpp \
 backup.cpp \
@@ -47,6 +48,7 @@ names.cpp \
 monument.cpp \
 lineageLimit.cpp \
 curses.cpp \
+curseLog.cpp \
 
 
 

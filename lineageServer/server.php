@@ -158,6 +158,10 @@ else if( $action == "character_page" ) {
 else if( $action == "character_dump" ) {
     ls_characterDump();
     }
+// disable this one for now, no longer needed
+else if( false && $action == "reformat_names" ) {
+    ls_reformatNames();
+    }
 else if( $action == "ls_setup" ) {
     global $setup_header, $setup_footer;
     echo $setup_header; 
@@ -328,12 +332,19 @@ function ls_setupDatabase() {
             // age at time of death in years
             "age FLOAT UNSIGNED NOT NULL,".
             "name VARCHAR(254) NOT NULL,".
+            "INDEX( name ),".
             // 1 if male
             "male TINYINT UNSIGNED NOT NULL,".
             "last_words VARCHAR(63) NOT NULL,".
             // -1 if not set yet
             // 0 for Eve
             "generation INT NOT NULL,".
+            // this will make queries ordering by generation and death_time fast
+            // OR just queries on generation fast.
+            // but not querys on just death_time fast
+            "INDEX( generation, death_time ),".
+            // single index on death_time to speed up queries on just death_time
+            "INDEX( death_time ),".
             // -1 if not set yet
             // 0 for Eve
             // the Eve of this family line
@@ -1057,6 +1068,94 @@ function ls_getAllChildren( $inServerID, $inParentID ) {
 
 
 
+
+// returns -1 on failure
+// found here:
+// https://stackoverflow.com/questions/6265596/
+//         how-to-convert-a-roman-numeral-to-integer-in-php
+function ls_romanToInt( $inRomanString ) {    
+
+    $romans = array(
+        // currently, server never uses M or D
+        /*'M' => 1000,
+          'CM' => 900,
+          'D' => 500,
+          'CD' => 400,
+        */
+        'C' => 100,
+        'XC' => 90,
+        'L' => 50,
+        'XL' => 40,
+        'X' => 10,
+        'IX' => 9,
+        'V' => 5,
+        'IV' => 4,
+        'I' => 1 );
+
+    $result = 0;
+
+    foreach( $romans as $key => $value ) {
+        while( strpos( $inRomanString, $key ) === 0 ) {
+            $result += $value;
+            $inRomanString = substr( $inRomanString, strlen( $key ) );
+            }
+        }
+
+    if( strlen( $inRomanString ) == 0 ) {
+        return $result;
+        }
+    else {
+        // unmatched characters left
+        return -1;
+        }
+    }
+
+
+
+function ls_formatName( $inName ) {
+    $inName = strtoupper( $inName );
+
+    $nameParts = preg_split( "/\s+/", $inName );
+
+    $numParts = count( $nameParts );
+
+    if( $numParts > 0 ) {
+        // first part always a name part,
+        $nameParts[0] = ucfirst( strtolower( $nameParts[0] ) );
+        }
+    
+    if( $numParts == 3 ) {
+        // second part last name
+        $nameParts[1] = ucfirst( strtolower( $nameParts[1] ) );
+        // leave suffix uppercase
+        }
+    else if( count( $nameParts ) == 2 ) {
+        // tricky case
+        // is second part suffix or last name?
+
+        $secondRoman = false;
+        
+        if( !preg_match('/[^IVCXL]/', $nameParts[1] ) ) {
+            // string contains only roman numeral digits
+            // but VIX and other last names possible
+            if( ls_romanToInt( $nameParts[1] ) > 0 ) {
+                // leave second part uppercase
+                $secondRoman = true;
+                }
+            }
+
+        if( ! $secondRoman ) {
+            // second is last name
+            $nameParts[1] = ucfirst( strtolower( $nameParts[1] ) );
+            }
+        }
+    
+    return implode( " ", $nameParts );
+    }
+
+
+
+
 function ls_logLife() {
     global $tableNamePrefix, $sharedGameServerSecret;
 
@@ -1097,7 +1196,10 @@ function ls_logLife() {
     
 
     
-    $name = ucwords( strtolower( $name ) );
+    
+    
+    
+    $name = ls_formatName( $name );
     
     $male = ls_requestFilter( "male", "/[01]/", "0" );
     
@@ -1328,7 +1430,14 @@ function ls_frontPage() {
         $filter = $emailFilter;
         }
     else if( $nameFilter != "" ) {
-        $filterClause = " WHERE lives.name LIKE '%$nameFilter%' ";
+        // name filter is used as prefix filter for speed
+        // there's no way to make a LIKE condition fast if there's a wild
+        // card as the first character of the pattern (the entire table
+        // needs to be scanned, and the index isn't used).
+        //
+        // A full-text index is another option, but probably overkill in
+        // this case.
+        $filterClause = " WHERE lives.name LIKE '$nameFilter%' ";
         $filter = $nameFilter;
         }
 
@@ -1444,6 +1553,9 @@ function ls_printFrontPageRows( $inFilterClause, $inOrderBy, $inNumRows ) {
         "ON lives.user_id = users.id  $inFilterClause ".
         "ORDER BY $inOrderBy ".
         "LIMIT $inNumRows;";
+
+    ls_log( "Front page query:  $query" );
+    
     $result = ls_queryDatabase( $query );
     
     $numRows = mysqli_num_rows( $result );
@@ -2427,6 +2539,49 @@ function ls_characterDump() {
             }        
         }    
     }
+
+
+function ls_reformatNames() {
+    global $tableNamePrefix;
+
+    $query = "SELECT id, name FROM $tableNamePrefix"."lives ".
+            "WHERE death_time > '2018-07-06';";
+
+    $result = ls_queryDatabase( $query );
+
+    $numRows = mysqli_num_rows( $result );
+
+    echo "Processing $numRows names to reformat...<br>\n";
+
+    $touched = 0;
+    
+    for( $i=0; $i<$numRows; $i++ ) {
+        
+        $id = ls_mysqli_result( $result, $i, "id" );
+
+        
+        $name = ls_mysqli_result( $result, $i, "name" );
+
+        $oldName = $name;
+        
+
+        $name = ls_formatName( $name );
+
+        if( $oldName != $name ) {
+            echo "Old name:  $oldName :::: ";
+            echo "New name:  $name<br>\n";
+            $query = "UPDATE $tableNamePrefix"."lives SET ".
+                "name = '$name' WHERE id = '$id';";
+            ls_queryDatabase( $query );
+            $touched ++;
+            }
+        }
+
+    $notTouched = $numRows - $touched;
+    
+    echo "$touched/$numRows needed to be updated.  Done<br>\n";
+    }
+
 
 
 
