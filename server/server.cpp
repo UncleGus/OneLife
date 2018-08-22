@@ -8195,9 +8195,15 @@ int main() {
                                     // get no-target transtion
                                     // (not a food transition, since food
                                     //   value is 0)
+                                    int undergroundOre = getMapOre( m.x, m.y );
                                     TransRecord *r = 
-                                        getPTrans( nextPlayer->holdingID, 
+                                        getPTrans( nextPlayer->holdingID,
+                                                    undergroundOre );
+
+                                    if( r == NULL ) {
+                                        r = getPTrans( nextPlayer->holdingID, 
                                                   -1 );
+                                    }
 
 
                                     char canPlace = false;
