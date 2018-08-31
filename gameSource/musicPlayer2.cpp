@@ -1,5 +1,6 @@
 #include "minorGems/game/game.h"
 #include <math.h>
+#include "minorGems/util/SettingsManager.h"
 
 
 
@@ -45,6 +46,7 @@ static char soundEffectsFaded = false;
 
 static double ageNextMusicDone = -1;
 
+static int deathAge = 60;
 
 
 static double getCurrentAge() {
@@ -63,6 +65,7 @@ static double getCurrentAge() {
 
 void initMusicPlayer() {
     int sampleRate = getSampleRate();
+    deathAge = SettingsManager::getIntSetting( "deathAge", 60 );
 
     loudnessChangePerSample = 1.0 / sampleRate;
     }
@@ -82,7 +85,7 @@ static int startNextAgeFileRead( double inAge ) {
     
     ageNextMusicDone = nextFiveBlock * 5;
 
-    if( ageNextMusicDone == 60 ) {
+    if( ageNextMusicDone == deathAge ) {
         // special case, end of life
         // have music end 5 seconds after end of life
         // so there's an ubrupt cut off of the music with the YOU DIED

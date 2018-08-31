@@ -82,6 +82,8 @@ int minPickupBabyAge = 10;
 
 int babyAge = 5;
 
+double matureAge = 20;
+double oldAge = 40;
 double forceDeathAge = 60;
 
 
@@ -1607,17 +1609,17 @@ char isFertileAge( LiveObject *inPlayer ) {
 int computeFoodCapacity( LiveObject *inPlayer ) {
     int ageInYears = lrint( computeAge( inPlayer ) );
     
-    if( ageInYears < 44 ) {
+    if( ageInYears < (oldAge + 4) ) {
         
-        if( ageInYears > 16 ) {
-            ageInYears = 16;
+        if( ageInYears > (matureAge - 4) ) {
+            ageInYears = (matureAge - 4);
             }
         
         return ageInYears + 4;
         }
     else {
-        // food capacity decreases as we near 60
-        int cap = 60 - ageInYears + 4;
+        // food capacity decreases as we near death age
+        int cap = forceDeathAge - ageInYears + 4;
         
         if( cap < 4 ) {
             cap = 4;
@@ -1640,7 +1642,7 @@ double computeMoveSpeed( LiveObject *inPlayer ) {
     // baby moves at 360 pixels per second, or 6 pixels per frame
     double babySpeedFactor = 0.75;
 
-    double fullSpeedAge = 10.0;
+    double fullSpeedAge = SettingsManager::getFloatSetting( "fullSpeedAge", 10.0);
     
 
     if( age < fullSpeedAge ) {
@@ -5406,6 +5408,20 @@ int main() {
     clientPassword = 
         SettingsManager::getStringSetting( "clientPassword" );
 
+    babyAge =
+        SettingsManager::getIntSetting( "babyAge", 5 );
+
+    minPickupBabyAge =
+        SettingsManager::getIntSetting( "minPickupBabyAge", 10 );
+    
+    matureAge =
+        SettingsManager::getFloatSetting( "matureAge", 20 );
+
+    oldAge =
+        SettingsManager::getFloatSetting( "oldAge", 40 );
+
+    forceDeathAge =
+        SettingsManager::getFloatSetting( "forceDeathAge", 60 );
 
     int dataVer = readIntFromFile( "dataVersionNumber.txt", 1 );
     int codVer = readIntFromFile( "serverCodeVersionNumber.txt", 1 );

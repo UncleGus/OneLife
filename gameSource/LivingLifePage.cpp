@@ -114,8 +114,9 @@ static char savingSpeech = false;
 static char savingSpeechColor = false;
 static char savingSpeechMask = false;
 
-
-
+static int babyAge = 5;
+static int matureAge = 20;
+static int deathAge = 60;
 
 // most recent home at end
 
@@ -1778,6 +1779,10 @@ LivingLifePage::LivingLifePage()
     mSayField.setIgnoreMouse( true );
     
     initLiveTriggers();
+
+    babyAge = SettingsManager::getIntSetting( "babyAge", 5 );
+    matureAge = SettingsManager::getIntSetting( "matureAge", 20 );
+    deathAge = SettingsManager::getIntSetting( "deathAge", 60 );
 
     for( int i=0; i<4; i++ ) {
         char *name = autoSprintf( "ground_t%d.tga", i );    
@@ -5092,7 +5097,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
 
                         // vary by a tiny amount, so we don't change
                         // the way they are sorted relative to other objects
-                        depth += ( 60.0 - o->age ) / 6000.0;
+                        depth += ( deathAge - o->age ) / 6000.0;
                         }
                     
                     drawQueue.insert( drawRec, depth );
@@ -10942,6 +10947,7 @@ void LivingLifePage::step() {
                 int actionTargetY = 0;
                 
                 double invAgeRate = 60.0;
+                invAgeRate = SettingsManager::getFloatSetting( "invAgeRate", 60.0 );
                 
                 int responsiblePlayerID = -1;
                 
@@ -14027,7 +14033,7 @@ void LivingLifePage::step() {
                         mHungerSlipVisible = 0;
                         }
                     else if( ourLiveObject->foodStore <= 4 &&
-                             computeCurrentAge( ourLiveObject ) < 57 ) {
+                             computeCurrentAge( ourLiveObject ) < (deathAge - 3) ) {
                         
                         // don't play hunger sounds at end of life
                         // because it interrupts our end-of-life song
@@ -14063,7 +14069,7 @@ void LivingLifePage::step() {
                         }
 
                     if( ourLiveObject->foodStore > 4 ||
-                        computeCurrentAge( ourLiveObject ) >= 57 ) {
+                        computeCurrentAge( ourLiveObject ) >= (deathAge - 3) ) {
                         // restore music
                         setMusicLoudness( musicLoudness );
                         
@@ -16947,7 +16953,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
         ! p.hitAnObject &&
         ! modClick && ourLiveObject->holdingID == 0 &&
         // only adults can pick up babies
-        ourAge > 13 ) {
+        (ourAge / matureAge) > 0.8 ) {
         
 
         doublePair targetPos = { (double)clickDestX, (double)clickDestY };
@@ -16962,7 +16968,7 @@ void LivingLifePage::pointerDown( float inX, float inY ) {
                 if( distance( targetPos, o->currentPos ) < 1 ) {
                     // clicked on someone
 
-                    if( computeCurrentAge( o ) < 5 ) {
+                    if( computeCurrentAge( o )  < babyAge ) {
 
                         // they're a baby
                         
