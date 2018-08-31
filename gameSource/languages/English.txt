@@ -11,7 +11,7 @@ vsyncWarning3 "GRAPHICS CARD CONTROL PANEL CAN FIX THIS"
 vsyncContinueMessage "PRESS Y TO CONTINUE WITHOUT VSYNC OR ESC TO QUIT"
 
 
-fpsErrorLogin "ERROR:  FPS MISMATCH DETECTED.  VSYNC CHANGED?"
+fpsErrorLogin "ERROR:  FPS MISMATCH DETECTED.  VSYNC CHANGED?##MEASURED %0.1f FPS, EXPECTING %d FPS"
 
 
 
@@ -35,12 +35,13 @@ categoriesRebuild "CATEGORIES##(REBUILDING CACHE)"
 
 
 
-email "EMAIL"
+email "EMAIL:"
 atSignTip "INSERT '@' SIGN (INTL KEYBOARDS)"
 
 
 loginButton "LOGIN"
-loginNoSaveButton "TEMP LOGIN"
+friendsButton "FRIENDS"
+clearAccount "CLEAR ACCOUNT"
 settingsButton "SETTINGS"
 postReviewButton "POST REVIEW"
 updateReviewButton "UPDATE REVIEW"
@@ -76,10 +77,10 @@ reviewRemoved "REVIEW HAS BEEN REMOVED"
 
 
 saveTip "LOGIN AND STORE DETAILS LOCALLY"
-noSaveTip "DO NOT STORE DETAILS LOCALLY"
+clearAccountTip "DELETES ACCOUNT DETAILS FROM DISK"
 
 
-accountKey "KEY"
+accountKey "KEY:"
 paste "PASTE"
 copy "COPY"
 clear "CLEAR"
@@ -87,10 +88,22 @@ clear "CLEAR"
 charLimit "5000 CHARACTER LIMIT REACHED"
 
 
+twinCode "TWIN CODE:"
+generate "GENERATE"
+
+twinTip "GIVE FRIENDS THIS CODE AND GET BORN TOGETHER"
+
+twins "TWINS"
+triplets "TRIPLETS"
+quadruplets "QUADRUPLETS"
+
+cancel "CANCEL"
+
 
 backButton "BACK"
 restartButton "RESTART"
 fullscreen "FULLSCREEN:"
+borderless "BORDERLESS:"
 musicLoudness "MUSIC LOUDNESS:"
 soundLoudness "SOUND LOUDNESS:"
 
@@ -100,6 +113,11 @@ vsyncOn "USING VSYNC:"
 vsyncYes "YES"
 vsyncNo "NO"
 redetectButton "RE-DETECT"
+
+useCustomServer "USE CUSTOM SERVER:"
+address "ADDRESS:"
+port "PORT:"
+
 
 
 downloadingUpdate "DOWNLOADING UPDATE"
@@ -124,8 +142,18 @@ serverShutdown "SERVER HAS BEEN SHUT DOWN"
 
 serverFull "SERVER IS FULL"
 
+connectionFailed "CONNECTION FAILED"
+
+
+customServerMesssage "CUSTOM SERVER:  %s : %d"
+
+connecting "CONNECTING"
 
 waitingBirth "WAITING TO BE BORN"
+waitingBirthFriends "WAITING TO BE BORN AS %s"
+
+cancelWaitingFriends "PRESS [x] KEY TO CANCEL"
+
 
 loadingMap "LOADING MAP"
 
@@ -262,6 +290,7 @@ reborn "GET REBORN"
 tutorial "TUTORIAL"
 restartTutorial "RESTART TUTORIAL"
 
+menu "MENU"
 
 
 bugMessage1 "WILD BUG APPEARED!####AFTER THIS LIFE IS OVER,##PLEASE QUIT AND EMAIL YOUR STDOUT.TXT TO:"

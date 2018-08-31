@@ -1757,6 +1757,8 @@ TransRecord *getTrans( int inActor, int inTarget, char inLastUseActor,
     }
 
 
+#include "objectMetadata.h"
+
 
 #define NUM_CHANCE_RECORDS 100
 static int nextChanceRecord;
@@ -1771,6 +1773,16 @@ static CustomRandomSource randSource( randSeed );
 TransRecord *getPTrans( int inActor, int inTarget, 
                         char inLastUseActor,
                         char inLastUseTarget ) {
+    
+    int actorMeta = extractMetadataID( inActor );
+    int targetMeta = extractMetadataID( inTarget );
+
+    if( actorMeta != 0 )
+        inActor = extractObjectID( inActor );
+
+    if( targetMeta != 0 )
+        inTarget = extractObjectID( inTarget );
+
 
     TransRecord *r = getTrans( inActor, inTarget, 
                                inLastUseActor, inLastUseTarget );
@@ -1779,7 +1791,8 @@ TransRecord *getPTrans( int inActor, int inTarget,
         return r;
         }
     
-    if( r->actorChangeChance == 1.0f && r->targetChangeChance == 1.0f ) {
+    if( r->actorChangeChance == 1.0f && r->targetChangeChance == 1.0f &&
+        actorMeta == 0 && targetMeta == 0 ) {
         return r;
         }
     
@@ -1804,6 +1817,25 @@ TransRecord *getPTrans( int inActor, int inTarget,
             r->targetChangeChance ) {
             // no change to target
             rStatic->newTarget = rStatic->newTargetNoChange;
+            }
+        }
+    
+    int passThroughMeta = actorMeta;
+    
+    if( actorMeta == 0 ) {
+        passThroughMeta = targetMeta;
+        }
+
+    if( passThroughMeta != 0 ) {
+        if( rStatic->newActor > 0 &&
+            getObject( rStatic->newActor )->mayHaveMetadata ) {
+            rStatic->newActor = packMetadataID( rStatic->newActor, 
+                                                passThroughMeta );
+            }
+        else if( rStatic->newTarget > 0 &&
+                 getObject( rStatic->newTarget )->mayHaveMetadata ) {
+            rStatic->newTarget = packMetadataID( rStatic->newTarget, 
+                                                 passThroughMeta );
             }
         }
     
@@ -2239,7 +2271,7 @@ void addTrans( int inActor, int inTarget,
         t->targetMinUseFraction = inTargetMinUseFraction;
         
         t->move = inMove;
-        t->desiredMoveDist = inMove;
+        t->desiredMoveDist = inDesiredMoveDist;
         
         t->actorChangeChance = inActorChangeChance;
         t->targetChangeChance = inTargetChangeChance;
