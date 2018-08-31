@@ -2,7 +2,7 @@
 
 if [ ! -e minorGems ]
 then
-	git clone https://github.com/jasonrohrer/minorGems.git	
+	git clone https://github.com/UncleGus/minorGems.git	
 fi
 
 if [ ! -e OneLife ]

@@ -33,6 +33,7 @@ class SettingsPage : public GamePage, public ActionListener {
     protected:
         
         int mOldFullscreenSetting;
+        int mOldBorderlessSetting;
         
         SoundUsage mTestSound;
 
@@ -44,9 +45,19 @@ class SettingsPage : public GamePage, public ActionListener {
         TextButton mRedetectButton;
 
         CheckboxButton mFullscreenBox;
+        CheckboxButton mBorderlessBox;
         
 
         ValueSlider mMusicLoudnessSlider;
         ValueSlider mSoundEffectsLoudnessSlider;
+
+
+        CheckboxButton mUseCustomServerBox;
         
+        TextField mCustomServerAddressField;
+        TextField mCustomServerPortField;
+
+        TextButton mCopyButton;
+        TextButton mPasteButton;
+;
     };
