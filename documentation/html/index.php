@@ -320,6 +320,8 @@ echo "<center>[<a href=artLogPage.php>More Artwork...</a>]</center>";
 
 $numNewsPerPage = 1;
 $newsSummaryOnly = 1;
+$newsForumID = 4;
+$newsLinkPage = "newsPage.php";
 include( "news.php" );
 
 ?>
@@ -330,6 +332,26 @@ include( "news.php" );
 <br>
 
 <br>
+
+
+
+<?php
+
+$numNewsPerPage = 1;
+$newsSummaryOnly = 1;
+$newsForumID = 8;
+$newsLinkPage = "fanArtPage.php";
+include( "news.php" );
+
+?>
+<br>
+
+<br>
+
+<br>
+
+<br>
+
 
 
 <center>

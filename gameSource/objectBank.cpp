@@ -328,7 +328,26 @@ float initObjectBankStep() {
                 next++;
                             
                 r->description = stringDuplicate( lines[next] );
-                            
+                         
+
+                r->mayHaveMetadata = false;
+                
+                r->written = false;
+                r->writable = false;
+                
+                if( strstr( r->description, "&" ) != NULL ) {
+                    // some flags in name
+                    if( strstr( r->description, "&written" ) != NULL ) {
+                        r->written = true;
+                        r->mayHaveMetadata = true;
+                        }
+                    if( strstr( r->description, "&writable" ) != NULL ) {
+                        r->writable = true;
+                        r->mayHaveMetadata = true;
+                        }
+                    }
+                
+
                 next++;
                             
                 int contRead = 0;                            
@@ -865,6 +884,21 @@ float initObjectBankStep() {
                     next++;                        
                     }
 
+
+                r->anySpritesBehindPlayer = false;
+                r->spriteBehindPlayer = NULL;
+
+                if( strstr( lines[next], "spritesDrawnBehind=" ) != NULL ) {
+                    r->anySpritesBehindPlayer = true;
+                    r->spriteBehindPlayer = new char[ r->numSprites ];
+                    memset( r->spriteBehindPlayer, false, r->numSprites );
+                    sparseCommaLineToBoolArray( "spritesDrawnBehind", 
+                                                lines[next],
+                                                r->spriteBehindPlayer, 
+                                                r->numSprites );
+                    next++;
+                    }
+                
 
 
                 sparseCommaLineToBoolArray( "headIndex", lines[next],
@@ -1543,6 +1577,11 @@ static void freeObjectRecord( int inID ) {
             if( idMap[inID]->variableDummyIDs != NULL ) {
                 delete [] idMap[inID]->variableDummyIDs;
                 }
+            
+            if( idMap[inID]->spriteBehindPlayer != NULL ) {
+                delete [] idMap[inID]->spriteBehindPlayer;
+                }
+
 
             delete [] idMap[inID]->spriteSkipDrawing;
             
@@ -1614,6 +1653,10 @@ void freeObjectBank() {
             if( idMap[i]->variableDummyIDs != NULL ) {
                 delete [] idMap[i]->variableDummyIDs;
                 }
+            
+            if( idMap[i]->spriteBehindPlayer != NULL ) {
+                delete [] idMap[i]->spriteBehindPlayer;
+                }
 
             delete [] idMap[i]->spriteSkipDrawing;
 
@@ -1666,6 +1709,7 @@ int reAddObject( ObjectRecord *inObject,
                         inObject->leftBlockingRadius,
                         inObject->rightBlockingRadius,
                         inObject->drawBehindPlayer,
+                        inObject->spriteBehindPlayer,
                         biomeString,
                         inObject->mapChance,
                         inObject->heatValue,
@@ -1760,8 +1804,12 @@ void resaveAll() {
 
 
 
+#include "objectMetadata.h"
+
 
 ObjectRecord *getObject( int inID ) {
+    inID = extractObjectID( inID );
+    
     if( inID < mapSize ) {
         if( idMap[inID] != NULL ) {
             return idMap[inID];
@@ -1932,6 +1980,7 @@ int addObject( const char *inDescription,
                char inBlocksWalking,
                int inLeftBlockingRadius, int inRightBlockingRadius,
                char inDrawBehindPlayer,
+               char *inSpriteBehindPlayer,
                char *inBiomes,
                float inMapChance,
                int inHeatValue,
@@ -1987,6 +2036,19 @@ int addObject( const char *inDescription,
     if( inSlotTimeStretch < 0.0001 ) {
         inSlotTimeStretch = 0.0001;
         }
+
+
+    SimpleVector<int> drawBehindIndicesList;
+    
+    if( inSpriteBehindPlayer != NULL ) {    
+        for( int i=0; i<inNumSprites; i++ ) {
+            if( inSpriteBehindPlayer[i] ) {
+                drawBehindIndicesList.push_back( i );
+                }
+            }
+        }
+    
+    
     
     int newID = inReplaceID;
     
@@ -2185,7 +2247,14 @@ int addObject( const char *inDescription,
             }
         
 
-        // FIXME
+
+        if( drawBehindIndicesList.size() > 0 ) {    
+            lines.push_back(
+                boolArrayToSparseCommaString( "spritesDrawnBehind",
+                                              inSpriteBehindPlayer, 
+                                              inNumSprites ) );
+            }
+        
 
         lines.push_back(
             boolArrayToSparseCommaString( "headIndex",
@@ -2323,6 +2392,17 @@ int addObject( const char *inDescription,
     r->leftBlockingRadius = inLeftBlockingRadius;
     r->rightBlockingRadius = inRightBlockingRadius;
     r->drawBehindPlayer = inDrawBehindPlayer;
+
+
+    r->anySpritesBehindPlayer = false;
+    r->spriteBehindPlayer = NULL;
+
+    if( drawBehindIndicesList.size() > 0 ) {    
+        r->anySpritesBehindPlayer = true;
+        r->spriteBehindPlayer = new char[ inNumSprites ];
+        memcpy( r->spriteBehindPlayer, inSpriteBehindPlayer, inNumSprites );
+        }
+    
     
     r->wide = ( r->leftBlockingRadius > 0 || r->rightBlockingRadius > 0 );
     
@@ -3658,7 +3738,6 @@ double getClosestObjectPart( ObjectRecord *inObject,
         bodyPos = inObject->spritePos[ bodyIndex ];
         }
 
-    int backArmTopIndex = getBackArmTopIndex( inObject, inAge );
     
     char tunicChecked = false;
     char hatChecked = false;
@@ -3698,8 +3777,10 @@ double getClosestObjectPart( ObjectRecord *inObject,
                     }
                 hatChecked = true;
                 }
-            else if( i < backArmTopIndex && ! tunicChecked ) {
+            else if( !tunicChecked ) {
                 // bottom, tunic, and backpack behind back arm
+                // but ignore the arm when checking for clothing hit
+                // we never want to click on arm instead of the clothing
                 
                 
                 cObj[0] = inClothing->backpack;        
@@ -4683,6 +4764,10 @@ int hideIDForClient( int inObjectID ) {
         if( o->isVariableDummy && o->isVariableHidden ) {
             // hide from client
             inObjectID = o->variableDummyParent;
+            }
+        else {
+            // this has any metadata stripped off
+            inObjectID = o->id;
             }
         }
     return inObjectID;
