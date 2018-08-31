@@ -1,4 +1,6 @@
 #include "curses.h"
+#include "curseLog.h"
+
 
 #include "minorGems/util/SettingsManager.h"
 #include "minorGems/util/stringUtils.h"
@@ -58,11 +60,65 @@ static SimpleVector<char*> newTokenEmails;
 
 
 void initCurses() {
+    initCurseLog();
+
+    FILE *f = fopen( "curseSave.txt", "r" );
+    
+    if( f != NULL ) {
+        char email[100];
+        int tokens;
+        int score;
+        
+        double livedTimeSinceTokenSpent;
+        double livedTimeSinceScoreDecrement;
+
+        int numRead = 5;
+        
+        while( numRead == 5 ) {
+            numRead = fscanf( f, "%99s %d %d %lf %lf", email, &tokens, &score,
+                              &livedTimeSinceTokenSpent, 
+                              &livedTimeSinceScoreDecrement );
+            
+            if( numRead == 5 ) {
+                CurseRecord r;
+                r.email = stringDuplicate( email );
+                r.tokens = tokens;
+                r.score = score;
+                r.alive = false;
+                r.bornCursed = false;
+                r.aliveStartTimeSinceScoreDecrement = 0;
+                r.aliveStartTimeSinceScoreDecrement = 0;
+                
+                r.livedTimeSinceTokenSpent = livedTimeSinceTokenSpent;
+                r.livedTimeSinceScoreDecrement = livedTimeSinceScoreDecrement;
+                r.lastBirthTime = Time::getCurrentTime();
+                
+                curseRecords.push_back( r );
+                }
+            }
+        fclose( f );
+        }
     }
 
 
 
+
 void freeCurses() {
+    
+    FILE *f = fopen( "curseSave.txt", "w" );
+    
+    if( f != NULL ) {
+        for( int i=0; i<curseRecords.size(); i++ ) {
+            CurseRecord *r = curseRecords.getElement( i );
+            
+            fprintf( f, "%s %d %d %.f %.f\n", r->email, r->tokens, r->score,
+                     r->livedTimeSinceTokenSpent, 
+                     r->livedTimeSinceScoreDecrement );
+            }
+        fclose( f );
+        }
+
+
     for( int i=0; i<playerNames.size(); i++ ) {
         PlayerNameRecord *r = playerNames.getElement( i );
         
@@ -82,6 +138,8 @@ void freeCurses() {
 
 
     newTokenEmails.deallocateStringElements();
+    
+    freeCurseLog();
     }
 
 
@@ -139,6 +197,9 @@ static void stepCurses() {
 
             if( r->livedTimeSinceScoreDecrement + aliveTime >= decrementTime ) {
                 r->score --;
+                
+                logCurseScore( r->email, r->score );
+                
                 r->livedTimeSinceScoreDecrement = 0;
                 r->aliveStartTimeSinceScoreDecrement = curTime;
                 }
@@ -308,7 +369,8 @@ void getNewCurseTokenHolders( SimpleVector<char*> *inEmailList ) {
 
 
 
-char cursePlayer( char *inGiverEmail, char *inReceiverName ) {
+char cursePlayer( int inGiverID, char *inGiverEmail, 
+                  char *inReceiverName ) {
     stepCurses();
     
     CurseRecord *receiverRecord = findCurseRecordByName( inReceiverName );
@@ -351,6 +413,10 @@ char cursePlayer( char *inGiverEmail, char *inReceiverName ) {
     if( receiverRecord->alive ) {
         receiverRecord->aliveStartTimeSinceScoreDecrement = curTime;
         }
+
+    logCurse( inGiverID, inGiverEmail, receiverRecord->email );
+    
+    logCurseScore( receiverRecord->email, receiverRecord->score );
 
     return true;
     }
