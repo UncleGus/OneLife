@@ -14,6 +14,14 @@ Server Fixes
 --Holding age restrictions now correctly apply to what you end up holding after
   healing someone (babies can no longer remove arrows from wounded people).
 
+--Support for writing attached to objects through new map metadata database.
+
+--Fixed a bunch of server cases that weren't calling hideIDForClient before
+  sending object ID to client, which was causing a client-side crash when
+  metadata IDs were not being stripped out.
+
+--Say limit based on age only enforced when reading if you are < 10 years old.
+
 
 
 

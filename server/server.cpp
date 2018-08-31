@@ -2697,11 +2697,21 @@ static void makePlayerSay( LiveObject *inPlayer, char *inToSay) {
 
 
 
-static void holdingSomethingNew( LiveObject *inPlayer ) {
+static void holdingSomethingNew( LiveObject *inPlayer, 
+                                 int inOldHoldingID = 0 ) {
     if( inPlayer->holdingID > 0 ) {
-       ObjectRecord *o = getObject( inPlayer->holdingID );
+       
+        ObjectRecord *o = getObject( inPlayer->holdingID );
         
-        if( o->written ) {
+        ObjectRecord *oldO = NULL;
+        if( inOldHoldingID > 0 ) {
+            oldO = getObject( inOldHoldingID );
+            }
+        
+        if( o->written &&
+            ( oldO == NULL ||
+              ! ( oldO->written || oldO->writable ) ) ) {
+            
             char metaData[ MAP_METADATA_LENGTH ];
             char found = getMetadata( inPlayer->holdingID, 
                                       (unsigned char*)metaData );
@@ -2711,11 +2721,17 @@ static void holdingSomethingNew( LiveObject *inPlayer ) {
                 
                 unsigned int sayLimit = getSayLimit( inPlayer );
                         
-                if( strlen( metaData ) > sayLimit ) {
-                    // truncate
-                    metaData[ sayLimit ] = '\0';
+                if( computeAge( inPlayer ) < 10 &&
+                    strlen( metaData ) > sayLimit ) {
+                    // truncate with ...
+                    metaData[ sayLimit ] = '.';
+                    metaData[ sayLimit + 1 ] = '.';
+                    metaData[ sayLimit + 2 ] = '.';
+                    metaData[ sayLimit + 3 ] = '\0';
                     }
-                makePlayerSay( inPlayer, metaData );
+                char *quotedPhrase = autoSprintf( ":%s", metaData );
+                makePlayerSay( inPlayer, quotedPhrase );
+                delete [] quotedPhrase;
                 }
             }
         }
@@ -2759,7 +2775,7 @@ void handleDrop( int inX, int inY, LiveObject *inDroppingPlayer,
             
             inDroppingPlayer->holdingID = 
                 bareTrans->newTarget;
-            holdingSomethingNew( inDroppingPlayer );
+            holdingSomethingNew( inDroppingPlayer, oldHoldingID );
 
             setFreshEtaDecayForHeld( inDroppingPlayer );
             }
@@ -3159,7 +3175,7 @@ static UpdateRecord getUpdateRecord(
             id = objectRecordToID( cObj );
             }
         
-        char *idString = autoSprintf( "%d", id );
+        char *idString = autoSprintf( "%d", hideIDForClient( id ) );
         
         clothingListBuffer.appendElementString( idString );
         delete [] idString;
@@ -3170,7 +3186,10 @@ static UpdateRecord getUpdateRecord(
                 char *contString = 
                     autoSprintf( 
                         ",%d", 
-                        inPlayer->clothingContained[c].getElementDirect( cc ) );
+                        hideIDForClient( 
+                            inPlayer->
+                            clothingContained[c].getElementDirect( cc ) ) );
+                
                 clothingListBuffer.appendElementString( contString );
                 delete [] contString;
                 }
@@ -3211,7 +3230,7 @@ static UpdateRecord getUpdateRecord(
         inPlayer->heldOriginValid,
         //inPlayer->heldOriginX - inRelativeToPos.x,
         //inPlayer->heldOriginY - inRelativeToPos.y,
-        inPlayer->heldTransitionSourceID,
+        hideIDForClient( inPlayer->heldTransitionSourceID ),
         inPlayer->heat,
         posString,
         computeAge( inPlayer ),
@@ -3219,7 +3238,7 @@ static UpdateRecord getUpdateRecord(
         computeMoveSpeed( inPlayer ),
         clothingList,
         inPlayer->justAte,
-        inPlayer->justAteID,
+        hideIDForClient( inPlayer->justAteID ),
         inPlayer->responsiblePlayerID,
         heldYum,
         deathReason );
@@ -4777,7 +4796,7 @@ static void handleHoldingChange( LiveObject *inPlayer, int inNewHeldID ) {
         }
 
     nextPlayer->holdingID = inNewHeldID;
-    holdingSomethingNew( inPlayer );
+    holdingSomethingNew( inPlayer, oldHolding );
 
     if( newHeldSlots > 0 && 
         oldHolding != 0 ) {
@@ -4912,17 +4931,25 @@ void readPhrases( const char *inSettingsName,
 
 // returns pointer to name in string
 char *isNamingSay( char *inSaidString, SimpleVector<char*> *inPhraseList ) {
+    char *saidString = inSaidString;
+    
+    if( saidString[0] == ':' ) {
+        // skip first :
+        // reading written phrase aloud has same effect as saying it
+        saidString = &( saidString[1] );
+        }
+    
     for( int i=0; i<inPhraseList->size(); i++ ) {
         char *testString = inPhraseList->getElementDirect( i );
         
-        if( strstr( inSaidString, testString ) == inSaidString ) {
+        if( strstr( inSaidString, testString ) == saidString ) {
             // hit
             int phraseLen = strlen( testString );
             // skip spaces after
-            while( inSaidString[ phraseLen ] == ' ' ) {
+            while( saidString[ phraseLen ] == ' ' ) {
                 phraseLen++;
                 }
-            return &( inSaidString[ phraseLen ] );
+            return &( saidString[ phraseLen ] );
             }
         }
     return NULL;
@@ -5227,7 +5254,8 @@ void monumentStep() {
                                              nextPlayer->birthPos.x, 
                                              monumentCallY -
                                              nextPlayer->birthPos.y,
-                                             monumentCallID );
+                                             hideIDForClient( 
+                                                 monumentCallID ) );
                 int messageLength = strlen( message );
 
 
@@ -7358,6 +7386,24 @@ int main() {
                                 nextPlayer->holdingID = 
                                     addMetadata( nextPlayer->holdingID,
                                                  metaData );
+
+                                TransRecord *writingHappenTrans =
+                                    getMetaTrans( 0, nextPlayer->holdingID );
+                                
+                                if( writingHappenTrans != NULL &&
+                                    writingHappenTrans->newTarget > 0 &&
+                                    getObject( writingHappenTrans->newTarget )
+                                        ->written ) {
+                                    // bare hands transition going from
+                                    // writable to written
+                                    // use this to transform object in 
+                                    // hands as we write
+                                    handleHoldingChange( 
+                                        nextPlayer,
+                                        writingHappenTrans->newTarget );
+                                    playerIndicesToSendUpdatesAbout.
+                                        push_back( i );
+                                    }                    
                                 }    
                             }
                         
@@ -7551,11 +7597,13 @@ int main() {
                                         // leave bloody knife or
                                         // whatever in hand
                                         nextPlayer->holdingID = rHit->newActor;
-                                        holdingSomethingNew( nextPlayer );
+                                        holdingSomethingNew( nextPlayer,
+                                                             oldHolding);
                                         }
                                     else if( r != NULL ) {
                                         nextPlayer->holdingID = r->newActor;
-                                        holdingSomethingNew( nextPlayer );
+                                        holdingSomethingNew( nextPlayer,
+                                                             oldHolding );
                                         }
 
 
@@ -8723,7 +8771,8 @@ int main() {
                                     if( r != NULL ) {
                                         int oldHolding = nextPlayer->holdingID;
                                         nextPlayer->holdingID = r->newActor;
-                                        holdingSomethingNew( nextPlayer );
+                                        holdingSomethingNew( nextPlayer,
+                                                             oldHolding );
 
                                         if( oldHolding !=
                                             nextPlayer->holdingID ) {
@@ -12242,7 +12291,7 @@ int main() {
                         "#",
                         nextPlayer->foodStore,
                         cap,
-                        nextPlayer->lastAteID,
+                        hideIDForClient( nextPlayer->lastAteID ),
                         nextPlayer->lastAteFillMax,
                         computeMoveSpeed( nextPlayer ),
                         nextPlayer->responsiblePlayerID,
