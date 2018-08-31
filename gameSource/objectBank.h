@@ -73,6 +73,10 @@ typedef struct ObjectRecord {
         // wide objects have this set to true automatically
         char drawBehindPlayer;
         
+        // for individual sprite indices that are drawn behind
+        // when whole object is not drawn behind
+        char anySpritesBehindPlayer;
+        char *spriteBehindPlayer;
         
         // biome numbers where this object will naturally occur according
         // to mapChance below
@@ -293,6 +297,15 @@ typedef struct ObjectRecord {
 
         char isVariableHidden;
 
+
+        // flags derived from various &flags in object description
+        char written;
+        char writable;
+
+        char mayHaveMetadata;
+        
+
+
     } ObjectRecord;
 
 
@@ -400,6 +413,7 @@ int addObject( const char *inDescription,
                char inBlocksWalking,
                int inLeftBlockingRadius, int inRightBlockingRadius,
                char inDrawBehindPlayer,
+               char *inSpriteBehindPlayer,
                char *inBiomes,
                float inMapChance,
                char inWaterObject,

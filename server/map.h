@@ -6,6 +6,7 @@
 #include "minorGems/system/Time.h"
 
 #include "../gameSource/GridPos.h"
+#include "../gameSource/transitionBank.h"
 
 
 
@@ -30,7 +31,8 @@ typedef struct ChangePosition {
 
 
 
-void initMap();
+// returns true on success
+char initMap();
 
 
 void freeMap();
@@ -79,6 +81,8 @@ void setResponsiblePlayer( int inPlayerID );
 
 int getMapObject( int inX, int inY );
 
+char isMapSpotBlocking( int inX, int inY );
+
 
 // is the object returned by getMapObject still in motion with
 // destination inX, inY
@@ -88,7 +92,8 @@ char isMapObjectInTransit( int inX, int inY );
 void setMapObject( int inX, int inY, int inID );
 
 
-void setEtaDecay( int inX, int inY, timeSec_t inAbsoluteTimeInSeconds );
+void setEtaDecay( int inX, int inY, timeSec_t inAbsoluteTimeInSeconds,
+                  TransRecord *inApplicableTrans = NULL );
 
 
 timeSec_t getEtaDecay( int inX, int inY );
@@ -221,11 +226,44 @@ char isWaterBiomeCell( int inX, int inY );
 
 
 
+typedef struct {
+        unsigned int uniqueLoadID;
+        char *mapFileName;
+        char fileOpened;
+        FILE *file;
+        int x, y;
+        double startTime;
+        int stepCount;
+    } TutorialLoadProgress;
+
+    
+
+
 // returns true on success
 // example:
-// loadTutorial( "tutorialA.txt", 10000, 10000 )
-char loadTutorial( const char *inMapFileName, int inX, int inY );
+// loadTutorial( newPlayer.tutorialLoad, "tutorialA.txt", 10000, 10000 )
+char loadTutorialStart( TutorialLoadProgress *inTutorialLoad,
+                        const char *inMapFileName, int inX, int inY );
 
+
+// returns true if more steps are needed
+// false if done
+char loadTutorialStep( TutorialLoadProgress *inTutorialLoad,
+                       double inTimeLimitSec );
+
+
+
+
+#define MAP_METADATA_LENGTH 128
+
+// inBuffer must be at least MAP_METADATA_LENGTH bytes
+// returns true if metadata found
+char getMetadata( int inMapID, unsigned char *inBuffer );
+
+
+// returns full map ID with embedded metadata ID for new metadata record
+int addMetadata( int inObjectID, unsigned char *inBuffer );
+    
 
 
 #endif

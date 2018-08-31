@@ -3,11 +3,387 @@ This file only list changes to game code.  Changes to content can be found here:
 http://onehouronelife.com/updateLog.php
 
 
+Version 132    ???
+
+--Fixed scene editor animation speed of people holding speedMult objects.
+
+
+
+Server Fixes
+
+--Holding age restrictions now correctly apply to what you end up holding after
+  healing someone (babies can no longer remove arrows from wounded people).
+
+--Support for writing attached to objects through new map metadata database.
+
+--Fixed a bunch of server cases that weren't calling hideIDForClient before
+  sending object ID to client, which was causing a client-side crash when
+  metadata IDs were not being stripped out.
+
+--Say limit based on age only enforced when reading if you are < 10 years old.
+
+
+
+
+Version 130    2018-August-17
+
+--Fixed GUI layout spacing in scene editor.
+
+--Fixed glitch in moving objects that consume destination object (visual
+  duplication of objects) if client falls behind server moves.
+
+--Editor support for inverting scanned sprites (for making white smoke).
+
+--Support for certain sprite layers being drawn behind player (example:
+  tracks under cart).
+
+--Floors can have speed modifiers (roads make you move faster, for example),
+  but they are only applied by client and server if entire path is on the same
+  floor.
+
+--Auto-follow rideable floors (aka roads).
+
+
+
+
+Server Fixes
+
+--Added a few more MySQL indexes to speed up front page queries in lineage
+  server.  One of these queries used to take 1.2 seconds, and now takes
+  0.00079350 seconds, or a 1500x speedup.  Front page of family tree browser
+  now loads quickly.
+
+--Support for skipping look-time based cleanup for profiling purposes.
+
+--Support for skipping removed object cleanup and use dummy cleanup (to speed
+  up profiling cycle).
+
+--Profiler found that looking up container cells in map, when doing
+  lookAtRegion operation, was a huge hotspot.  All we needed was a count of
+  how many contained items are present.  We don't need a db lookup for that.
+  Now storing these in a hash table.  This results in a 91x speedup for the 
+  lookAtMapRegion call.
+
+--We can safely assume ID=0 tiles never decay, greatly improving performcance
+  of checkDecayObject, which is called a lot when people are moving around the
+  map.
+
+--Profiler found that tokenizeString, which is used to parse client messages,
+  consumes a resonable amount of CPU.  Wrote optimzed version for 2x speedup.
+
+--Switched to a 7x faster in-place tokenizeString implementation for parsing
+  MOVE messages.
+
+--Profiler found sscanf hotspot in message parsing code.  Replaced with own
+  task-specific implementation for a 4x speedup. 
+
+--Next profiler hotspot is dbLookTimePut, which is being called in every dbGet
+  call, even if dbGet result is cached in RAM.  We're constantly touching the
+  lookTime database.  But look times don't need to be so fine-grained.  +/- 1
+  hour precision is fine.  Changed lookTime db coordinates to be x/100,y/100
+  (one time for every chunk of 100x100 tiles), and changed to register new look
+  times only when map chunks are fetched (registering the four corners of the
+  chunk only).
+
+--Next profiler hotspot:  RAM caching around time.db.
+
+--Next profiler hotspot:  isMapSpotBlocking, which is called for each spot on
+  each move path submitted.  RAM caching results, and clearing cache record
+  when map cell changes.
+
+--Profiler found that printf was actually using quite a bit of CPU.  Removed
+  all printf statements from MOVE message processing.  This is the most common
+  message type, and processing it involved the most print statements.
+
+--Support for flushing look times on first server startup to avoid mismatch
+  errors between old look time format, which was indexed as x,y, and new
+  format, which is indexed as x/100, y/100.  On first startup after this
+  change, we treat all map cells as not stale.
+
+--Profiler hotspot:  getChunkMessage is checking for contained items even for
+  empty map cells or cells that have no container slots.
+
+--Profiler hotspot:  the existence of tutorial maps in biome database causes
+  biome to be looked up elsewhere on map.  We can track max/min x,y locations
+  where biomes exist before looking in the biome database.
+
+
+--Switched over to new, custom-coded linearDB as a replacement for stackDB.
+  Huge performance gains.
+
+--Disabled nightly server map backup operation.  Map databases have gotten so
+  big that this operation, which must interrupt server activity for safety, now
+  takes 10 seconds on server1.  These map backups have never been needed and
+  take up substantial disk space.
+
+--LinearDB3 is in place.  Inserts are much faster.  Other operations are faster
+  than any previous database engine.
+
+--Profiler found 5M+ vector operations happening for each tutorial map insert
+  (because we're checking for map changes).  Disabled map change tracking
+  during tutorial map insert.  This could cause some strange behavior if an
+  escaped tutorial player walks into a new player's tutorial area at the moment
+  of loading, but there's going to be strange behavior there no matter what.
+
+--Split tutorial map loading up into 5-ms steps that are interleaved with other
+  server processing steps.  Server no longer stalls for 1+ second while a
+  tutorial map loads into a full database.  Tutorial players may have to wait
+  a tiny bit longer, but that's okay.
+
+--Index added to name colum of lineage server lives database to make name
+  searches faster.
+
+--Lineage server now only supports name prefixes in character name searches
+  (so 'Jon' matches 'Jonathan Lucky' but 'Lucky' does not match it).  Turned
+  out that full wildcard searches involved a full table scan and had gotten
+  intolerably slow, even after the index for names was added.
+
+--Player cap up to 200 on all servers, preparing to roll out new lineardb3 to
+  all.
+
+--Fixed major high CPU spike issue due to uninitialized variable.
+  Thanks Jincheng L.
+
+--Fixed server crash due to a typo.
+
+--Fixed bug in adding transitions with a move distance.
+
+--Objects that move N/S/E/W keep moving even when out of view, permitting
+  long-distance rails to function.
+
+--Fixed potential c-standard violation in having same file fopen-ed multiple
+  times in parallel during tutorial map loading.
+
+--Fixed handling of transitions where object moves onto bare ground.
+
+--Apply bare ground transition, if any, when object blocked from moving.
+
+--NSEW moves never move farther than specified, even if ground object present.
+
+--Fixed a bug in the loop over possible spots to move to (don't need i=0).
+
+--Eve placement adjusted to bring Eves twice as close together as before.
+
+
+
+
+
+Version 126    2018-July-18
+
+--Trim whitespace from start and end of twin codes entered by user. 
+  Hidden whitespace could cause a mismatch.
+
+--Wow.  Twin implementation in client is totally broken, and not sending twin
+  code to reflector at all.  Anyone who successfully played with twins so far
+  was just lucky (both got sent to the same server by random chance).
+
+--MENU button on rebirth choice page to return to login screen.
+
+--Borderless mode on settings page.
+
+--More info in fps mismatch error message.
+
+--Custom server can now be configured on SETTINGS page.
+
+--Fixed wayward KEEP_ALIVE message from client if player waits a while before
+  pressing LOGIN button.  Fixed lots of other little connection glitches, and
+  made the connection phases more clear (connecting vs waiting to be born vs
+  loading map).
+
+--Custom server status shown on connection page if set.  No more forgetting
+  that it's set and wondering why you can't connect with a friend.
+
+--Fixed bug in reopening connection after signal set to leave LivingLifePage.
+  This was causing a bad socket to remain open, which could cause subsequent
+  logins to fail (usually after pressing x to leave twin waiting screen).
+
+
+
+
+
+
+
+Server Fixes
+
+--Eve location reususe after server restart upped to 10 chances instead of 3.
+  Also made it a setting that can be changed at runtime.
+
+--Proper formatting of roman numeral suffixes in family tree browser.
+
+--Added tracking of which names have suffix already in server to avoid
+  mistakenly treating suffix like a last name.
+
+
+
+Version 125    2018-July-13
+
+--Added client source code version match check in platform build scripts
+  (to prevent problem that happened during release of v123).
+
+--Fixed invisible babies, bouncing forever, duplicated objects, and all sorts
+  of other problems caused when a player carries a baby out of range (so that
+  updates aren't received about them anymore), and then a different player
+  carries the same baby back into range.  Messages about the held baby were
+  being queued by the client, since the client was still waiting for the first
+  player to drop the baby, but the drop happened out of range.
+
+--Fixed so that mouse-over works correctly for moving people (you used to have
+  to mouse over the next tile on their path, but now you can mouse over their
+  exact position mid-move).  This also makes it much easier to kill a moving
+  player that is crossing over thing on the ground.
+
+--Added player ID parameter to KILL, BABY, and UBABY client messages to specify
+  a specific player that the client clicked on (no more killing a bystander who
+  was standing in the same tile as the person you actually clicked on, and no
+  more grabbing the wrong baby).
+
+--Players have always been drawn in age order (youngest in front), so now
+  mouse-over works the same way.  This worked by accident most of the time,
+  because most people enter the game in age order, but was broken for an Eve
+  that entered later than a baby (she would capture mouse clicks of the baby
+  she was standing visually behind).
+
+--TEMP LOGIN was a confusing feature.  Added CLEAR ACCOUNT button instead.
+
+--Twin system.  Players can share a code friends and get born as identical
+  twins, triplets, or quadruplets.
+
+
+
+
+
+Server Fixes
+
+--Server logs curses cast and curse score changes.  These logs are backed up
+  along with lifeLogs.
+
+--Web export of curse logs along with life logs.
+
+--Curse system saves state between runs of given server.  Thus, cursed status
+  isn't reset when server restarts (no more free pass to griefers right before
+  an update).
+
+
+
+
+Version 123    2018-July-10
+
+--Fixed memory leak and uninitialized variable.
+
+--Fixed bad memory access in audio callback when shutting down.
+
+--Fixed memory leak in update process.
+
+
+
+
+Windows base update:   Version 65c    2018-July-10
+
+--Fixed slow newline replacement code (as part of update process) that was 
+  getting bogged down when processing text files with many lines.
+
+
+
+
+Server Fixes
+
+--Anyone can name a held baby, even adoptive parents.  They get the last name
+  of their adoptive parent.  An unnamed person who is older than baby age can
+  be named by anyone nearby, but they will never have a last name.
+
+--If a name isn't unique as far as the curse system is concerned, a roman
+  numeral suffix (II, III, IV, V, etc.) is automatically added.
+
+--Data-only diff bundle generation script now skips scenes.  They never should
+  have been included, and the tutorial map scene was BIG (26,000 lines).
+
+
+
+
+Version 122    2018-July-6
+
+--Back to updating hard-coded version number with every client update.  Not
+  sure what I was thinking there.  Saw a version mismatched and found the
+  wrong reason for it.
+
+
+
+
+Version 121    2018-July-6
+
+--Fixed newly introduced bug in sound volumes for positioned sound source when
+  far enough away that volume equation becomes negative (was causing all kinds
+  of sound glitches).
+
+--Responds to new SD (FORCED_SHUTDOWN) message from server.
+
+--Fixed bug that prevented body clothing from being removed.
+  Thanks Midget Maker.
+
+
+
+Server Fixes
+
+--Added new forcedShutdown trigger for server, to cleanly shut down server,
+  and send notice to connected clients, without waiting for everyone to live
+  out their lives.  Need this for emergencies sometimes, and sending SIGSTP to
+  the server, unlike ctrl-z, wasn't working.
+
+
+
+
+Version 119    2018-July-6
+
+--Fixed glitch when picked up and put down by an adult who still has messages
+  pending (thanks Jacek T).  Also handled case where two adults are passing
+  baby back and forth.  It's still a little jumpy if the baby's client has
+  delay, but at least the end result is correct now.
+
+--Fixed bug where player can still try to click on baby's old ground location
+  while the baby is held by someone else.
+
+--NONE RELEVANT if the filter matches, but no transitions are relevant, but
+  NO MATCH if the filter simply doesn't match anything.
+
+--Fixed so that you can't click on arm by accident when trying to click on
+  tunic, bottom, or backpack clothing.  Arm should be unclickable if you are
+  wearing clothes.
+
+--Curse system.  Everyone starts with one curse token and zero curse points. 
+  CURSE JANE SMITH curses Jane Smith, giving her one curse point, and consuming
+  the sayer's curse token.  Sayer gets new curse token after two hours of play.
+  One curse point removed after each hour of play.  A baby with ten or more
+  curse points is born marked.  A marked person cannot be cursed further until
+  they are born unmarked later.  Curse token displayed near temp meter.
+
+--Fixed several bugs in UI paper slip animations and clearing when not
+  operating at full frame rate.
+
+--Home arrow shows tile distance if target is more than 1000 tiles away.
+  Useful for judging whether distant monuments are worth the trip.
+
+
+
 
 Server Fixes
 
 --Fixed typo in computation of stagger time for player who is wounded multiple
   times.  Fixes #41.  Thanks UncleGus.
+
+--Added YOU'RE and YOURE and I'M and IM as naming phrases, after seeing that in
+  the Life of Bumpy video.
+
+--Fixed so that grave doesn't disappear if you are standing on a cross of
+  permanent objects when you die.  Server now searches in a spiral of 100
+  tiles around your current location to find an empty spot for your grave.
+
+--Max players back down to 140 from 200, so load balancing kicks in at 70
+  players instead of at 100 players.
+
+--Fixed some crashes when baby marked as held by player that is gone.
+
+--Fixed order of naming phrases so that prefixes of other phrases come last.
+
 
 
 
