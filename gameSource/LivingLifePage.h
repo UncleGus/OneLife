@@ -60,6 +60,10 @@ typedef struct LiveObject {
 
         char *relationName;
         
+        int curseLevel;
+        
+        int curseTokenCount;
+        
 
         // roll back age temporarily to make baby revert to crying
         // when baby speaks
@@ -78,6 +82,12 @@ typedef struct LiveObject {
         // by an adult
         int heldByAdultID;
         
+        // -1 if not set
+        // otherwise, ID of adult that is holding us according to pending
+        // messages, but not according to already-played messages
+        int heldByAdultPendingID;
+        
+
         // usually 0, unless we're being held by an adult
         // and just got put down
         // then we slide back into position
@@ -256,6 +266,8 @@ typedef struct LiveObject {
         // wall clock time when speech should start fading
         double speechFadeETATime;
 
+        char speechIsSuccessfulCurse;
+        
 
         char shouldDrawPathMarks;
         double pathMarkFade;
@@ -547,6 +559,9 @@ class LivingLifePage : public GamePage {
         
         HomeArrow mHomeArrowStates[ NUM_HOME_ARROWS ];
         
+        SimpleVector<char*> mPreviousHomeDistStrings;
+        SimpleVector<float> mPreviousHomeDistFades;
+        
 
         // offset from current view center
         doublePair mNotePaperHideOffset;
@@ -575,6 +590,7 @@ class LivingLifePage : public GamePage {
         char mPulseHungerSound;
 
         SoundSpriteHandle mTutorialSound;
+        SoundSpriteHandle mCurseSound;
 
         
         SpriteHandle mHungerSlipSprites[3];
@@ -757,6 +773,15 @@ class LivingLifePage : public GamePage {
         double mPageStartTime;
 
         void computePathToDest( LiveObject *inObject );
+        
+        double computePathSpeedMod( LiveObject *inObject, int inPathLength );
+        
+        // check if same floor is present when we take a step in x or y
+        char isSameFloor( int inFloor, GridPos inFloorPos, int inDX, int inDY );
+        
+        // forces next pointerDown call to avoid everything but ground clicks
+        char mForceGroundClick;
+        
 
 
         LiveObject *getOurLiveObject();
@@ -822,6 +847,24 @@ class LivingLifePage : public GamePage {
 
         SimpleVector<GraveInfo> mGraveInfo;
         
+
+        // allocated space that we can use when temporarily manipulating
+        // an object's skipDrawing array
+        int mSkipDrawingWorkingAreaSize;
+        char *mSkipDrawingWorkingArea;
+        
+        // can prepare one at a time
+        void prepareToSkipSprites( ObjectRecord *inObject, char inDrawBehind );
+        
+        void restoreSkipDrawing( ObjectRecord *inObject );
+        
+
+        // end the move of an extra moving object and stick it back
+        // in the map at its destination.
+        // inExtraIndex is its index in the mMapExtraMovingObjects vectors
+        void endExtraObjectMove( int inExtraIndex );
+        
+
     };
 
 
