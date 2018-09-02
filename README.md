@@ -8,6 +8,8 @@ birthcontrol: gives female players the ability to choose when to have a baby
 
 breastfeed: breastfeeding prevents pregnancy
 
+disablecurses: disables curses
+
 eden: a combination of many other mods
 
 father: adds an Adam for every Eve and uses proximity to nearest adult male as a scalar for birth probability
