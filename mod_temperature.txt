@@ -1,0 +1,5 @@
+Temperatue mod
+
+The function to recalculate a player's heat is normally executed when the server is sending
+an update about the player, i.e. when they have finished moving or performing some action.
+This mod shifts that calculation to a half-second timer instead.
