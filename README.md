@@ -24,4 +24,6 @@ restrain: allows players to team up to overcome a lone opponent
 
 slowhunger: slows down hunger by a percentage when players are standing still
 
+temperature: player heat is calculated every half second instead of whenever an update is sent about them
+
 water: adds a water biome, boats and procedurally generated streams
