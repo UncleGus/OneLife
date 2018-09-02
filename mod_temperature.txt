@@ -3,3 +3,7 @@ Temperatue mod
 The function to recalculate a player's heat is normally executed when the server is sending
 an update about the player, i.e. when they have finished moving or performing some action.
 This mod shifts that calculation to a half-second timer instead.
+
+It also changes how the clothing insulation works. Instead of using it in the heat
+calculation itself, it now calculates the heat independently, then adjusts the player's
+heat towards the new target based on the clothing insulation.

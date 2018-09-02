@@ -6739,7 +6739,7 @@ int main() {
                     ( HEAT_MAP_D / 2 );
                 
 
-                rGrid[ playerMapIndex ] += clothingR;
+                // rGrid[ playerMapIndex ] += clothingR;
                 
                 
                 if( rGrid[ playerMapIndex ] > 1 ) {
@@ -6939,7 +6939,18 @@ int main() {
                 // printf( "Player heat = %f\n", playerHeat );
                 
                 // convert into 0..1 range, where 0.5 represents targetHeat
-                nextPlayer->heat = ( playerHeat / targetHeat ) / 2;
+                playerHeat = ( playerHeat / targetHeat ) / 2;
+
+                float heatDifference = playerHeat - nextPlayer->heat;
+
+                if( heatDifference < 0 ) {
+                    // new temperature is colder than player, apply clothing insulation
+                    nextPlayer->heat = nextPlayer->heat + 0.25 * playerHeat;
+                } else {
+                    // new temperature is warmer, do not apply clothing insulation
+                    nextPlayer->heat = nextPlayer->heat + 0.25 * playerHeat * (1 - clothingR);
+                }
+
                 if( nextPlayer->heat > 1 ) {
                     nextPlayer->heat = 1;
                     }
