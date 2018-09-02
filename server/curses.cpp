@@ -262,6 +262,8 @@ static CurseRecord *findCurseRecord( char *inEmail ) {
 
 static int getCurseLevel( CurseRecord *inRecord ) {
 
+    return 0;
+
     if( inRecord == NULL ) {
         return 0;
         }
