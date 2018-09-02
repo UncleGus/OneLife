@@ -15,7 +15,7 @@ static int matureAge = 20;
 
 static int oldAge = 40;
 
-static int deathAge = 60;
+static int forceDeathAge = 60;
 
 
 #include "minorGems/util/SettingsManager.h"
@@ -40,8 +40,8 @@ void initAgeControl() {
     oldAge =
         SettingsManager::getIntSetting( "oldAge", 40 );
 
-    deathAge =
-        SettingsManager::getIntSetting( "deathAge", 60 );
+    forceDeathAge =
+        SettingsManager::getIntSetting( "forceDeathAge", 60 );
 
     }
 
@@ -68,9 +68,9 @@ doublePair getAgeHeadOffset( double inAge, doublePair inHeadSpritePos,
 
     if( inAge >= oldAge ) {
         
-        if( inAge > deathAge ) {
-            // no worse after deathAge
-            inAge = deathAge;
+        if( inAge > forceDeathAge ) {
+            // no worse after forceDeathAge
+            inAge = forceDeathAge;
             }
 
         double maxHead = inHeadSpritePos.y - inBodySpritePos.y;
