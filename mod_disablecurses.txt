@@ -1,0 +1,4 @@
+disablecurses
+
+All this does is treat all players' curse level as 0. All of the other functionality
+remains unchanged, so there is still some work being done by the server for nothing
