@@ -1608,19 +1608,21 @@ char isFertileAge( LiveObject *inPlayer ) {
 
 
 int computeFoodCapacity( LiveObject *inPlayer ) {
-    int ageInYears = lrint( computeAge( inPlayer ) );
+    float pipsPerYear = 16 / (matureAge - 4);
+
+    float ageInYears = computeAge( inPlayer );
     
-    if( ageInYears < (oldAge + 4) ) {
+    if( ageInYears < oldAge ) {
         
         if( ageInYears > (matureAge - 4) ) {
             ageInYears = (matureAge - 4);
             }
         
-        return ageInYears + 4;
+        return lrint( ageInYears * pipsPerYear + 4 );
         }
     else {
         // food capacity decreases as we near death age
-        int cap = forceDeathAge - ageInYears + 4;
+        int cap = lrint( forceDeathAge - ( ageInYears - oldAge ) * pipsPerYear + 4 );
         
         if( cap < 4 ) {
             cap = 4;
