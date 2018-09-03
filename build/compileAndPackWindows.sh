@@ -30,7 +30,7 @@ make
 
 cd ../build
 
-./makeDistributionWindows v$1
+./makeDistributionWindows $1
 
 cd windows
 
