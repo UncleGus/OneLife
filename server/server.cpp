@@ -1608,37 +1608,17 @@ char isFertileAge( LiveObject *inPlayer ) {
 
 
 int computeFoodCapacity( LiveObject *inPlayer ) {
-    float pipsPerYear = 16 / (matureAge - 4);
-    printf("Pips per year is %f\n", pipsPerYear);
-
     float ageInYears = computeAge( inPlayer );
     printf("Player is %f years old\n", ageInYears);
-    
-    if( ageInYears < oldAge ) {
-        printf("Player is not aging yet, %f < %f\n", ageInYears, oldAge);
-        
-        if( ageInYears > (matureAge - 4) ) {
-            printf("Player is an adult, %f > %f\n", ageInYears, (matureAge -4));
-            ageInYears = (matureAge - 4);
-            printf("Player age capped at %f\n", ageInYears);
-            }
-        
-        printf("Food cap calculated as %f\n", lrint( ageInYears * pipsPerYear + 4 ));
-        return lrint( ageInYears * pipsPerYear + 4 );
+
+    if( ageInYears < matureAge ) {
+        return 4 + ageInYears * 16 / matureAge;
+        }
+    else if( ageInYears < oldAge + 4 ) {
+        return 20;
         }
     else {
-        printf("Player is aging, %f > %f\n", ageInYears, oldAge);
-        // food capacity decreases as we near death age
-        printf("Food cap calculated as %f\n", lrint( forceDeathAge - ( ageInYears - oldAge ) * pipsPerYear + 4 ));
-        int cap = lrint( 4 + 16 - pipsPerYear * ( ageInYears - oldAge ));
-        
-        if( cap < 4 ) {
-            printf("Capacity is lower than 4, capping at 4\n");
-            cap = 4;
-            printf("Cap is %d\n", cap);
-            }
-        
-        return cap;
+        return 20 - (ageInYears - oldAge) * 16/(forceDeathAge - oldAge);
         }
     }
 
