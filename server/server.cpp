@@ -1623,14 +1623,14 @@ int computeFoodCapacity( LiveObject *inPlayer ) {
             printf("Player age capped at %f\n", ageInYears);
             }
         
-        printf("Food cap calculated as %d\n", lrint( ageInYears * pipsPerYear + 4 ));
+        printf("Food cap calculated as %f\n", lrint( ageInYears * pipsPerYear + 4 ));
         return lrint( ageInYears * pipsPerYear + 4 );
         }
     else {
         printf("Player is aging, %f > %f\n", ageInYears, oldAge);
         // food capacity decreases as we near death age
-        printf("Food cap calculated as %d\n", lrint( forceDeathAge - ( ageInYears - oldAge ) * pipsPerYear + 4 ));
-        int cap = lrint( forceDeathAge - ( ageInYears - oldAge ) * pipsPerYear + 4 );
+        printf("Food cap calculated as %f\n", lrint( forceDeathAge - ( ageInYears - oldAge ) * pipsPerYear + 4 ));
+        int cap = lrint( 4 + 16 - pipsPerYear * ( ageInYears - oldAge ));
         
         if( cap < 4 ) {
             printf("Capacity is lower than 4, capping at 4\n");
@@ -3611,7 +3611,7 @@ int processLoggedInPlayer( Socket *inSock,
         newObject.isEve = true;
         newObject.lineageEveID = newObject.id;
         
-        newObject.lifeStartTimeSeconds -= 14 * ( 1.0 / getAgeRate() );
+        newObject.lifeStartTimeSeconds -= fertileAge * ( 1.0 / getAgeRate() );
 
         
         int femaleID = getRandomFemalePersonObject();
