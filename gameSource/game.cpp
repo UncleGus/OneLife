@@ -1661,7 +1661,7 @@ void drawFrame( char inUpdate ) {
                         getServerAddressPage->getResponseInt( 
                             "requiredVersionNumber" );
                     
-                    if( versionNumber < requiredVersion ) {
+                    if( versionNumber != requiredVersion ) {
                         
                         char *autoUpdateURL = 
                             getServerAddressPage->getResponse( 
