@@ -6591,8 +6591,10 @@ int main() {
 
             // update heat map here and add player to update list
 
+
             if( Time::getCurrentTime() - nextPlayer->heatUpdateTime > 0.5 ) {
 
+                printf("\nPlayer's current heat is %f\n", nextPlayer->heat);
                 // recompute heat map
                 
                 
@@ -6731,7 +6733,7 @@ int main() {
                     clothingR += backWeight * nextPlayer->clothing.backpack->rValue;
                     }
 
-                //printf( "Clothing r = %f\n", clothingR );
+                printf( "Clothing r = %f\n", clothingR );
                 
                 
                 int playerMapIndex = 
@@ -6933,22 +6935,26 @@ int main() {
                     }
                 */
 
-                float playerHeat = 
+                float envHeat = 
                     nextPlayer->heatMap[ playerMapIndex ];
                 
-                // printf( "Player heat = %f\n", playerHeat );
+                printf( "Environment heat = %f\n", envHeat );
                 
                 // convert into 0..1 range, where 0.5 represents targetHeat
-                playerHeat = ( playerHeat / targetHeat ) / 2;
+                envHeat = ( envHeat / targetHeat ) / 2;
 
-                float heatDifference = playerHeat - nextPlayer->heat;
+                printf( "Environment heat after converstion = %f\n", envHeat );
+
+                float heatDifference = envHeat - nextPlayer->heat;
+
+                printf( "Heat difference = %f\n", heatDifference );
 
                 if( heatDifference < 0 ) {
                     // new temperature is colder than player, apply clothing insulation
-                    nextPlayer->heat = nextPlayer->heat + 0.25 * playerHeat;
+                    nextPlayer->heat = nextPlayer->heat + 0.05 * heatDifference * (1 - clothingR);
                 } else {
                     // new temperature is warmer, do not apply clothing insulation
-                    nextPlayer->heat = nextPlayer->heat + 0.25 * playerHeat * (1 - clothingR);
+                    nextPlayer->heat = nextPlayer->heat + 0.25 * heatDifference;
                 }
 
                 if( nextPlayer->heat > 1 ) {
@@ -6959,7 +6965,7 @@ int main() {
                     }
 
                 nextPlayer->heatUpdateTime += 0.5;
-                playerIndicesToSendUpdatesAbout.push_back( nextPlayer->id );
+                playerIndicesToSendUpdatesAbout.push_back( i );
                 }
             char *message = getNextClientMessage( nextPlayer->sockBuffer );
             
