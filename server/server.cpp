@@ -71,7 +71,7 @@ static JenkinsRandomSource randSource;
 float targetHeat = 10;
 
 
-double secondsPerYear = 60.0;
+double secondsPerYear = 120.0;
 
 
 
