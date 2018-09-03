@@ -82,6 +82,7 @@ int minPickupBabyAge = 10;
 
 int babyAge = 5;
 
+double fertileAge = 14;
 double matureAge = 20;
 double oldAge = 40;
 double forceDeathAge = 60;
@@ -1595,7 +1596,7 @@ char isFertileAge( LiveObject *inPlayer ) {
                     
     char f = getFemale( inPlayer );
                     
-    if( age >= 14 && age <= 40 && f ) {
+    if( age >= fertileAge && age <= oldAge && f ) {
         return true;
         }
     else {
@@ -5416,6 +5417,9 @@ int main() {
     
     matureAge =
         SettingsManager::getFloatSetting( "matureAge", 20 );
+
+    fertileAge =
+        SettingsManager::getFloatSetting( "fertileAge", 14 );
 
     oldAge =
         SettingsManager::getFloatSetting( "oldAge", 40 );

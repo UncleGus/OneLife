@@ -4,6 +4,7 @@ This mod pulls hardcoded age values out to parameters for easy configuration.
 
 Server settings are:
 babyAge: the age up until which a player is considered a baby
+fertileAge: the age at which a player can have a baby
 minPickupBabyAge: the age at which a player can pick up a baby
 fullSpeedAge: the age at which a player can move at full speed
 matureAge: the age at which a player is a mature adult
